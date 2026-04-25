@@ -1,0 +1,72 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/constants/app_colors.dart';
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
+import 'firebase_options.dart';
+
+final themeProvider = StateProvider<bool>((ref) => false);
+final accentColorProvider =
+    StateProvider<Color>((ref) => AppColors.defaultAccent);
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Cloud-based architecture - no local DB init needed
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+    debugPrint('App will continue with local-only mode');
+  }
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+    ),
+  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  runApp(const ProviderScope(child: LostFoundApp()));
+}
+
+class LostFoundApp extends ConsumerWidget {
+  const LostFoundApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
+    final isDarkMode = ref.watch(themeProvider);
+    final accent = ref.watch(accentColorProvider);
+
+    // Update system overlay style for dark mode
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness:
+            isDarkMode ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness:
+            isDarkMode ? Brightness.light : Brightness.dark,
+      ),
+    );
+
+    return MaterialApp.router(
+      title: 'Lost & Found - Bahria University',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(accent: accent),
+      darkTheme: AppTheme.dark(accent: accent),
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      routerConfig: router,
+    );
+  }
+}

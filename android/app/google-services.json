@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "924919259462",
+    "project_id": "bahria-lost-found",
+    "storage_bucket": "bahria-lost-found.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:924919259462:android:a3b8add774d81b60d0c547",
+        "android_client_info": {
+          "package_name": "pk.edu.bahria.lostfound"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAR0ajuuR1KAY6Nn4kvkxKJ_KdbcZrIuKI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
