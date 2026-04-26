@@ -21,15 +21,18 @@ router.get('/:chatId', async (req, res) => {
 // Get all chats for a user
 router.get('/user/:uid', async (req, res) => {
   try {
+    const { uid } = req.params;
+    // Query JSONB array for the user ID
     const { data, error } = await supabase
       .from('chats')
       .select('*')
-      .contains('participants', [req.params.uid])
+      .filter('participants', 'cs', JSON.stringify([uid]))
       .order('lastMessageTime', { ascending: false });
 
     if (error) throw error;
-    res.json(data);
+    res.json(data || []);
   } catch (error) {
+    console.error('Error fetching user chats:', error);
     res.status(500).json({ error: error.message });
   }
 });
