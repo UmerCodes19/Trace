@@ -92,13 +92,13 @@ class ApiService {
     }
   }
 
-  Future<bool> toggleLike(String postId, String userId) async {
+  Future<Map<String, dynamic>> toggleLike(String postId, String userId) async {
     try {
       final response = await _dio.post('/posts/$postId/like', data: {'userId': userId});
-      return response.data['liked'] ?? false;
+      return response.data;
     } catch (e) {
       debugPrint('Error toggling like: $e');
-      return false;
+      return {'liked': false, 'likeCount': 0};
     }
   }
 

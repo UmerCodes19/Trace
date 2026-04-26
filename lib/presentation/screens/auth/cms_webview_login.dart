@@ -303,14 +303,21 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       }
 
       if (mounted) {
-        await ref.read(authServiceProvider).setCurrentUserFromUid(enrollment);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ CMS Verified Successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        // Show the professional syncing overlay
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const _SyncingOverlay(),
         );
-        context.go('/home');
+
+        await ref.read(authServiceProvider).setCurrentUserFromUid(enrollment);
+        
+        // Wait a bit to show the nice animation
+        await Future.delayed(const Duration(seconds: 3));
+
+        if (mounted) {
+          context.go('/home');
+        }
       }
     } catch (e) {
       debugPrint('Extract error: $e');
@@ -550,6 +557,45 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
                 return NavigationActionPolicy.ALLOW;
               },
             ),
+    );
+  }
+}
+
+class _SyncingOverlay extends StatelessWidget {
+  const _SyncingOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
+        backgroundColor: Colors.black.withOpacity(0.85),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.white),
+              const SizedBox(height: 24),
+              const Text(
+                'Syncing Your Trace Profile...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Getting your timetable & campus data ready.',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

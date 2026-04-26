@@ -176,11 +176,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
     final api = ref.read(apiServiceProvider);
     
-    // Attempt to get timetable by email (as fallback) or enrollment if available
-    final timetableData = await api.getTimetable(user.email);
+    // Use uid (enrollment) to get timetable
+    final timetableData = await api.getTimetable(user.uid);
     
     if (timetableData.isEmpty) {
-      debugPrint('No timetable found - prediction skipped');
+      debugPrint('No timetable found for ${user.uid} - prediction skipped');
       await _showFallbackPrediction();
       return;
     }

@@ -77,11 +77,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final currentUid = ref.read(authServiceProvider).currentUser?.uid;
     if (currentUid == null || _post == null) return;
 
-    final newState = await api.toggleLike(_post!.id, currentUid);
+    final result = await api.toggleLike(_post!.id, currentUid);
     setState(() {
-      _hasLiked = newState;
+      _hasLiked = result['liked'];
       _post = _post!.copyWith(
-        likesCount: _post!.likesCount + (newState ? 1 : -1),
+        likesCount: result['likeCount'] ?? (_post!.likesCount + (result['liked'] ? 1 : -1)),
       );
     });
     AppHaptics.light();

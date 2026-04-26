@@ -56,20 +56,8 @@ class LostFoundApp extends ConsumerWidget {
     final isDarkMode = ref.watch(themeProvider);
     final accent = ref.watch(accentColorProvider);
 
-    // Update system overlay style for dark mode
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness:
-            isDarkMode ? Brightness.light : Brightness.dark,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness:
-            isDarkMode ? Brightness.light : Brightness.dark,
-      ),
-    );
-
     return MaterialApp.router(
-      title: 'Lost & Found - Bahria University',
+      title: 'Trace - Bahria University',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(accent: accent),
       darkTheme: AppTheme.dark(accent: accent),

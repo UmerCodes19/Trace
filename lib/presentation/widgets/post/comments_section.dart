@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,6 +20,7 @@ class CommentsSection extends ConsumerStatefulWidget {
 class _CommentsSectionState extends ConsumerState<CommentsSection> {
   final _commentController = TextEditingController();
   List<CommentModel> _comments = [];
+  Timer? _pollingTimer;
   bool _isLoading = true;
   String? _replyToId;
   String? _replyToName;
@@ -27,18 +29,27 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
   void initState() {
     super.initState();
     _loadComments();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (mounted) _loadComments(isPolling: true);
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _commentController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadComments() async {
+  Future<void> _loadComments({bool isPolling = false}) async {
     final api = ref.read(apiServiceProvider);
     final results = await api.getCommentsForPost(widget.postId);
     if (mounted) {
+      if (isPolling && results.length == _comments.length) return;
       setState(() {
         _comments = results.map((m) => CommentModel.fromMap(m)).toList();
         _isLoading = false;
