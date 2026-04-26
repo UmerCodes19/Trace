@@ -13,6 +13,9 @@ class SimpleUserModel {
   final int karmaPoints;
   final bool isAdmin;
   final bool isBanned;
+  final bool isDarkMode;
+  final bool proximityAlertsEnabled;
+  final bool chatNotificationsEnabled;
 
   SimpleUserModel({
     required this.uid,
@@ -28,6 +31,9 @@ class SimpleUserModel {
     this.karmaPoints = 0,
     this.isAdmin = false,
     this.isBanned = false,
+    this.isDarkMode = false,
+    this.proximityAlertsEnabled = true,
+    this.chatNotificationsEnabled = true,
   });
 
   factory SimpleUserModel.fromMap(Map<String, dynamic> map) {
@@ -45,6 +51,9 @@ class SimpleUserModel {
       karmaPoints: map['karmaPoints'] as int? ?? 0,
       isAdmin: (map['isAdmin'] as int? ?? 0) == 1,
       isBanned: (map['isBanned'] as int? ?? 0) == 1,
+      isDarkMode: (map['isDarkMode'] as int? ?? 0) == 1,
+      proximityAlertsEnabled: (map['proximityAlertsEnabled'] as int? ?? 1) == 1,
+      chatNotificationsEnabled: (map['chatNotificationsEnabled'] as int? ?? 1) == 1,
     );
   }
 
@@ -63,6 +72,9 @@ class SimpleUserModel {
       'karmaPoints': karmaPoints,
       'isAdmin': isAdmin ? 1 : 0,
       'isBanned': isBanned ? 1 : 0,
+      'isDarkMode': isDarkMode ? 1 : 0,
+      'proximityAlertsEnabled': proximityAlertsEnabled ? 1 : 0,
+      'chatNotificationsEnabled': chatNotificationsEnabled ? 1 : 0,
     };
   }
 }

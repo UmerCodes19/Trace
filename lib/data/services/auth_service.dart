@@ -153,7 +153,7 @@ class AuthService {
       _currentUser = SimpleUserModel.fromMap(syncedUser);
       _signedOutExplicitly = false;
       debugPrint('Email sign-in successful: $email');
-      return user;
+      return _currentUser;
     } catch (e) {
       debugPrint('Email sign-in error: $e');
       return null;
@@ -239,7 +239,7 @@ class AuthService {
 
   /// Get list of all users (for debugging)
   Future<List<SimpleUserModel>> getAllUsers() async {
-    final users = await localDb.getAllUsers();
-    return users.map((u) => SimpleUserModel.fromMap(u)).toList();
+    final users = await apiService.getAllUsers();
+    return users.map((u) => SimpleUserModel.fromMap(u as Map<String, dynamic>)).toList();
   }
 }

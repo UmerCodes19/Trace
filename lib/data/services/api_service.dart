@@ -110,13 +110,7 @@ class ApiService {
     }
   }
 
-  Future<void> deletePost(String postId) async {
-    try {
-      await _dio.delete('/posts/$postId');
-    } catch (e) {
-      debugPrint('Error deleting post: $e');
-    }
-  }
+
 
   Future<Map<String, dynamic>?> getPost(String id) async {
     try {

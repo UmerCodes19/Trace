@@ -13,6 +13,7 @@ import '../../../data/services/auth_service.dart';
 import '../../../data/services/ai_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/storage_service.dart';
+import '../../../data/models/cms_models.dart';
 import '../../../data/services/campus_map_service.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
@@ -169,15 +170,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   Future<void> _showPrediction(DateTime lostTime) async {
-    final api = ref.read(apiServiceProvider);
-    final cmsData = await api.getTimetable(uid); // uid should be from auth
-
-    // Wait, the predictor needs timetable entries. 
-    // I should get the enrollment first.
-    final user = await ref.read(authServiceProvider).getCurrentUser();
+    final authService = ref.read(authServiceProvider);
+    final user = await authService.getCurrentUser();
     if (user == null) return;
+
+    final api = ref.read(apiServiceProvider);
     
-    final timetableData = await api.getTimetable(user.email); // Enrollment might be email or stored in user meta
+    // Attempt to get timetable by email (as fallback) or enrollment if available
+    final timetableData = await api.getTimetable(user.email);
     
     if (timetableData.isEmpty) {
       debugPrint('No timetable found - prediction skipped');
@@ -185,11 +185,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       return;
     }
 
-    final predictor = LocationPredictionService(timetableData);
+    final entries = (timetableData as List).map<CMSTimetableEntry>((e) => CMSTimetableEntry.fromMap(e as Map<String, dynamic>)).toList();
+    final predictor = LocationPredictionService(entries);
 
     final result = predictor.predictLostLocation(
       lostTime: lostTime,
-      enrollment: enrollment,
+      enrollment: user.email, // Using email as enrollment if not explicitly in model
     );
 
     if (mounted && result.confidence > 0.6) {
@@ -342,11 +343,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
       final api = ref.read(apiServiceProvider);
 
+      final storageSvc = ref.read(storageServiceProvider);
+
       // Upload images
       final urls = <String>[];
       for (final img in _images) {
         try {
-          final url = await storageSvc.uploadPostImage(img, uid);
+          final url = await storageSvc.uploadPostImage(img, currentUser.uid);
           urls.add(url);
         } catch (e) {
           debugPrint('Error uploading image: $e');
@@ -369,7 +372,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
       final post = SimplePostModel(
         id: const Uuid().v4(),
-        userId: uid,
+        userId: currentUser.uid,
         type: _type,
         title: sanitizeInput(_titleCtrl.text),
         description: sanitizeInput(_descCtrl.text),
@@ -391,7 +394,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
       await api.createPost(post.toMap());
       await api.updateUserStats(
-        uid,
+        currentUser.uid,
         {
           'itemsLost': _type == 'lost' ? 1 : 0,
           'itemsFound': _type == 'found' ? 1 : 0,
