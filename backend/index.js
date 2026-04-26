@@ -35,7 +35,7 @@ app.get('/api/debug-db', async (req, res) => {
     if (error) {
       // Fallback if RPC doesn't exist
       const { data: cols, error: err2 } = await supabase.from('users').select('*').limit(1);
-      return res.json({ 
+      return res.json({
         message: "Check these keys to see if they match exactly (case sensitive!)",
         keys: cols && cols.length > 0 ? Object.keys(cols[0]) : "No users found to check keys"
       });

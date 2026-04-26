@@ -38,75 +38,47 @@ class SimplePostModel {
   });
 
   factory SimplePostModel.fromMap(Map<String, dynamic> map) {
-    // Helper function to parse AI tags safely
-    List<String> _parseAiTags(dynamic tags) {
-      if (tags == null) return [];
-      if (tags is List) return tags.cast<String>();
-      if (tags is String) {
-        if (tags.isEmpty) return [];
+    List<String> _parseList(dynamic data) {
+      if (data == null) return [];
+      if (data is List) return data.cast<String>();
+      if (data is String) {
         try {
-          final decoded = jsonDecode(tags);
-          if (decoded is List) {
-            return decoded.cast<String>();
-          }
-          if (decoded is String) {
-            return [decoded];
-          }
-          return [];
-        } catch (e) {
-          // If JSON parsing fails, treat as plain string or comma-separated
-          if (tags.contains(',')) {
-            return tags.split(',').map((s) => s.trim()).toList();
-          }
-          return [tags];
-        }
-      }
-      return [];
-    }
-
-    // Helper function to parse image URLs safely
-    List<String> _parseImageUrls(dynamic urls) {
-      if (urls == null) return [];
-      if (urls is List) return urls.cast<String>();
-      if (urls is String) {
-        if (urls.isEmpty) return [];
-        try {
-          final decoded = jsonDecode(urls);
-          if (decoded is List) {
-            return decoded.cast<String>();
-          }
-          return [];
-        } catch (e) {
-          return [];
-        }
+          final decoded = jsonDecode(data);
+          if (decoded is List) return decoded.cast<String>();
+        } catch (_) {}
+        return [data];
       }
       return [];
     }
 
     return SimplePostModel(
       id: map['id'] as String,
-      userId: map['userId'] as String,
-      type: map['type'] as String,
-      title: map['title'] as String,
+      userId: map['userId'] as String? ?? '',
+      type: map['type'] as String? ?? 'lost',
+      title: map['title'] as String? ?? '',
       description: map['description'] as String? ?? '',
-      imageUrls: _parseImageUrls(map['imageUrls']),
+      imageUrls: _parseList(map['imageUrl']), // Supabase column is imageUrl
       location: SimplePostLocation(
         name: map['location_name'] as String? ?? '',
-        building: map['location_building'] as String? ?? '',
-        floor: map['location_floor'] as int? ?? 0,
+        building: map['location_building'] as String? ?? map['buildingName'] as String? ?? '',
+        floor: map['location_floor'] as int? ?? map['floor'] as int? ?? 0,
         room: map['location_room'] as String?,
-        latitude: (map['location_latitude'] as num?)?.toDouble() ?? 0.0,
-        longitude: (map['location_longitude'] as num?)?.toDouble() ?? 0.0,
+        latitude: (map['location_latitude'] as num? ?? map['location_lat'] as num? ?? 0.0).toDouble(),
+        longitude: (map['location_longitude'] as num? ?? map['location_lng'] as num? ?? 0.0).toDouble(),
       ),
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
+      timestamp: map['timestamp'] != null 
+          ? (map['timestamp'] is int 
+              ? DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int)
+              : DateTime.parse(map['timestamp'].toString()))
+          : DateTime.now(),
       status: map['status'] as String? ?? 'open',
-      aiTags: _parseAiTags(map['aiTags']),
+      aiTags: _parseList(map['aiTags']),
       reportCount: map['reportCount'] as int? ?? 0,
       viewCount: map['viewCount'] as int? ?? 0,
-      likesCount: map['likesCount'] as int? ?? 0,
+      likesCount: map['likesCount'] as int? ?? map['likeCount'] as int? ?? 0,
       posterName: map['posterName'] as String? ?? '',
       posterAvatarUrl: map['posterAvatarUrl'] as String? ?? '',
-      isCMSVerified: (map['isCMSVerified'] as int? ?? 0) == 1,
+      isCMSVerified: map['isCMSVerified'] as bool? ?? false,
     );
   }
 
@@ -148,7 +120,6 @@ class SimplePostModel {
     );
   }
 
-
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -156,22 +127,20 @@ class SimplePostModel {
       'type': type,
       'title': title,
       'description': description,
-      'imageUrls': jsonEncode(imageUrls),
+      'imageUrl': imageUrls.isNotEmpty ? imageUrls[0] : null, // Store main image in single column
       'location_name': location.name,
-      'location_building': location.building,
-      'location_floor': location.floor,
+      'buildingName': location.building,
+      'floor': location.floor,
       'location_room': location.room,
-      'location_latitude': location.latitude,
-      'location_longitude': location.longitude,
-      'timestamp': timestamp.millisecondsSinceEpoch,
+      'location_lat': location.latitude,
+      'location_lng': location.longitude,
+      'timestamp': timestamp.toIso8601String(),
       'status': status,
-      'aiTags': jsonEncode(aiTags),
+      'aiTags': aiTags, // Supabase handles list/array directly
       'reportCount': reportCount,
       'viewCount': viewCount,
-      'likesCount': likesCount,
-      'posterName': posterName,
-      'posterAvatarUrl': posterAvatarUrl,
-      'isCMSVerified': isCMSVerified ? 1 : 0,
+      'likeCount': likesCount,
+      'isCMSVerified': isCMSVerified,
     };
   }
 
