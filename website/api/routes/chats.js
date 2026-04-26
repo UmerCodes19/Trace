@@ -87,6 +87,9 @@ router.get('/user/:uid/unread', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const chat = req.body;
+    chat.createdAt = chat.createdAt || Date.now();
+    // Vercel/Supabase needs the participants array to be set
+    chat.participants = [chat.buyerId, chat.sellerId];
     
     const { data, error } = await supabase
       .from('chats')

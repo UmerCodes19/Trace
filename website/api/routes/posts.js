@@ -66,6 +66,69 @@ router.post('/:postId/report', async (req, res) => {
   }
 });
 
+// Increment view count
+router.post('/:postId/view', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    // Simple update - in a real app, you'd use a RPC for atomic increments
+    const { data: post } = await supabase.from('posts').select('"viewCount"').eq('id', postId).single();
+    const { data, error } = await supabase
+      .from('posts')
+      .update({ viewCount: (post?.viewCount || 0) + 1 })
+      .eq('id', postId)
+      .select();
+
+    if (error) throw error;
+    res.json(data[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Toggle like
+router.post('/:postId/like', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const { postId } = req.params;
+
+    const { data: existing } = await supabase
+      .from('likes')
+      .select('*')
+      .eq('postId', postId)
+      .eq('userId', userId)
+      .single();
+
+    const { data: post } = await supabase.from('posts').select('"likeCount"').eq('id', postId).single();
+
+    if (existing) {
+      await supabase.from('likes').delete().eq('id', existing.id);
+      const { data } = await supabase.from('posts').update({ likeCount: Math.max(0, (post?.likeCount || 0) - 1) }).eq('id', postId).select();
+      res.json({ liked: false, likeCount: data[0].likeCount });
+    } else {
+      await supabase.from('likes').insert({ postId, userId });
+      const { data } = await supabase.from('posts').update({ likeCount: (post?.likeCount || 0) + 1 }).eq('id', postId).select();
+      res.json({ liked: true, likeCount: data[0].likeCount });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Check if liked
+router.get('/:postId/liked/:userId', async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from('likes')
+      .select('*')
+      .eq('postId', req.params.postId)
+      .eq('userId', req.params.userId)
+      .single();
+    res.json({ liked: !!data });
+  } catch (error) {
+    res.json({ liked: false });
+  }
+});
+
 // Get post by ID
 router.get('/:id', async (req, res) => {
   try {
@@ -87,6 +150,20 @@ router.post('/', async (req, res) => {
   try {
     const post = req.body;
     
+    // Auto-fill poster info if missing
+    if (!post.posterName || !post.posterAvatarUrl) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('name, photoURL')
+        .eq('uid', post.userId)
+        .single();
+      
+      if (user) {
+        post.posterName = post.posterName || user.name;
+        post.posterAvatarUrl = post.posterAvatarUrl || user.photoURL;
+      }
+    }
+
     const { data, error } = await supabase
       .from('posts')
       .insert([post])
