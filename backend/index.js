@@ -26,6 +26,24 @@ const cmsRoutes = require('./routes/cms');
 const adminRoutes = require('./routes/admin');
 
 // Use routes
+// Debug endpoint to check DB schema
+app.get('/api/debug-db', async (req, res) => {
+  try {
+    const { data, error } = await supabase.rpc('get_table_info', { table_name: 'users' });
+    if (error) {
+      // Fallback if RPC doesn't exist
+      const { data: cols, error: err2 } = await supabase.from('users').select('*').limit(1);
+      return res.json({ 
+        message: "Check these keys to see if they match exactly (case sensitive!)",
+        keys: cols && cols.length > 0 ? Object.keys(cols[0]) : "No users found to check keys"
+      });
+    }
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);

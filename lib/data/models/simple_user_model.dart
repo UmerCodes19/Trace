@@ -16,6 +16,8 @@ class SimpleUserModel {
   final bool isDarkMode;
   final bool proximityAlertsEnabled;
   final bool chatNotificationsEnabled;
+  final String? cmsStudentId;
+
 
   SimpleUserModel({
     required this.uid,
@@ -34,6 +36,7 @@ class SimpleUserModel {
     this.isDarkMode = false,
     this.proximityAlertsEnabled = true,
     this.chatNotificationsEnabled = true,
+    this.cmsStudentId,
   });
 
   factory SimpleUserModel.fromMap(Map<String, dynamic> map) {
@@ -54,6 +57,7 @@ class SimpleUserModel {
       isDarkMode: (map['isDarkMode'] as int? ?? 0) == 1,
       proximityAlertsEnabled: (map['proximityAlertsEnabled'] as int? ?? 1) == 1,
       chatNotificationsEnabled: (map['chatNotificationsEnabled'] as int? ?? 1) == 1,
+      cmsStudentId: map['cmsStudentId'] as String?,
     );
   }
 
@@ -75,6 +79,7 @@ class SimpleUserModel {
       'isDarkMode': isDarkMode ? 1 : 0,
       'proximityAlertsEnabled': proximityAlertsEnabled ? 1 : 0,
       'chatNotificationsEnabled': chatNotificationsEnabled ? 1 : 0,
+      'cmsStudentId': cmsStudentId,
     };
   }
 }
