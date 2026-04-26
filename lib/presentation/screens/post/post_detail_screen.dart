@@ -475,16 +475,26 @@ class _ClaimSection extends ConsumerWidget {
         GestureDetector(
           onTap: () async {
             AppHaptics.medium();
-            final api = ref.read(apiServiceProvider);
-            final chatId = await api.createChat({
-              'postId': post.id,
-              'buyerId': currentUid, // Using buyerId as currentUserId field
-              'sellerId': post.userId, // Using sellerId as otherUserId field
-              'postTitle': post.title,
-              'otherUserName': post.posterName,
-            });
-            if (context.mounted) {
-              context.push('/chat/${chatId['id']}');
+            try {
+              final api = ref.read(apiServiceProvider);
+              showAppSnack(context, 'Opening chat...', isError: false);
+              
+              final chatId = await api.createChat({
+                'postId': post.id,
+                'buyerId': currentUid, 
+                'sellerId': post.userId, 
+                'postTitle': post.title,
+                'otherUserName': post.posterName,
+              });
+              
+              if (context.mounted) {
+                context.push('/chat/${chatId['id']}');
+              }
+            } catch (e) {
+              debugPrint('Error starting chat: $e');
+              if (context.mounted) {
+                showAppSnack(context, 'Could not open chat. Please try again.', isError: true);
+              }
             }
           },
           child: Container(

@@ -86,19 +86,34 @@ router.get('/user/:uid/unread', async (req, res) => {
 // Create chat
 router.post('/', async (req, res) => {
   try {
+    const { postId, buyerId, sellerId } = req.body;
+    
+    // 1. Check if chat already exists for this post + users
+    const { data: existingChat, error: findError } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('"postId"', postId)
+      .eq('"buyerId"', buyerId)
+      .eq('"sellerId"', sellerId)
+      .single();
+
+    if (existingChat) {
+      return res.json(existingChat);
+    }
+
     const chat = req.body;
     chat.createdAt = chat.createdAt || Date.now();
-    // Vercel/Supabase needs the participants array to be set
-    chat.participants = [chat.buyerId, chat.sellerId];
+    chat.participants = [buyerId, sellerId];
     
     const { data, error } = await supabase
       .from('chats')
-      .upsert(chat, { onConflict: 'id' })
+      .insert(chat)
       .select();
 
     if (error) throw error;
     res.status(201).json(data[0]);
   } catch (error) {
+    console.error('Chat creation error:', error);
     res.status(500).json({ error: error.message });
   }
 });
