@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'core/constants/app_colors.dart';
 import 'core/router/app_router.dart';
@@ -15,6 +16,14 @@ final accentColorProvider =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint('Environment variables loaded successfully');
+  } catch (e) {
+    debugPrint('Error loading .env file: $e');
+  }
+
   // Cloud-based architecture - no local DB init needed
 
   try {
@@ -24,7 +33,6 @@ void main() async {
     debugPrint('Firebase initialized successfully');
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
-    debugPrint('App will continue with local-only mode');
   }
 
   SystemChrome.setSystemUIOverlayStyle(

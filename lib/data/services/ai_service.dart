@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
-// 🛑 ADD YOUR GEMINI API KEY HERE
-const _geminiApiKey = 'AIzaSyC8UDgtJGv4po5-2y1HZOwtDK3vTRwdGXA';
+// Key is now loaded from .env
+final _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
 
 final aiServiceProvider = Provider<AIService>((ref) {
   return AIService(_geminiApiKey);

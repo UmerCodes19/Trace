@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
@@ -8,8 +9,7 @@ final apiServiceProvider = Provider<ApiService>((ref) {
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
-    // TODO: Replace with your actual Render API URL
-    baseUrl: 'https://trace-self.vercel.app/api',
+    baseUrl: dotenv.env['VERCEL_URL'] ?? 'https://trace-self.vercel.app/api',
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

@@ -51,6 +51,38 @@ router.post('/:chatId/read', async (req, res) => {
   }
 });
 
+// Get unread count
+router.get('/unread/:uid', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('chatId', { count: 'exact' })
+      .eq('isRead', false)
+      .neq('senderId', req.params.uid);
+
+    if (error) throw error;
+    res.json({ count: data.length });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get unread count for user
+router.get('/user/:uid/unread', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact' })
+      .eq('isRead', false)
+      .neq('senderId', req.params.uid);
+
+    if (error) throw error;
+    res.json({ count: data?.length || 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create chat
 router.post('/', async (req, res) => {
   try {
