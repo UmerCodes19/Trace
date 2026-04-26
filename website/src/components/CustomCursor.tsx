@@ -1,9 +1,10 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { useEffect } from "react";
+import { motion, useMotionValue, useSpring } from "framer-motion";
+import { useEffect, useState } from "react";
 
 export default function CustomCursor() {
+  const [isMobile, setIsMobile] = useState(false);
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const cursorX = useSpring(mouseX, { stiffness: 500, damping: 28 });
@@ -13,6 +14,14 @@ export default function CustomCursor() {
   const velocityY = useMotionValue(0);
   
   useEffect(() => {
+    // Detect mobile/touch device
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768 || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+    };
+    
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
     let lastX = 0;
     let lastY = 0;
     const moveCursor = (e: MouseEvent) => {
@@ -23,9 +32,16 @@ export default function CustomCursor() {
       lastX = e.clientX;
       lastY = e.clientY;
     };
+    
     window.addEventListener("mousemove", moveCursor);
-    return () => window.removeEventListener("mousemove", moveCursor);
-  }, []);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      window.removeEventListener("mousemove", moveCursor);
+    };
+  }, [mouseX, mouseY, velocityX, velocityY]);
+
+  // Don't render on mobile or touch devices
+  if (isMobile) return null;
 
   return (
     <motion.div
