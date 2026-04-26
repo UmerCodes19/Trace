@@ -9,7 +9,7 @@ final apiServiceProvider = Provider<ApiService>((ref) {
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
     // TODO: Replace with your actual Render API URL
-    baseUrl: 'https://trace-qybrkad5.b4a.run/api',
+    baseUrl: 'https://trace-self.vercel.app/api',
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));
