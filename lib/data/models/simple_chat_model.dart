@@ -30,20 +30,22 @@ class SimpleChatModel {
 
   factory SimpleChatModel.fromMap(Map<String, dynamic> map) {
     return SimpleChatModel(
-      id: map['id'] as String,
-      postId: map['postId'] as String,
+      id: map['id']?.toString() ?? '',
+      postId: map['postId']?.toString() ?? '',
       participants: map['participants'] is String
           ? (jsonDecode(map['participants']) as List).cast<String>()
           : (map['participants'] as List?)?.cast<String>() ?? [],
       lastMessage: map['lastMessage'] as String? ?? '',
       lastMessageTime: DateTime.fromMillisecondsSinceEpoch(
-        map['lastMessageTime'] as int,
+        map['lastMessageTime'] as int? ?? map['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
       ),
       unreadCount: map['unreadCount'] is String
           ? (jsonDecode(map['unreadCount']) as Map).cast<String, int>()
           : (map['unreadCount'] as Map?)?.cast<String, int>() ?? {},
       status: map['status'] as String? ?? 'active',
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        map['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      ),
       otherUserName: map['otherUserName'] as String?,
       otherUserAvatar: map['otherUserAvatar'] as String?,
       postTitle: map['postTitle'] as String?,
@@ -54,10 +56,10 @@ class SimpleChatModel {
     return {
       'id': id,
       'postId': postId,
-      'participants': jsonEncode(participants),
+      'participants': participants,
       'lastMessage': lastMessage,
       'lastMessageTime': lastMessageTime.millisecondsSinceEpoch,
-      'unreadCount': jsonEncode(unreadCount),
+      'unreadCount': unreadCount,
       'status': status,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'otherUserName': otherUserName,
@@ -88,13 +90,15 @@ class SimpleMessageModel {
 
   factory SimpleMessageModel.fromMap(Map<String, dynamic> map) {
     return SimpleMessageModel(
-      id: map['id'] as String,
-      chatId: map['chatId'] as String,
-      senderId: map['senderId'] as String,
+      id: map['id']?.toString() ?? '',
+      chatId: map['chatId']?.toString() ?? '',
+      senderId: map['senderId']?.toString() ?? '',
       text: map['text'] as String? ?? '',
       imageUrl: map['imageUrl'] as String?,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
-      isRead: (map['isRead'] as int? ?? 0) == 1,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        map['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      ),
+      isRead: map['isRead'] == true || map['isRead'] == 1,
     );
   }
 

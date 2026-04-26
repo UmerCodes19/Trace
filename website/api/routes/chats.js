@@ -141,7 +141,10 @@ router.get('/:chatId/messages', async (req, res) => {
 // Send message
 router.post('/messages', async (req, res) => {
   try {
-    const message = req.body;
+    const message = {
+      ...req.body,
+      id: req.body.id || require('crypto').randomUUID()
+    };
     
     const { data: msgData, error: msgError } = await supabase
       .from('messages')
