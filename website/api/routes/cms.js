@@ -28,10 +28,16 @@ router.post('/', async (req, res) => {
       .delete()
       .eq('enrollment', enrollment);
 
-    // 2. Insert new timetable
+    // 2. Insert new timetable with quoted column mapping
     const entries = timetable.map(entry => ({
-      enrollment,
-      ...entry
+      "enrollment": enrollment,
+      "courseCode": entry.courseCode,
+      "courseTitle": entry.courseTitle,
+      "day": entry.day,
+      "timeFrom": entry.timeFrom,
+      "timeTo": entry.timeTo,
+      "roomName": entry.roomName,
+      "buildingName": entry.buildingName
     }));
 
     const { data, error } = await supabase

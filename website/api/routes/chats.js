@@ -88,8 +88,8 @@ router.post('/', async (req, res) => {
   try {
     const { postId, buyerId, sellerId } = req.body;
     
-    // 1. Check if chat already exists for this post + users
-    const { data: existingChat, error: findError } = await supabase
+    // 1. Check if chat already exists
+    const { data: existingChat } = await supabase
       .from('chats')
       .select('*')
       .eq('"postId"', postId)
@@ -101,9 +101,13 @@ router.post('/', async (req, res) => {
       return res.json(existingChat);
     }
 
-    const chat = req.body;
-    chat.createdAt = chat.createdAt || Date.now();
-    chat.participants = [buyerId, sellerId];
+    // 2. Prepare new chat with a random ID if database default fails
+    const chat = {
+      ...req.body,
+      id: req.body.id || require('crypto').randomUUID(),
+      createdAt: Date.now(),
+      participants: [buyerId, sellerId]
+    };
     
     const { data, error } = await supabase
       .from('chats')
