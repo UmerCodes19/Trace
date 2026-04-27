@@ -3,6 +3,8 @@ import { Plus_Jakarta_Sans, JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import CustomCursor from "@/components/CustomCursor";
+import SmoothScroll from "@/components/SmoothScroll";
+import ScrollProgress from "@/components/ScrollProgress";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -32,9 +34,12 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="dark" className="scroll-smooth">
       <body className={`${jakarta.variable} ${jetbrains.variable} ${inter.variable} antialiased selection:bg-white/10`}>
-        <CustomCursor />
-        <Navbar />
-        {children}
+        <SmoothScroll>
+          <ScrollProgress />
+          <CustomCursor />
+          <Navbar />
+          {children}
+        </SmoothScroll>
       </body>
     </html>
   );

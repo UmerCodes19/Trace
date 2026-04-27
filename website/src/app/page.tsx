@@ -21,14 +21,14 @@ const InstagramLogo = () => <svg viewBox="0 0 24 24" fill="none" stroke="current
 function SpectralLayer({ char, distanceX, distanceY, layer, opacity, blur }: { char: string, distanceX: any, distanceY: any, layer: any, opacity: any, blur: any }) {
   const x = useTransform(distanceX, (v: number) => v * layer.weight);
   const y = useTransform(distanceY, (v: number) => v * layer.weight);
-  
+
   return (
-    <motion.span 
-      style={{ 
-        x, 
-        y, 
+    <motion.span
+      style={{
+        x,
+        y,
         translateZ: layer.z,
-        opacity, 
+        opacity,
         filter: useMotionTemplate`blur(${blur}px)`,
         color: layer.color
       }}
@@ -44,7 +44,7 @@ function SpectralLetter({ char, mouseX, mouseY, isMobile }: { char: string, mous
   const ref = useRef<HTMLSpanElement>(null);
   const distanceX = useMotionValue(0);
   const distanceY = useMotionValue(0);
-  
+
   useEffect(() => {
     if (isMobile) return;
     const updateDistance = () => {
@@ -62,11 +62,11 @@ function SpectralLetter({ char, mouseX, mouseY, isMobile }: { char: string, mous
 
   const dist = useTransform([distanceX, distanceY], ([x, y]: any) => {
     const d = Math.sqrt(x * x + y * y);
-    return Math.max(0, 1 - d / 400); 
+    return Math.max(0, 1 - d / 400);
   });
   const proximity = useSpring(dist, { stiffness: 120, damping: 25 });
 
-  const opacity = useTransform(proximity, [0, 1], [0, 0.5]); 
+  const opacity = useTransform(proximity, [0, 1], [0, 0.5]);
   const blur = useTransform(proximity, [0, 1], [0, 15]);
 
   const layerColors = [
@@ -83,21 +83,21 @@ function SpectralLetter({ char, mouseX, mouseY, isMobile }: { char: string, mous
 
   return (
     <span ref={ref} className="relative inline-block" style={{ transformStyle: "preserve-3d" }}>
-       <motion.span style={{ position: 'relative', display: 'inline-block', zIndex: 10 }} animate={{ translateZ: 20 }}>
-         {char}
-       </motion.span>
-       
-       {layerColors.map((layer, i) => (
-         <SpectralLayer 
-           key={i} 
-           char={char} 
-           distanceX={distanceX} 
-           distanceY={distanceY} 
-           layer={layer} 
-           opacity={opacity} 
-           blur={blur} 
-         />
-       ))}
+      <motion.span style={{ position: 'relative', display: 'inline-block', zIndex: 10 }} animate={{ translateZ: 20 }}>
+        {char}
+      </motion.span>
+
+      {layerColors.map((layer, i) => (
+        <SpectralLayer
+          key={i}
+          char={char}
+          distanceX={distanceX}
+          distanceY={distanceY}
+          layer={layer}
+          opacity={opacity}
+          blur={blur}
+        />
+      ))}
     </span>
   );
 }
@@ -105,11 +105,11 @@ function SpectralLetter({ char, mouseX, mouseY, isMobile }: { char: string, mous
 // 3D Depth Layer
 function DepthLayer({ text, z, titleProxSpring, isMobile }: { text: string, z: number, titleProxSpring: any, isMobile: boolean }) {
   const opacity = useTransform(titleProxSpring, [0, 1], [0, 0.08 / (z / 15)]);
-  
+
   if (isMobile) return null;
-  
+
   return (
-    <motion.span 
+    <motion.span
       style={{ opacity }}
       animate={{ translateZ: -z }}
       className="absolute inset-0 text-white select-none pointer-events-none blur-[1px]"
@@ -159,19 +159,19 @@ function RepellingLogo({ children, mouseX, mouseY, isMobile }: { children: React
   }
 
   return (
-    <motion.div 
+    <motion.div
       ref={ref}
       style={{ x: springX, y: springY, perspective: "1000px" }}
       className="w-28 h-28 flex items-center justify-center p-6 bg-[var(--card-bg)] border border-[var(--border-color)] pixel-corners relative group shrink-0"
     >
-       <div className="absolute inset-0 bg-noise opacity-10" />
-       <motion.div 
-         style={{ transformStyle: "preserve-3d" }}
-         whileHover={{ translateZ: 50, rotateX: 20, rotateY: 20 }}
-         className="w-full h-full text-neutral-600 group-hover:text-[var(--foreground)] transition-colors opacity-40 group-hover:opacity-100"
-       >
-         {children}
-       </motion.div>
+      <div className="absolute inset-0 bg-noise opacity-10" />
+      <motion.div
+        style={{ transformStyle: "preserve-3d" }}
+        whileHover={{ translateZ: 50, rotateX: 20, rotateY: 20 }}
+        className="w-full h-full text-neutral-600 group-hover:text-[var(--foreground)] transition-colors opacity-40 group-hover:opacity-100"
+      >
+        {children}
+      </motion.div>
     </motion.div>
   );
 }
@@ -182,7 +182,7 @@ function TeamCard({ name, role, image, color, isMobile }: { name: string, role: 
   const y = useMotionValue(0);
   const mouseXSpring = useSpring(x, { stiffness: 200, damping: 30 });
   const mouseYSpring = useSpring(y, { stiffness: 200, damping: 30 });
-  
+
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["20deg", "-20deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-20deg", "20deg"]);
 
@@ -212,7 +212,7 @@ function TeamCard({ name, role, image, color, isMobile }: { name: string, role: 
         className="relative w-full aspect-[4/5] md:h-[520px] md:max-w-[400px] bg-[var(--background)] border border-white/5 flex flex-col justify-end group pixel-corners transition-all duration-300 overflow-hidden cursor-pointer shadow-[0_0_50px_rgba(0,0,0,0.5)] will-change-transform"
       >
         {!isMobile && (
-          <motion.div 
+          <motion.div
             className="absolute inset-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
             style={{ background: borderGlow }}
           />
@@ -220,20 +220,20 @@ function TeamCard({ name, role, image, color, isMobile }: { name: string, role: 
 
         {image && (
           <div className="absolute inset-0" style={{ transformStyle: "preserve-3d" }}>
-            <motion.img 
-              src={image} 
-              alt={name} 
+            <motion.img
+              src={image}
+              alt={name}
               className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 scale-110 group-hover:scale-100"
               style={{ transform: isMobile ? "none" : "translateZ(-60px)" }}
               loading="lazy"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 group-hover:opacity-95 transition-opacity" style={{ transform: isMobile ? "none" : "translateZ(-30px)" }} />
-            
+
             {!isMobile && (
-              <motion.div 
-                animate={{ top: ["-10%", "110%"] }} 
+              <motion.div
+                animate={{ top: ["-10%", "110%"] }}
                 transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" 
+                className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none"
                 style={{ transform: "translateZ(-10px)" }}
               />
             )}
@@ -241,10 +241,10 @@ function TeamCard({ name, role, image, color, isMobile }: { name: string, role: 
         )}
 
         <div className="absolute inset-0 bg-noise opacity-20 pointer-events-none"></div>
-        
+
         <div className="absolute top-8 left-8 flex items-center gap-3" style={{ transform: isMobile ? "none" : "translateZ(100px)" }}>
-           <div className={`w-1 h-1 rounded-full bg-${color === 'cyan' ? 'retro-cyan' : color === 'red' ? 'retro-red' : 'retro-amber'} opacity-60 animate-pulse`} />
-           <span className="text-[7px] font-mono text-neutral-600 uppercase tracking-[0.4em]">Status // Active</span>
+          <div className={`w-1 h-1 rounded-full bg-${color === 'cyan' ? 'retro-cyan' : color === 'red' ? 'retro-red' : 'retro-amber'} opacity-60 animate-pulse`} />
+          <span className="text-[7px] font-mono text-neutral-600 uppercase tracking-[0.4em]">Status // Active</span>
         </div>
 
         <div style={{ transform: isMobile ? "none" : "translateZ(120px)" }} className="relative z-20 p-8 md:p-10 w-full space-y-4 md:space-y-6">
@@ -320,7 +320,7 @@ export default function MomentUUMPortfolio() {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener("resize", checkMobile);
-    
+
     const updateProximity = () => {
       if (!titleRef.current || isMobile) return;
       const rect = titleRef.current.getBoundingClientRect();
@@ -334,11 +334,11 @@ export default function MomentUUMPortfolio() {
 
     const unsubX = mouseX.on("change", updateProximity);
     const unsubY = mouseY.on("change", updateProximity);
-    
+
     // Restore Cinematic Timer
     const splashTimer = setTimeout(() => setShowSplash(false), 3000);
     const finishTimer = setTimeout(() => setSplashFinished(true), 4000);
-    
+
     return () => {
       window.removeEventListener("resize", checkMobile);
       unsubX(); unsubY(); clearTimeout(splashTimer); clearTimeout(finishTimer);
@@ -347,12 +347,12 @@ export default function MomentUUMPortfolio() {
 
   const rotateX = useTransform([mouseY, titleProxSpring], ([y, p]: any) => {
     if (isMobile) return "0deg";
-    const base = (y / 1080 - 0.5) * -15; 
+    const base = (y / 1080 - 0.5) * -15;
     return `${base * p}deg`;
   });
   const rotateY = useTransform([mouseX, titleProxSpring], ([x, p]: any) => {
     if (isMobile) return "0deg";
-    const base = (x / 1920 - 0.5) * 15; 
+    const base = (x / 1920 - 0.5) * 15;
     return `${base * p}deg`;
   });
 
@@ -388,7 +388,7 @@ export default function MomentUUMPortfolio() {
   }
 
   return (
-    <div 
+    <div
       onMouseMove={(e) => { mouseX.set(e.clientX); mouseY.set(e.clientY); }}
       className="min-h-screen bg-[var(--background)] text-[var(--foreground)] selection:bg-foreground/10 overflow-x-hidden font-sans bg-noise"
     >
@@ -397,19 +397,19 @@ export default function MomentUUMPortfolio() {
           <motion.div initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black">
             <div className="flex gap-4 md:gap-8 pointer-events-none">
               {"MOMENTUUM".split("").map((char, i) => (
-                <motion.span 
-                  key={i} 
-                  initial={{ opacity: 0, filter: "blur(20px)", scale: 2 }} 
-                  animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }} 
-                  exit={{ 
-                    scale: 0, 
-                    opacity: 0, 
-                    filter: "blur(30px)", 
+                <motion.span
+                  key={i}
+                  initial={{ opacity: 0, filter: "blur(20px)", scale: 2 }}
+                  animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+                  exit={{
+                    scale: 0,
+                    opacity: 0,
+                    filter: "blur(30px)",
                     y: (Math.random() - 0.5) * 400,
                     x: (Math.random() - 0.5) * 400,
-                    transition: { delay: i * 0.05, duration: 0.8, ease: "circIn" } 
-                  }} 
-                  transition={{ delay: i * 0.1, duration: 1.5, ease: [0.16, 1, 0.3, 1] }} 
+                    transition: { delay: i * 0.05, duration: 0.8, ease: "circIn" }
+                  }}
+                  transition={{ delay: i * 0.1, duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
                   className="text-3xl md:text-7xl font-black text-white uppercase font-mono inline-block origin-center"
                 >
                   {char}
@@ -426,7 +426,7 @@ export default function MomentUUMPortfolio() {
         {/* Hero Section */}
         <section className="relative pt-32 pb-24 md:pt-48 md:pb-48 px-6 min-h-screen flex flex-col items-center justify-center text-center overflow-hidden">
           <div className="absolute inset-0 -z-10 opacity-20"><div className="absolute inset-0 bg-dot-pattern" /></div>
-          
+
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.5, delay: 0.5 }} className="max-w-[90rem] mx-auto flex flex-col items-center relative z-10 w-full">
             <div ref={titleRef} className="relative mb-12 md:mb-16 flex items-center justify-center w-full" style={{ perspective: "1500px" }}>
               <motion.div style={{ rotateX, rotateY, transformStyle: "preserve-3d" }} className="flex flex-col items-center w-full">
