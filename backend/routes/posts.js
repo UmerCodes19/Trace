@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
+const BlockchainService = require('../services/blockchain_service');
+const NotificationService = require('../services/notification_service');
+const { verifyToken, checkRole } = require('../middleware/auth');
+
 
 // Get all posts
 router.get('/', async (req, res) => {
@@ -104,7 +108,7 @@ router.post('/:postId/like', async (req, res) => {
 });
 
 // Report post
-router.post('/:postId/report', async (req, res) => {
+router.post('/:postId/report', verifyToken, async (req, res) => {
   try {
     const { error } = await supabase
       .from('posts')
@@ -112,11 +116,68 @@ router.post('/:postId/report', async (req, res) => {
       .eq('id', req.params.postId);
     
     if (error) throw error;
+
+    // Notify admins/staff about report
+    await NotificationService.broadcastToRole('admin', {
+      title: '🚨 Post Reported',
+      body: `A post has been reported for moderation.`,
+      data: { postId: req.params.postId, type: 'report' }
+    });
+
     res.json({ message: 'Post reported' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Claim an item
+router.post('/:id/claim', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.uid;
+
+    // 1. Fetch post to get owner
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('userId, title, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !post) throw new Error('Post not found');
+    if (post.status !== 'open') throw new Error('Item is no longer available');
+    if (post.userId === userId) throw new Error('You cannot claim your own item');
+
+    // 2. Update post status
+    const { error: updateError } = await supabase
+      .from('posts')
+      .update({ status: 'claimed', claimedBy: userId })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    // 3. Record in Blockchain Log
+    const claimData = {
+      action: 'CLAIM_INITIATED',
+      itemId: id,
+      itemTitle: post.title,
+      claimerId: userId,
+      ownerId: post.userId
+    };
+    const logEntry = await BlockchainService.recordClaim(id, claimData);
+
+    // 4. Notify Post Owner
+    await NotificationService.sendToUser(post.userId, {
+      title: '🎁 New Claim!',
+      body: `Someone has claimed your item: "${post.title}"`,
+      data: { postId: id, type: 'claim', claimId: logEntry.id }
+    });
+
+    res.json({ message: 'Claim initiated successfully', logId: logEntry.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // Delete post
 router.delete('/:postId', async (req, res) => {

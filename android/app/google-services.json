@@ -12,7 +12,20 @@
           "package_name": "pk.edu.bahria.lostfound"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "924919259462-iducqjetm1tf4oic9a04kb0cocn2ejur.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "pk.edu.bahria.lostfound",
+            "certificate_hash": "421403ab40fccaf5693b3d0eb930c7823ff6f735"
+          }
+        },
+        {
+          "client_id": "924919259462-ckceoqkrftar1tpql5jn4ftn0h9rjqki.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAR0ajuuR1KAY6Nn4kvkxKJ_KdbcZrIuKI"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "924919259462-ckceoqkrftar1tpql5jn4ftn0h9rjqki.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "924919259462-se76q4qbdbnaguiqpvetiig3gussb2f8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "pk.edu.bahria.lostfound"
+              }
+            }
+          ]
         }
       }
     }

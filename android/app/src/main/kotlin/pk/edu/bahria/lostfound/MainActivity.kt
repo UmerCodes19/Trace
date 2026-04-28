@@ -1,4 +1,4 @@
-package com.example.lostfound_android
+package pk.edu.bahria.lostfound
 
 import io.flutter.embedding.android.FlutterActivity
 

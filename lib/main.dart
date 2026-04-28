@@ -8,6 +8,8 @@ import 'core/constants/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
+import 'data/services/notification_service.dart';
+
 
 final themeProvider = StateProvider<bool>((ref) => false);
 final accentColorProvider =
@@ -31,9 +33,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     debugPrint('Firebase initialized successfully');
+    
+    // Initialize Notifications
+    await NotificationService().initialize();
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
   }
+
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

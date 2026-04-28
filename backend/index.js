@@ -6,6 +6,29 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const supabase = require('./utils/supabase');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+} else {
+  // Fallback for development if individual variables are provided
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      })
+    });
+  } catch (e) {
+    console.error('Firebase Admin failed to initialize. Notifications will not work.');
+  }
+}
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +49,9 @@ const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chats');
 const cmsRoutes = require('./routes/cms');
 const adminRoutes = require('./routes/admin');
+const claimLogRoutes = require('./routes/claim_logs');
+const { verifyToken, checkRole } = require('./middleware/auth');
+
 
 // Use routes
 // Debug endpoint to check DB schema
@@ -48,9 +74,11 @@ app.get('/api/debug-db', async (req, res) => {
 
 app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/chats', chatRoutes);
+app.use('/api/chats', verifyToken, chatRoutes);
 app.use('/api/cms', cmsRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', verifyToken, checkRole(['admin', 'staff']), adminRoutes);
+app.use('/api/claim-logs', verifyToken, checkRole(['admin']), claimLogRoutes);
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

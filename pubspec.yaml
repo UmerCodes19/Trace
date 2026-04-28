@@ -63,6 +63,8 @@ dependencies:
   confetti: ^0.8.0
   google_generative_ai: ^0.4.7
   flutter_dotenv: ^5.2.1
+  firebase_messaging: ^16.2.0
+  flutter_local_notifications: 17.2.3
 
 
 dev_dependencies:

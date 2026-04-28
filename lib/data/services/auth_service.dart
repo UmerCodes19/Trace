@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/simple_user_model.dart';
 import 'api_service.dart';
+import 'notification_service.dart';
+
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(apiService: ref.read(apiServiceProvider));
@@ -107,7 +109,12 @@ class AuthService {
       _signedOutExplicitly = false;
 
       debugPrint('Firebase sign-in successful: ${user.email}');
+      
+      // Register device for notifications
+      await NotificationService().registerDevice(user.uid);
+      
       return user;
+
     } catch (e) {
       debugPrint('Firebase sign-in error: $e');
       return null;
@@ -153,7 +160,12 @@ class AuthService {
       _currentUser = SimpleUserModel.fromMap(syncedUser);
       _signedOutExplicitly = false;
       debugPrint('Email sign-in successful: $email');
+      
+      // Register device for notifications
+      await NotificationService().registerDevice(_currentUser!.uid);
+
       return _currentUser;
+
     } catch (e) {
       debugPrint('Email sign-in error: $e');
       return null;
@@ -187,8 +199,13 @@ class AuthService {
       );
       final synced = await apiService.syncUser(created.toMap());
       _currentUser = SimpleUserModel.fromMap(synced);
+
+      // Ensure device is registered for notifications on app start
+      await NotificationService().registerDevice(_currentUser!.uid);
+
       return _currentUser;
     }
+
 
     return null;
   }

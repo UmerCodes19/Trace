@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
+const NotificationService = require('../services/notification_service');
+
 
 // Get chat by ID
 router.get('/:chatId', async (req, res) => {
@@ -127,10 +129,37 @@ router.post('/messages', async (req, res) => {
       })
       .eq('id', message.chatId);
 
+    // 3. Notify recipient
+    try {
+      const { data: chat, error: chatError } = await supabase
+        .from('chats')
+        .select('participants')
+        .eq('id', message.chatId)
+        .single();
+
+      if (!chatError && chat) {
+        const recipientId = chat.participants.find(p => p !== message.senderId);
+        if (recipientId) {
+          await NotificationService.sendToUser(recipientId, {
+            title: 'New Message',
+            body: message.text || 'You received an image',
+            data: { 
+              chatId: message.chatId, 
+              senderId: message.senderId,
+              type: 'chat' 
+            }
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send chat notification:', notifErr);
+    }
+
     res.status(201).json(msgData[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 module.exports = router;
