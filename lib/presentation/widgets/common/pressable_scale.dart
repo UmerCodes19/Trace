@@ -8,7 +8,7 @@ class PressableScale extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
-    this.scaleFactor = 0.98,
+    this.scaleFactor = 0.96,
     this.haptic = true,
   });
 
@@ -55,7 +55,7 @@ class _PressableScaleState extends State<PressableScale>
 
   void _onTapUp(TapUpDetails _) {
     _ctrl.reverse();
-    if (widget.haptic) HapticFeedback.lightImpact();
+    if (widget.haptic) HapticFeedback.mediumImpact();
     widget.onTap?.call();
   }
 

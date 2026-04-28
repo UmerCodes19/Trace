@@ -185,8 +185,15 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: _bodyStyle(14, AppColors.navyDarkest),
       ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
   }
+
 
   // ─── Dark Theme ───────────────────────────────────────────────────────────
   static ThemeData _buildDarkTheme(Color accent) {
@@ -364,8 +371,15 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: _bodyStyle(14, AppColors.darkText),
       ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
   }
+
 
   // ─── Typography ───────────────────────────────────────────────────────────
   static TextTheme _buildTextTheme(Brightness brightness) {

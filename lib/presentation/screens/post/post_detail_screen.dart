@@ -136,7 +136,9 @@ class _PostDetailBody extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
-      body: CustomScrollView(
+      body: RepaintBoundary(
+        child: CustomScrollView(
+
         slivers: [
           SliverAppBar(
             expandedHeight: post.imageUrls.isNotEmpty ? 300 : 0,
@@ -218,9 +220,12 @@ class _PostDetailBody extends ConsumerWidget {
                       children: [
                         GestureDetector(
                           onTap: () => _openGallery(context, 0),
-                          child: _PostImage(
-                            url: post.imageUrls.first,
-                            fit: BoxFit.cover,
+                          child: Hero(
+                            tag: 'post_image_${post.imageUrls.first}',
+                            child: _PostImage(
+                              url: post.imageUrls.first,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                         // Gradient overlay
@@ -429,8 +434,9 @@ class _PostDetailBody extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _openGallery(BuildContext context, int initialIndex) {
     Navigator.push(

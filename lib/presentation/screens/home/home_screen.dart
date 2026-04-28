@@ -462,7 +462,30 @@ class _FeedListState extends ConsumerState<_FeedList>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
-    if (_isLoading) return const _LoadingList();
+    if (_isLoading) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Finding matches...',
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          const Expanded(child: _LoadingList()),
+        ],
+      );
+    }
     if (_error != null) return _ErrorState(error: _error!);
     if (_filteredPosts.isEmpty) {
       return LottieEmptyStateWidget(
@@ -483,15 +506,12 @@ class _FeedListState extends ConsumerState<_FeedList>
         itemCount: _filteredPosts.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (ctx, i) {
-          // Only animate first 6 items to reduce animation overhead
-          final child = PostCard(post: _filteredPosts[i]);
-          if (i < 6) {
-            return child
+          return RepaintBoundary(
+            child: PostCard(post: _filteredPosts[i])
                 .animate()
-                .fadeIn(delay: Duration(milliseconds: i * 50))
-                .slideY(begin: 0.15, delay: Duration(milliseconds: i * 50));
-          }
-          return child;
+                .fadeIn(duration: 400.ms, delay: Duration(milliseconds: i * 50))
+                .slideY(begin: 0.1, duration: 400.ms, curve: Curves.easeOutQuad),
+          );
         },
       ),
     );

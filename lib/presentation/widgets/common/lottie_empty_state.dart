@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lottie/lottie.dart';
 import '../../../core/constants/app_colors.dart';
+import 'pressable_scale.dart';
 
 /// ─── Lottie Empty State Widget ───────────────────────────────────────────────
 /// A premium empty state featuring a Lottie animation, gradient title, 
@@ -37,8 +39,18 @@ class LottieEmptyStateWidget extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Lottie Animation with Error Fallback
-            SizedBox(
+            Container(
               height: animationHeight,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    accent.withOpacity(0.05),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
               child: Lottie.asset(
                 lottieAsset,
                 fit: BoxFit.contain,
@@ -62,7 +74,7 @@ class LottieEmptyStateWidget extends StatelessWidget {
                   );
                 },
               ),
-            ),
+            ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 3.seconds, color: accent.withOpacity(0.1)),
 
             const SizedBox(height: 24),
 
@@ -93,7 +105,7 @@ class LottieEmptyStateWidget extends StatelessWidget {
             // CTA button
             if (actionLabel != null) ...[
               const SizedBox(height: 24),
-              GestureDetector(
+              PressableScale(
                 onTap: onAction,
                 child: Container(
                   padding:
@@ -118,7 +130,9 @@ class LottieEmptyStateWidget extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
+              ).animate(onPlay: (c) => c.repeat(reverse: true))
+               .shimmer(duration: 2.seconds, color: Colors.white24)
+               .scale(duration: 1.seconds, end: const Offset(1.05, 1.05), curve: Curves.easeInOut),
             ],
           ],
         ),

@@ -298,9 +298,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // ── Loading indicator ───────────────────────────────────
           if (_isLoading)
             Container(
-              color: Colors.black26,
-              child: const Center(child: CircularProgressIndicator()),
+              color: Colors.black45,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: Colors.white),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Triangulating campus nodes...',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+
             
           // ── Building & Floor Selectors (Indoor Only) ────────────────
           if (_isIndoorMode) ...[
@@ -719,13 +737,14 @@ class _PinPreviewSheet extends StatelessWidget {
             child: Container(
               width: 36,
               height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 color: AppColors.border(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+
           Row(
             children: [
               Container(

@@ -114,9 +114,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   ? LottieEmptyStateWidget(
                       lottieAsset: 'assets/lottie/empty_chats.json',
                       fallbackIcon: Icons.forum_outlined,
-                      title: 'No chats yet',
+                      title: 'No conversations yet',
                       subtitle:
-                          'Open a post and tap claim to start a conversation.',
+                          'Start a conversation by claiming an item on the feed.',
                       actionLabel: 'Browse Items',
                       onAction: () => context.go('/home'),
                     )
@@ -124,7 +124,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                       color: accent,
                       onRefresh: _loadChats,
                       child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+
                         itemCount: _chats.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (_, i) {
@@ -136,12 +137,26 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                 .push('/chat/${chat.id}')
                                 .then((_) => _loadChats()),
                             borderRadius: BorderRadius.circular(16),
-                            child: GlassCard(
-                              borderRadius: 16,
-                              elevation: 1,
-                              borderGlow: unread > 0
-                                  ? accent.withOpacity(0.2)
-                                  : null,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? AppColors.darkElevated 
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: unread > 0 
+                                      ? accent.withOpacity(0.3) 
+                                      : AppColors.border(context).withOpacity(0.5),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+
                               child: Padding(
                                 padding: const EdgeInsets.all(14),
                                 child: Row(

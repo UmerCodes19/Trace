@@ -30,10 +30,22 @@ class _PostCardState extends State<PostCard> {
     return RepaintBoundary(
       child: PressableScale(
         onTap: () => context.push('/post/${widget.post.id}'),
-        child: GlassCard(
-          elevation: 2,
-          borderRadius: 20,
-          opacity: isDark ? 0.4 : 0.75,
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkElevated : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.border(context).withOpacity(0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -213,7 +225,10 @@ class _ImageCarouselState extends State<_ImageCarousel> {
         height: 200,
         child: Stack(
           children: [
-            PageView.builder(
+            Hero(
+              tag: 'post_image_${widget.urls.first}',
+              child: PageView.builder(
+
               itemCount: widget.urls.length,
               onPageChanged: (i) => setState(() => _current = i),
               itemBuilder: (_, i) {
@@ -253,6 +268,7 @@ class _ImageCarouselState extends State<_ImageCarousel> {
                 );
               },
             ),
+          ),
 
             // Gradient overlay for readability
             Positioned(
