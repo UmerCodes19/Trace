@@ -14,7 +14,8 @@ import {
   User as UserIcon,
   Trash2,
   Eye,
-  ArrowLeft
+  ArrowLeft,
+  Shield
 } from "lucide-react";
 
 interface Post {
@@ -103,24 +104,24 @@ export default function AdminContentManagement() {
       <div className="space-y-10 pb-20">
         <button 
           onClick={() => setSelectedPost(null)}
-          className="flex items-center gap-2 text-neutral-500 hover:text-white transition-colors group"
+          className="flex items-center gap-3 text-jade-primary/60 hover:text-jade-primary transition-colors group px-6 py-3 bg-jade-primary/5 rounded-2xl font-bold text-xs uppercase tracking-widest"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-mono uppercase tracking-[0.3em]">Back to Archive</span>
+          <span>Back to Feed</span>
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           <div className="space-y-8">
-             <div className="bg-[#12121F] border border-white/5 rounded-[40px] p-2 aspect-square relative overflow-hidden group">
+             <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[40px] p-2 aspect-square relative overflow-hidden group shadow-2xl">
                 {selectedPost.imageUrl ? (
                   <img src={selectedPost.imageUrl} alt={selectedPost.title} className="w-full h-full object-cover rounded-[32px]" />
                 ) : (
-                  <div className="w-full h-full bg-white/5 rounded-[32px] flex items-center justify-center">
-                    <MessageSquare className="w-20 h-20 text-neutral-800" />
+                  <div className="w-full h-full bg-jade-primary/5 rounded-[32px] flex items-center justify-center">
+                    <MessageSquare className="w-20 h-20 text-jade-primary/20" />
                   </div>
                 )}
                 <div className="absolute top-8 right-8">
-                   <div className={`px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest ${selectedPost.type === 'lost' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-black'}`}>
+                   <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg ${selectedPost.type === 'lost' ? 'bg-red-500 text-white' : 'bg-jade-primary text-white'}`}>
                       {selectedPost.type}
                    </div>
                 </div>
@@ -129,40 +130,39 @@ export default function AdminContentManagement() {
 
           <div className="space-y-10">
              <div>
-                <h1 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-4">{selectedPost.title}</h1>
-                <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
-                   <span className="flex items-center gap-2"><UserIcon className="w-4 h-4" /> {selectedPost.userId}</span>
-                   <span className="w-1 h-1 rounded-full bg-neutral-800"></span>
-                   <span className="flex items-center gap-2"><Calendar className="w-4 h-4" /> {new Date(selectedPost.timestamp).toLocaleString()}</span>
+                <h1 className="text-4xl font-black tracking-tighter uppercase text-[var(--foreground)] mb-4">{selectedPost.title}</h1>
+                <div className="flex flex-wrap items-center gap-6 text-[10px] font-bold text-sage-secondary uppercase tracking-widest">
+                   <span className="flex items-center gap-2 px-3 py-1 bg-jade-primary/5 rounded-lg border border-jade-primary/10"><UserIcon className="w-4 h-4" /> {selectedPost.userId.substring(0, 12)}...</span>
+                   <span className="flex items-center gap-2 px-3 py-1 bg-jade-primary/5 rounded-lg border border-jade-primary/10"><Calendar className="w-4 h-4" /> {new Date(selectedPost.timestamp).toLocaleDateString()}</span>
                 </div>
              </div>
 
-             <div className="p-8 bg-[#12121F] border border-white/5 rounded-3xl">
-                <h4 className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest mb-4">Tactical Description</h4>
-                <p className="text-sm text-neutral-400 leading-relaxed font-mono uppercase tracking-wider italic">
+             <div className="p-8 bg-jade-primary/5 border border-jade-primary/10 rounded-[32px]">
+                <h4 className="text-[10px] font-black text-jade-primary/40 uppercase tracking-[0.2em] mb-4">Post Description</h4>
+                <p className="text-sm text-[var(--foreground)] leading-relaxed font-medium italic">
                    "{selectedPost.description || "No description provided."}"
                 </p>
              </div>
 
              <div className="grid grid-cols-2 gap-4">
                 <button 
-                  onClick={() => updateStatus(selectedPost.id, 'open', 'Verified by Command')}
-                  className="py-4 bg-emerald-500 text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                  onClick={() => updateStatus(selectedPost.id, 'open', 'Verified by Admin')}
+                  className="py-5 bg-jade-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-jade-deep transition-all shadow-lg shadow-jade-primary/20"
                 >
-                  Approve Entry
+                  Approve Post
                 </button>
                 <button 
-                  onClick={() => updateStatus(selectedPost.id, 'rejected', 'Violation of Protocol')}
-                  className="py-4 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                  onClick={() => updateStatus(selectedPost.id, 'rejected', 'Violation of Terms')}
+                  className="py-5 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
                 >
-                  Reject Node
+                  Reject Post
                 </button>
                 <button 
                   onClick={() => deletePost(selectedPost.id)}
-                  className="col-span-2 py-4 bg-white/5 border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/10 transition-all flex items-center justify-center gap-2"
+                  className="col-span-2 py-5 bg-[var(--background)] border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/5 transition-all flex items-center justify-center gap-3"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Purge from Ledger
+                  Permanently Delete
                 </button>
              </div>
           </div>
@@ -173,31 +173,31 @@ export default function AdminContentManagement() {
 
   return (
     <div className="space-y-12 pb-20">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-white/5 pb-10">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-[var(--border-color)] pb-10">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter uppercase font-mono italic">Post Registry</h1>
-          <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-[0.3em] mt-2">Manage all active and archived nodes on the network</p>
+          <h1 className="text-4xl font-black tracking-tighter uppercase text-[var(--foreground)]">Posts <span className="text-jade-primary">Feed</span></h1>
+          <p className="text-sm text-jade-primary/60 font-bold uppercase tracking-widest mt-2">Moderation & Quality Control</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative group w-full sm:w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600 group-focus-within:text-cyan-500 transition-colors" />
+          <div className="relative group w-full sm:w-72">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-jade-primary/40 group-focus-within:text-jade-primary transition-colors" />
             <input 
               type="text" 
-              placeholder="Search ID/Title..."
+              placeholder="Search ID or Title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#12121F] border border-white/5 rounded-2xl pl-12 pr-4 py-3 text-[10px] font-mono uppercase tracking-widest focus:outline-none focus:border-cyan-500/30 transition-all"
+              className="w-full bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest focus:outline-none focus:border-jade-primary/30 transition-all text-[var(--foreground)]"
             />
           </div>
-          <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
-            <button onClick={() => setFilter("all")} className={`px-6 py-2 text-[9px] font-mono uppercase tracking-widest rounded-xl transition-all ${filter === "all" ? "bg-white/10 text-white" : "text-neutral-500"}`}>Archive</button>
-            <button onClick={() => setFilter("reported")} className={`px-6 py-2 text-[9px] font-mono uppercase tracking-widest rounded-xl transition-all ${filter === "reported" ? "bg-red-500/20 text-red-500" : "text-neutral-500"}`}>Anomalies</button>
+          <div className="flex bg-jade-primary/5 p-1.5 rounded-2xl border border-jade-primary/10">
+            <button onClick={() => setFilter("all")} className={`px-8 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${filter === "all" ? "bg-jade-primary text-white shadow-md" : "text-jade-primary/40 hover:text-jade-primary"}`}>All Posts</button>
+            <button onClick={() => setFilter("reported")} className={`px-8 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${filter === "reported" ? "bg-red-500 text-white shadow-md" : "text-jade-primary/40 hover:text-red-500"}`}>Reported</button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-6">
         <AnimatePresence mode="popLayout">
           {filteredPosts.map(post => (
             <motion.div 
@@ -206,41 +206,41 @@ export default function AdminContentManagement() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`bg-[#12121F] border p-6 rounded-[32px] group transition-all hover:bg-white/[0.02] flex items-center justify-between gap-8 ${post.isReported ? 'border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.05)]' : 'border-white/5 hover:border-white/20'}`}
+              className={`bg-[var(--card-bg)] border p-5 md:p-8 rounded-[40px] group transition-all hover:border-jade-primary/30 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl shadow-black/5 ${post.isReported ? 'border-red-500/30' : 'border-[var(--border-color)]'}`}
             >
               <div className="flex items-center gap-6 flex-1 min-w-0">
-                <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center shrink-0 transition-all ${post.type === 'lost' ? 'bg-red-500/5 border-red-500/10 text-red-500' : 'bg-emerald-500/5 border-emerald-500/10 text-emerald-500'}`}>
+                <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center shrink-0 transition-all overflow-hidden ${post.type === 'lost' ? 'bg-red-500/5 border-red-500/10' : 'bg-jade-primary/5 border-jade-primary/10'}`}>
                   {post.imageUrl ? (
-                    <img src={post.imageUrl} className="w-full h-full object-cover rounded-xl" />
+                    <img src={post.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   ) : (
-                    <MessageSquare className="w-6 h-6 opacity-30" />
+                    <MessageSquare className={`w-7 h-7 ${post.type === 'lost' ? 'text-red-500' : 'text-jade-primary'} opacity-20`} />
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-3 mb-1">
-                     <h3 className="text-sm font-bold uppercase tracking-tight truncate text-white/90">{post.title}</h3>
-                     <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full uppercase tracking-widest ${post.status === 'open' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{post.status}</span>
+                  <div className="flex items-center gap-3 mb-2">
+                     <h3 className="text-lg font-black tracking-tight truncate text-[var(--foreground)] uppercase">{post.title}</h3>
+                     <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${post.status === 'open' ? 'bg-jade-primary text-white' : 'bg-red-500 text-white'} shadow-sm`}>{post.status}</span>
                   </div>
-                  <div className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest flex items-center gap-4">
-                     <span className="truncate max-w-[100px]">ID: {post.id}</span>
-                     <span>User: {post.userId.substring(0, 8)}</span>
-                     <span>{new Date(post.timestamp).toLocaleDateString()}</span>
+                  <div className="text-[9px] font-bold text-sage-secondary uppercase tracking-[0.1em] flex flex-wrap items-center gap-x-6 gap-y-2">
+                     <span className="flex items-center gap-1.5"><Shield className="w-3 h-3" /> {post.id.substring(0, 8)}</span>
+                     <span className="flex items-center gap-1.5"><UserIcon className="w-3 h-3" /> {post.userId.substring(0, 8)}</span>
+                     <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> {new Date(post.timestamp).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 ml-auto md:ml-0">
                  <button 
                   onClick={() => setSelectedPost(post)}
-                  className="p-4 bg-white/5 text-neutral-400 rounded-2xl hover:text-white hover:bg-white/10 transition-all"
+                  className="p-4 bg-jade-primary/5 text-jade-primary rounded-2xl hover:bg-jade-primary hover:text-white transition-all shadow-sm"
                  >
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-5 h-5" />
                  </button>
                  <button 
                   onClick={() => deletePost(post.id)}
-                  className="p-4 bg-red-500/5 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all"
+                  className="p-4 bg-red-500/5 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
                  >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-5 h-5" />
                  </button>
               </div>
             </motion.div>

@@ -92,6 +92,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
 
                   const SizedBox(height: 32),
+                  _buildSectionHeader('QR Profile Privacy', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildPrivacyToggle(
+                    icon: Icons.family_restroom_rounded,
+                    title: 'Show Father Name',
+                    key: 'showFatherName',
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPrivacyToggle(
+                    icon: Icons.phone_android_rounded,
+                    title: 'Show Contact Number',
+                    key: 'showContactNumber',
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPrivacyToggle(
+                    icon: Icons.badge_rounded,
+                    title: 'Show Registration No',
+                    key: 'showRegistrationNo',
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPrivacyToggle(
+                    icon: Icons.home_rounded,
+                    title: 'Show Address',
+                    key: 'showAddress',
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPrivacyToggle(
+                    icon: Icons.school_rounded,
+                    title: 'Show Department',
+                    key: 'showDepartment',
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+
+                  const SizedBox(height: 32),
                   _buildSectionTitle('Privacy & Storage', isDarkMode),
                   const SizedBox(height: 12),
                   _buildSwitchTile(
@@ -381,6 +424,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPrivacyToggle({
+    required IconData icon,
+    required String title,
+    required String key,
+    required bool isDarkMode,
+    required Color accent,
+  }) {
+    final bool value = _user?.privacySettings?[key] ?? true;
+
+    return _buildSwitchTile(
+      icon: icon,
+      title: title,
+      subtitle: 'Visible on public QR profile',
+      value: value,
+      onChanged: (val) async {
+        if (_user == null) return;
+        
+        final newSettings = Map<String, dynamic>.from(_user!.privacySettings ?? {});
+        newSettings[key] = val;
+        
+        final updatedUser = _user!.copyWith(privacySettings: newSettings);
+        
+        setState(() {
+          _user = updatedUser;
+        });
+
+        try {
+          await ref.read(authServiceProvider).updateUserProfile(
+            _user!.uid, 
+            updatedUser.toMap()
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to save setting: $e')),
+            );
+          }
+        }
+      },
+      isDarkMode: isDarkMode,
+      accent: accent,
     );
   }
 

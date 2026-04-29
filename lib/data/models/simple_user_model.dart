@@ -22,7 +22,7 @@ class SimpleUserModel {
   final String? currentAddress;
   final String? permanentAddress;
   final String? intakeSemester;
-
+  final Map<String, dynamic>? privacySettings;
 
   SimpleUserModel({
     required this.uid,
@@ -47,6 +47,7 @@ class SimpleUserModel {
     this.currentAddress,
     this.permanentAddress,
     this.intakeSemester,
+    this.privacySettings,
   });
 
   factory SimpleUserModel.fromMap(Map<String, dynamic> map) {
@@ -73,6 +74,7 @@ class SimpleUserModel {
       currentAddress: map['currentAddress'] as String?,
       permanentAddress: map['permanentAddress'] as String?,
       intakeSemester: map['intakeSemester'] as String?,
+      privacySettings: map['privacy_settings'] as Map<String, dynamic>?,
     );
   }
 
@@ -99,6 +101,7 @@ class SimpleUserModel {
     String? currentAddress,
     String? permanentAddress,
     String? intakeSemester,
+    Map<String, dynamic>? privacySettings,
   }) {
     return SimpleUserModel(
       uid: uid ?? this.uid,
@@ -123,6 +126,7 @@ class SimpleUserModel {
       currentAddress: currentAddress ?? this.currentAddress,
       permanentAddress: permanentAddress ?? this.permanentAddress,
       intakeSemester: intakeSemester ?? this.intakeSemester,
+      privacySettings: privacySettings ?? this.privacySettings,
     );
   }
 
@@ -150,6 +154,7 @@ class SimpleUserModel {
       'currentAddress': currentAddress,
       'permanentAddress': permanentAddress,
       'intakeSemester': intakeSemester,
+      'privacy_settings': privacySettings,
     };
   }
 }

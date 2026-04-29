@@ -68,56 +68,55 @@ export default function LoginPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0A0A14] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-          <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-600">Checking Uplink...</span>
+          <Loader2 className="w-8 h-8 text-jade-primary animate-spin" />
+          <span className="text-xs font-bold uppercase tracking-widest text-jade-primary/50">Securing Link...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A14] flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Visual background grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6 relative overflow-hidden transition-colors duration-500">
+      {/* Brand Background Accents */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-jade-primary/5 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-sage-secondary/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-[420px] relative z-10"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-[440px] relative z-10"
       >
-        <div className="bg-[#12121F]/80 backdrop-blur-xl border border-white/5 rounded-[40px] p-10 md:p-12 shadow-2xl">
-          <div className="flex flex-col items-center mb-12">
-            <div className="w-20 h-20 bg-cyan-500/10 border border-cyan-500/20 rounded-3xl flex items-center justify-center mb-6 relative group">
-              <div className="absolute inset-0 bg-cyan-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Terminal className="w-10 h-10 text-cyan-500 relative z-10" />
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[32px] p-10 md:p-12 shadow-2xl shadow-black/5">
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-16 h-16 bg-jade-primary/10 rounded-2xl flex items-center justify-center mb-6">
+              <Shield className="w-8 h-8 text-jade-primary" />
             </div>
-            <h1 className="text-3xl font-black tracking-tighter uppercase font-mono italic text-white">Trace Login</h1>
-            <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-[0.4em] mt-3 text-center">Protocol Verification Required</p>
+            <h1 className="text-3xl font-black tracking-tighter uppercase text-[var(--foreground)]">Trace <span className="text-jade-primary">Admin</span></h1>
+            <p className="text-[10px] font-bold text-sage-secondary uppercase tracking-[0.3em] mt-3 text-center">Administrative Control Center</p>
           </div>
 
-          <form onSubmit={handleEmailLogin} className="space-y-5">
+          <form onSubmit={handleEmailLogin} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest ml-1">Terminal_ID</label>
+              <label className="text-[10px] font-bold text-jade-primary/60 uppercase tracking-widest ml-1">Email Address</label>
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="operator@campus.edu" 
-                className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-sm outline-none focus:border-cyan-500/30 transition-all placeholder:text-neutral-800"
+                placeholder="admin@trace.app" 
+                className="w-full bg-jade-primary/5 border border-jade-primary/10 rounded-2xl px-6 py-4 text-sm outline-none focus:border-jade-primary/30 focus:bg-jade-primary/10 transition-all text-[var(--foreground)]"
                 required
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest ml-1">Access_Code</label>
+              <label className="text-[10px] font-bold text-jade-primary/60 uppercase tracking-widest ml-1">Access Password</label>
               <input 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••" 
-                className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-sm outline-none focus:border-cyan-500/30 transition-all placeholder:text-neutral-800"
+                className="w-full bg-jade-primary/5 border border-jade-primary/10 rounded-2xl px-6 py-4 text-sm outline-none focus:border-jade-primary/30 focus:bg-jade-primary/10 transition-all text-[var(--foreground)]"
                 required
               />
             </div>
@@ -126,36 +125,38 @@ export default function LoginPage() {
               <motion.div 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-[10px] font-mono text-red-500 uppercase tracking-wider leading-relaxed"
+                className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-[10px] font-bold text-red-500 uppercase tracking-wider"
               >
-                Critical_Error: {error}
+                Error: {error}
               </motion.div>
             )}
 
             <button 
               type="submit" 
-              className="w-full bg-cyan-500 text-black font-black py-5 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+              className="w-full bg-jade-primary text-white font-bold py-5 rounded-2xl hover:bg-jade-deep active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-lg shadow-jade-primary/20"
             >
-              <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              <span className="text-xs uppercase tracking-[0.2em]">Initiate Uplink</span>
+              <LogIn className="w-5 h-5" />
+              <span className="text-xs uppercase tracking-[0.2em]">Sign In</span>
             </button>
           </form>
 
-          <div className="relative my-10">
+          <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/5"></div>
+              <div className="w-full border-t border-[var(--border-color)]"></div>
             </div>
-            <div className="relative flex justify-center text-[8px] font-mono uppercase tracking-[0.4em] bg-[#12121F] px-4 text-neutral-700">
-              External_Service_Gate
+            <div className="relative flex justify-center text-[8px] font-bold uppercase tracking-[0.4em] bg-[var(--card-bg)] px-4 text-jade-primary/40">
+              Identity Provider
             </div>
           </div>
 
           <button 
             onClick={handleGoogleLogin}
-            className="w-full bg-white/5 border border-white/10 text-white py-5 rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center gap-3 group"
+            className="w-full bg-[var(--background)] border border-[var(--border-color)] text-[var(--foreground)] py-5 rounded-2xl hover:bg-jade-primary/5 transition-all flex items-center justify-center gap-3 group"
           >
-            <Shield className="w-5 h-5 text-cyan-500 group-hover:rotate-12 transition-transform" />
-            <span className="text-[10px] font-mono uppercase tracking-widest">Authorize via Google</span>
+            <div className="w-5 h-5 flex items-center justify-center">
+               <svg viewBox="0 0 24 24" className="w-full h-full fill-current"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-widest">Sign in with Google</span>
           </button>
         </div>
       </motion.div>
