@@ -12,6 +12,7 @@ import '../../../data/services/auth_service.dart';
 import '../../../data/services/cms_auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
+import '../../../data/services/notification_service.dart';
 
 class CMSWebViewLogin extends ConsumerStatefulWidget {
   const CMSWebViewLogin({super.key});
@@ -265,6 +266,9 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       } catch (_) {}
 
       await ref.read(authServiceProvider).setCurrentUserFromUid(enrollment);
+      
+      // Ensure notifications are registered
+      await NotificationService().registerDevice(enrollment, name: name, email: email);
       
       if (mounted) {
         context.go('/home');

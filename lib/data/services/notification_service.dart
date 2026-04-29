@@ -73,20 +73,35 @@ class NotificationService {
   }
 
   Future<void> registerDevice(String userId, {String? name, String? email}) async {
+    debugPrint('🔍 [NotificationService] Starting registration for $userId...');
     try {
-      String? token = await _fcm.getToken();
-      if (token != null) {
-        debugPrint('🎟️ FCM Token: $token');
-        // Include name/email to satisfy backend not-null constraints during UPSERT
-        await _apiService.syncUser({
-          'uid': userId,
-          'fcm_token': token,
-          if (name != null) 'name': name,
-          if (email != null) 'email': email,
-        });
+      // Add a timeout to prevent hanging on devices with bad connectivity/no Play Services
+      debugPrint('🔍 [NotificationService] Requesting FCM token...');
+      String? token = await _fcm.getToken().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('⏳ [NotificationService] FCM token request timed out after 10s');
+          return null;
+        },
+      );
+      
+      if (token == null) {
+        debugPrint('⚠️ [NotificationService] No FCM Token received (NULL). Push notifications disabled.');
+        return;
       }
+
+      debugPrint('🎟️ [NotificationService] FCM Token: ${token.substring(0, 10)}...');
+      
+      await _apiService.syncUser({
+        'uid': userId,
+        'fcm_token': token,
+        if (name != null) 'name': name,
+        if (email != null) 'email': email,
+      });
+      debugPrint('✅ [NotificationService] Token successfully synced to database.');
+      
     } catch (e) {
-      debugPrint('❌ Error registering device for notifications: $e');
+      debugPrint('❌ [NotificationService] Error: $e');
     }
   }
 }

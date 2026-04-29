@@ -202,6 +202,14 @@ class AuthService {
     // Try to get from Firebase
     final firebaseUser = _firebaseAuth.currentUser;
     if (firebaseUser != null) {
+      // ALWAYS register device on startup if we have a firebase user
+      // This ensures the token is updated even if the user was already cached
+      NotificationService().registerDevice(firebaseUser.uid, name: firebaseUser.displayName, email: firebaseUser.email);
+
+      if (_currentUser != null) {
+        return _currentUser;
+      }
+      
       final userMap = await apiService.getUser(firebaseUser.uid);
       if (userMap != null) {
         _currentUser = SimpleUserModel.fromMap(userMap);
@@ -216,11 +224,6 @@ class AuthService {
         _currentUser = SimpleUserModel.fromMap(synced);
       }
 
-      // Ensure device is registered for notifications on app start or login
-      if (_currentUser != null) {
-        await NotificationService().registerDevice(_currentUser!.uid, name: _currentUser!.name, email: _currentUser!.email);
-      }
-
       return _currentUser;
     }
 
@@ -233,6 +236,10 @@ class AuthService {
     if (userMap == null) return null;
     _currentUser = SimpleUserModel.fromMap(userMap);
     _signedOutExplicitly = false;
+    
+    // Register device for notifications
+    NotificationService().registerDevice(uid, name: _currentUser?.name, email: _currentUser?.email);
+    
     return _currentUser;
   }
 
