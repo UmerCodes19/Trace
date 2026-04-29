@@ -11,9 +11,8 @@ import 'firebase_options.dart';
 import 'data/services/notification_service.dart';
 
 
-final themeProvider = StateProvider<bool>((ref) => false);
-final accentColorProvider =
-    StateProvider<Color>((ref) => AppColors.defaultAccent);
+import 'package:shared_preferences/shared_preferences.dart';
+import 'data/services/local_settings_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +39,9 @@ void main() async {
     debugPrint('Firebase initialization error: $e');
   }
 
+  // Initialize Local Settings
+  final prefs = await SharedPreferences.getInstance();
+
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -50,7 +52,14 @@ void main() async {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  runApp(const ProviderScope(child: LostFoundApp()));
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const LostFoundApp(),
+    ),
+  );
 }
 
 class LostFoundApp extends ConsumerWidget {
@@ -60,7 +69,8 @@ class LostFoundApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final isDarkMode = ref.watch(themeProvider);
-    final accent = ref.watch(accentColorProvider);
+    final accentInt = ref.watch(accentColorProvider);
+    final accent = Color(accentInt);
 
     return MaterialApp.router(
       title: 'Trace - Bahria University',

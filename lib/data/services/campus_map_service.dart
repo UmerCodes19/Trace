@@ -88,21 +88,38 @@ class CampusMapService {
       name: 'Quaid Block',
       lat: 24.893240,
       lng: 67.088235,
-      floors: [],
+      floors: [
+        FloorModel(level: 0, rooms: [
+          RoomModel(number: 'Q-001', name: 'Student Affairs', position: const Offset(0.3, 0.4)),
+          RoomModel(number: 'Q-002', name: 'Finance Office', position: const Offset(0.7, 0.4)),
+        ]),
+        FloorModel(level: 1, rooms: [
+          RoomModel(number: 'Q-101', name: 'Exam Hall', position: const Offset(0.5, 0.5), size: const Size(0.4, 0.3)),
+        ]),
+      ],
     ),
     BuildingModel(
       id: 'iqbal',
       name: 'Iqbal Block',
       lat: 24.892799,
       lng: 67.087586,
-      floors: [],
+      floors: [
+        FloorModel(level: 0, rooms: [
+          RoomModel(number: 'I-001', name: 'Law Dept Library', position: const Offset(0.5, 0.5), size: const Size(0.3, 0.3)),
+        ]),
+      ],
     ),
     BuildingModel(
       id: 'cafe',
-      name: 'Cafe and Al Beruni Auditorium',
+      name: 'Cafeteria / Student Center',
       lat: 24.893237,
       lng: 67.088026,
-      floors: [],
+      floors: [
+        FloorModel(level: 0, rooms: [
+          RoomModel(number: 'C-001', name: 'Main Cafeteria', position: const Offset(0.4, 0.6), size: const Size(0.5, 0.4)),
+          RoomModel(number: 'C-002', name: 'Auditorium Entrance', position: const Offset(0.8, 0.3)),
+        ]),
+      ],
     ),
   ];
 

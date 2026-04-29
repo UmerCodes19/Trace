@@ -90,19 +90,26 @@ class AuthService {
         return null;
       }
 
-      // Create or update user in SQLite
-      final user = SimpleUserModel(
-        uid: firebaseUser.uid,
-        name: firebaseUser.displayName ?? 'User',
-        email: firebaseUser.email ?? '',
-        photoURL: firebaseUser.photoURL ?? '',
-        isCMSVerified: false,
-        department: null,
-        contactNumber: null,
-        itemsLost: 0,
-        itemsFound: 0,
-        karmaPoints: 0,
-      );
+      // Check if user exists first to avoid overwriting settings with defaults
+      final existingUserMap = await apiService.getUser(firebaseUser.uid);
+      SimpleUserModel user;
+      
+      if (existingUserMap != null) {
+        user = SimpleUserModel.fromMap(existingUserMap);
+        // Update basic info from Google if needed
+        user = user.copyWith(
+          name: firebaseUser.displayName ?? user.name,
+          photoURL: firebaseUser.photoURL ?? user.photoURL,
+        );
+      } else {
+        user = SimpleUserModel(
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName ?? 'User',
+          email: firebaseUser.email ?? '',
+          photoURL: firebaseUser.photoURL ?? '',
+          isCMSVerified: false,
+        );
+      }
 
       final syncedUser = await apiService.syncUser(user.toMap());
       _currentUser = SimpleUserModel.fromMap(syncedUser);
@@ -111,7 +118,7 @@ class AuthService {
       debugPrint('Firebase sign-in successful: ${user.email}');
       
       // Register device for notifications
-      await NotificationService().registerDevice(user.uid);
+      await NotificationService().registerDevice(user.uid, name: user.name, email: user.email);
       
       return user;
 
@@ -151,18 +158,28 @@ class AuthService {
       final firebaseUser = userCredential.user;
       if (firebaseUser == null) throw Exception('Firebase user is null');
 
-      final syncedUser = await apiService.syncUser(SimpleUserModel(
-        uid: firebaseUser.uid,
-        name: firebaseUser.displayName ?? email.split('@')[0],
-        email: email,
-        photoURL: firebaseUser.photoURL ?? '',
-      ).toMap());
+      // Check if user exists first to avoid overwriting settings with defaults
+      final existingUserMap = await apiService.getUser(firebaseUser.uid);
+      SimpleUserModel user;
+      
+      if (existingUserMap != null) {
+        user = SimpleUserModel.fromMap(existingUserMap);
+      } else {
+        user = SimpleUserModel(
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName ?? email.split('@')[0],
+          email: email,
+          photoURL: firebaseUser.photoURL ?? '',
+        );
+      }
+
+      final syncedUser = await apiService.syncUser(user.toMap());
       _currentUser = SimpleUserModel.fromMap(syncedUser);
       _signedOutExplicitly = false;
       debugPrint('Email sign-in successful: $email');
       
       // Register device for notifications
-      await NotificationService().registerDevice(_currentUser!.uid);
+      await NotificationService().registerDevice(_currentUser!.uid, name: _currentUser!.name, email: _currentUser!.email);
 
       return _currentUser;
 
@@ -201,7 +218,7 @@ class AuthService {
       _currentUser = SimpleUserModel.fromMap(synced);
 
       // Ensure device is registered for notifications on app start
-      await NotificationService().registerDevice(_currentUser!.uid);
+      await NotificationService().registerDevice(_currentUser!.uid, name: _currentUser!.name, email: _currentUser!.email);
 
       return _currentUser;
     }
@@ -246,6 +263,32 @@ class AuthService {
       debugPrint('Sign-out error: $e');
       _signedOutExplicitly = true;
       _currentUser = null;
+    }
+  }
+
+  Future<bool> signInWithGithub() async {
+    try {
+      final provider = GithubAuthProvider();
+      final userCredential = await _firebaseAuth.signInWithProvider(provider);
+      final firebaseUser = userCredential.user;
+      
+      if (firebaseUser != null) {
+        final user = SimpleUserModel(
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName ?? 'GitHub User',
+          email: firebaseUser.email ?? '',
+          photoURL: firebaseUser.photoURL ?? '',
+          isCMSVerified: false,
+        );
+        final syncedUser = await apiService.syncUser(user.toMap());
+        _currentUser = SimpleUserModel.fromMap(syncedUser);
+        _signedOutExplicitly = false;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('GitHub sign-in error: $e');
+      return false;
     }
   }
 

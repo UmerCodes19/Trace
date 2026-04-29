@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_user_model.dart';
 import '../../../data/services/auth_service.dart';
-import '../../../data/services/api_service.dart';
-import '../../../main.dart';
-import '../../widgets/common/accent_color_picker.dart';
+import '../../../data/services/local_settings_service.dart';
 import '../../widgets/common/glass_card.dart';
-import '../../widgets/common/skeleton.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -22,12 +21,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   SimpleUserModel? _user;
   bool _isLoading = true;
-  bool _darkMode = false;
-  bool _proximityAlerts = true;
-  bool _chatNotifications = true;
-  String? _selectedDepartment;
-  final _nameController = TextEditingController();
-  final _contactController = TextEditingController();
 
   @override
   void initState() {
@@ -35,687 +28,379 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _loadUserData();
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _contactController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadUserData() async {
-    setState(() => _isLoading = true);
-    try {
-      final authService = ref.read(authServiceProvider);
-      final user = await authService.getCurrentUser();
-
-      if (user != null && mounted) {
-        setState(() {
-          _user = user;
-          _nameController.text = user.name;
-          _selectedDepartment = user.department;
-          _contactController.text = user.contactNumber ?? '';
-          
-          // These should ideally be in user metadata or a separate settings table in Supabase
-          _darkMode = user.isDarkMode;
-          _proximityAlerts = user.proximityAlertsEnabled;
-          _chatNotifications = user.chatNotificationsEnabled;
-        });
-        
-        ref.read(themeProvider.notifier).state = user.isDarkMode;
-      }
-    } catch (e) {
-      debugPrint('Error loading user data: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _saveUserProfile() async {
-    if (_user == null) return;
-
-    setState(() => _isLoading = true);
-    try {
-      final api = ref.read(apiServiceProvider);
-      await api.syncUser({
-        ..._user!.toMap(),
-        'name': _nameController.text.trim(),
-        'department': _selectedDepartment,
-        'contactNumber': _contactController.text.trim().isEmpty
-            ? null
-            : _contactController.text.trim(),
-        'isDarkMode': _darkMode,
-        'proximityAlertsEnabled': _proximityAlerts,
-        'chatNotificationsEnabled': _chatNotifications,
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully!')),
-        );
-      }
-
-      await _loadUserData();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _toggleDarkMode(bool value) {
-    setState(() => _darkMode = value);
-    ref.read(themeProvider.notifier).state = value;
-
+    final user = await ref.read(authServiceProvider).getCurrentUser();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            value ? 'Dark mode enabled 🌙' : 'Light mode enabled ☀️',
-          ),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      setState(() {
+        _user = user;
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
+    final isDarkMode = ref.watch(themeProvider);
+    final accentInt = ref.watch(accentColorProvider);
+    final accent = Color(accentInt);
 
     return Scaffold(
-      backgroundColor: AppColors.pageBg(context),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: AppColors.textPrimary(context),
-            size: 18,
+      backgroundColor: isDarkMode ? AppColors.navyDarkest : Colors.grey[50],
+      body: CustomScrollView(
+        slivers: [
+          _buildAppBar(isDarkMode),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionHeader('Appearance', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildThemeToggle(isDarkMode, accent),
+                  const SizedBox(height: 12),
+                  _buildAccentPicker(accent),
+                  
+                  const SizedBox(height: 32),
+                  _buildSectionHeader('Account & Security', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildSettingTile(
+                    icon: Icons.person_outline_rounded,
+                    title: 'Edit Profile',
+                    subtitle: 'Change your name and contact info',
+                    onTap: () => context.push('/profile/edit'),
+                    isDarkMode: isDarkMode,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSettingTile(
+                    icon: Icons.shield_outlined,
+                    title: 'CMS Verification',
+                    subtitle: _user?.isCMSVerified == true ? 'Verified' : 'Not Verified',
+                    trailing: _user?.isCMSVerified == true 
+                        ? const Icon(Icons.check_circle, color: AppColors.foundSuccess, size: 20)
+                        : null,
+                    onTap: () => context.push('/login/cms'),
+                    isDarkMode: isDarkMode,
+                  ),
+
+                  _buildSettingTile(
+                    icon: Icons.qr_code_rounded,
+                    title: 'My Profile QR',
+                    subtitle: 'Share your digital student ID',
+                    onTap: () => context.push('/profile/qr'),
+                    isDarkMode: isDarkMode,
+                  ),
+
+                  const SizedBox(height: 32),
+                  _buildSectionTitle('Privacy & Storage', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildSwitchTile(
+                    icon: Icons.lock_outline_rounded,
+                    title: 'Privacy Mode',
+                    subtitle: 'Hide your contact details from public',
+                    value: false, // Placeholder for now
+                    onChanged: (val) {},
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSettingTile(
+                    icon: Icons.delete_sweep_outlined,
+                    title: 'Clear Cache',
+                    subtitle: 'Free up local image storage',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Cache cleared!')),
+                      );
+                    },
+                    isDarkMode: isDarkMode,
+                  ),
+
+                  const SizedBox(height: 32),
+                  _buildSectionHeader('Notifications', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildSwitchTile(
+                    icon: Icons.notifications_none_rounded,
+                    title: 'Push Notifications',
+                    subtitle: 'Alerts for found items and messages',
+                    value: ref.watch(localSettingsProvider).notificationsEnabled,
+                    onChanged: (val) {
+                      ref.read(localSettingsProvider).setNotificationsEnabled(val);
+                      setState(() {});
+                    },
+                    isDarkMode: isDarkMode,
+                    accent: accent,
+                  ),
+
+                  const SizedBox(height: 48),
+                  _buildLogoutButton(),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
           ),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/profile');
-            }
-          },
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar(bool isDarkMode) {
+    return SliverAppBar(
+      expandedHeight: 120,
+      pinned: true,
+      backgroundColor: isDarkMode ? AppColors.navyDarkest : Colors.white,
+      elevation: 0,
+      flexibleSpace: FlexibleSpaceBar(
         title: Text(
           'Settings',
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary(context),
+            fontWeight: FontWeight.bold,
+            color: isDarkMode ? Colors.white : AppColors.navyDarkest,
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _isLoading ? null : _saveUserProfile,
-            child: Text(
-              'Save',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: accent,
-              ),
+        centerTitle: false,
+        titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, bool isDarkMode) {
+    return Text(
+      title,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: isDarkMode ? Colors.white : AppColors.navyDarkest,
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, bool isDarkMode) {
+    return Text(
+      title.toUpperCase(),
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+        color: isDarkMode ? Colors.white38 : Colors.black38,
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideX(begin: 0.1);
+  }
+
+  Widget _buildThemeToggle(bool isDarkMode, Color accent) {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(
+              isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+              color: isDarkMode ? Colors.amber[300] : Colors.orange[600],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dark Mode',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: isDarkMode ? Colors.white : Colors.black),
+                ),
+                Text(
+                  'Enjoy a deeper, eye-friendly UI',
+                  style: GoogleFonts.inter(fontSize: 12, color: isDarkMode ? Colors.white60 : Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isDarkMode,
+            activeColor: accent,
+            onChanged: (val) {
+              HapticFeedback.lightImpact();
+              ref.read(localSettingsProvider).setDarkMode(val);
+              ref.read(themeProvider.notifier).state = val;
+            },
           ),
         ],
       ),
-      body: _isLoading
-          ? SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-              child: Column(
-                children: [
-                  const SkeletonSettingsSection(itemCount: 5),
-                  const SizedBox(height: 16),
-                  const SkeletonSettingsSection(itemCount: 2),
-                  const SizedBox(height: 16),
-                  const SkeletonSettingsSection(itemCount: 1),
-                ],
-              ),
-            )
-          : _user == null
-              ? const Center(child: Text('User not found'))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-                  child: Column(
-                    children: [
-                      // Profile Section
-                      _SettingsSection(
-                        title: 'Profile Information',
-                        children: [
-                          _ProfileField(
-                            icon: Icons.person_outline,
-                            label: 'Full Name',
-                            controller: _nameController,
-                          ),
-                          _ProfileDropdown(
-                            icon: Icons.school_outlined,
-                            label: 'Department',
-                            value: _selectedDepartment,
-                            items: const [
-                              'Computer Science',
-                              'Software Engineering',
-                              'Electrical Engineering',
-                              'Mechanical Engineering',
-                              'Business Administration',
-                              'Psychology',
-                              'Accounting & Finance',
-                              'Media Studies',
-                              'Law',
-                              'Other',
-                            ],
-                            onChanged: (v) =>
-                                setState(() => _selectedDepartment = v),
-                          ),
-                          _ProfileField(
-                            icon: Icons.phone_outlined,
-                            label: 'Contact Number',
-                            controller: _contactController,
-                          ),
-                          _InfoTile(
-                            icon: Icons.email_outlined,
-                            label: 'Email',
-                            value: _user!.email,
-                          ),
-                          if (_user!.isCMSVerified)
-                            _InfoTile(
-                              icon: Icons.verified_rounded,
-                              label: 'CMS Status',
-                              value: 'Verified Student',
-                              valueColor: AppColors.foundSuccess,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Notifications Section
-                      _SettingsSection(
-                        title: 'Notifications',
-                        children: [
-                          _SettingsToggle(
-                            icon: Icons.near_me_outlined,
-                            label: 'Proximity Alerts',
-                            subtitle: 'Notify when near a lost item',
-                            value: _proximityAlerts,
-                            onChanged: (v) =>
-                                setState(() => _proximityAlerts = v),
-                          ),
-                          _SettingsToggle(
-                            icon: Icons.chat_bubble_outline_rounded,
-                            label: 'Chat Notifications',
-                            subtitle: 'New messages from claimers',
-                            value: _chatNotifications,
-                            onChanged: (v) =>
-                                setState(() => _chatNotifications = v),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Appearance Section with Accent Picker
-                      _SettingsSection(
-                        title: 'Appearance',
-                        children: [
-                          _SettingsToggle(
-                            icon: _darkMode
-                                ? Icons.dark_mode_rounded
-                                : Icons.light_mode_rounded,
-                            label: 'Dark Mode',
-                            subtitle: 'Switch between light and dark theme',
-                            value: _darkMode,
-                            onChanged: _toggleDarkMode,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Accent Color Picker
-                      const AccentColorPicker(),
-                      const SizedBox(height: 16),
-
-                      // Security Section
-                      _SettingsSection(
-                        title: 'Security',
-                        children: [
-                          _SettingsTile(
-                            icon: Icons.qr_code_scanner_outlined,
-                            label: 'My QR Code',
-                            subtitle: 'Share your QR code for claiming items',
-                            onTap: () => context.push('/profile/qr'),
-                          ),
-                          _SettingsTile(
-                            icon: Icons.logout_rounded,
-                            label: 'Logout',
-                            isDestructive: true,
-                            onTap: () async {
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                builder: (dialogContext) => AlertDialog(
-                                  title: const Text('Logout'),
-                                  content: const Text(
-                                    'Are you sure you want to logout?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext, true),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.red,
-                                      ),
-                                      child: const Text('Logout'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmed == true && mounted) {
-                                await ref.read(authServiceProvider).signOut();
-                                if (mounted) context.go('/login');
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // About Section
-                      _SettingsSection(
-                        title: 'About',
-                        children: [
-                          _SettingsTile(
-                            icon: Icons.info_outline_rounded,
-                            label: 'Version',
-                            subtitle: 'Lost & Found v1.0.0',
-                            onTap: null,
-                          ),
-                          _SettingsTile(
-                            icon: Icons.privacy_tip_outlined,
-                            label: 'Privacy Policy',
-                            onTap: () {},
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
     );
   }
-}
 
-// ─── Settings Section ─────────────────────────────────────────────────────────
-class _SettingsSection extends StatelessWidget {
-  const _SettingsSection({
-    required this.title,
-    required this.children,
-  });
-  final String title;
-  final List<Widget> children;
+  Widget _buildAccentPicker(Color currentAccent) {
+    final isDarkMode = ref.watch(themeProvider);
+    final accents = [
+      0xFF10B981, // Jade
+      0xFF6366F1, // Indigo
+      0xFFEC4899, // Pink
+      0xFFF59E0B, // Amber
+      0xFF0EA5E9, // Sky
+    ];
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title.toUpperCase(),
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary(context),
-              letterSpacing: 0.8,
-            ),
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Accent Color',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: isDarkMode ? Colors.white : Colors.black),
           ),
-        ),
-        GlassCard(
-          borderRadius: 18,
-          elevation: 1,
-          child: Column(
-            children: children.asMap().entries.map((e) {
-              final isLast = e.key == children.length - 1;
-              return Column(
-                children: [
-                  e.value,
-                  if (!isLast)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Divider(
-                        height: 1,
-                        color: AppColors.border(context),
-                      ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: accents.map((colorInt) {
+              final isSelected = currentAccent.value == colorInt;
+              return GestureDetector(
+                onTap: () {
+                  ref.read(localSettingsProvider).setAccentColor(colorInt);
+                  ref.read(accentColorProvider.notifier).state = colorInt;
+                },
+                child: AnimatedContainer(
+                  duration: 200.ms,
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Color(colorInt),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected ? Colors.white : Colors.transparent,
+                      width: 3,
                     ),
-                ],
+                    boxShadow: [
+                      if (isSelected)
+                        BoxShadow(
+                          color: Color(colorInt).withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                    ],
+                  ),
+                  child: isSelected 
+                    ? const Icon(Icons.check, color: Colors.white, size: 20)
+                    : null,
+                ),
               );
             }).toList(),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProfileField extends StatelessWidget {
-  const _ProfileField({
-    required this.icon,
-    required this.label,
-    required this.controller,
-    this.onChanged,
-  });
-
-  final IconData icon;
-  final String label;
-  final TextEditingController controller;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.textSecondary(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: controller,
-                  onChanged: onChanged,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.textPrimary(context),
-                  ),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    filled: false,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
-}
 
-class _ProfileDropdown extends StatelessWidget {
-  const _ProfileDropdown({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String label;
-  final String? value;
-  final List<String> items;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final normalizedValue = (value != null && value!.trim().isNotEmpty)
-        ? value!.trim()
-        : null;
-    final safeValue = items.cast<String?>().firstWhere(
-          (item) =>
-              item != null &&
-              normalizedValue != null &&
-              item.toLowerCase() == normalizedValue.toLowerCase(),
-          orElse: () => null,
-        );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  Widget _buildSettingTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    required bool isDarkMode,
+    Widget? trailing,
+  }) {
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: isDarkMode ? Colors.white70 : Colors.black54),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.textSecondary(context),
-                  ),
+                  title,
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: isDarkMode ? Colors.white : Colors.black),
                 ),
-                const SizedBox(height: 4),
-                DropdownButton<String>(
-                  value: safeValue,
-                  isExpanded: true,
-                  underline: const SizedBox(),
-                  dropdownColor: AppColors.cardBg(context),
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.textPrimary(context),
-                  ),
-                  hint: Text(
-                    'Select department',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: AppColors.textHint(context),
-                    ),
-                  ),
-                  items: items.map((item) {
-                    return DropdownMenuItem(
-                      value: item,
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          color: AppColors.textPrimary(context),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: onChanged,
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(fontSize: 12, color: isDarkMode ? Colors.white60 : Colors.black54),
                 ),
               ],
             ),
           ),
+          trailing ?? Icon(Icons.arrow_forward_ios_rounded, size: 14, color: isDarkMode ? Colors.white38 : Colors.black26),
         ],
       ),
     );
   }
-}
 
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required bool isDarkMode,
+    required Color accent,
+  }) {
+    return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: isDarkMode ? Colors.white70 : Colors.black54),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.textSecondary(context),
-                  ),
+                  title,
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: isDarkMode ? Colors.white : Colors.black),
                 ),
-                const SizedBox(height: 4),
                 Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: valueColor ?? AppColors.textPrimary(context),
-                  ),
+                  subtitle,
+                  style: GoogleFonts.inter(fontSize: 12, color: isDarkMode ? Colors.white60 : Colors.black54),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingsToggle extends StatelessWidget {
-  const _SettingsToggle({
-    required this.icon,
-    required this.label,
-    this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.textPrimary(context),
-                  ),
-                ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppColors.textSecondary(context),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Switch(
+          Switch.adaptive(
             value: value,
+            activeColor: accent,
             onChanged: onChanged,
           ),
         ],
       ),
     );
   }
-}
 
-class _SettingsTile extends StatelessWidget {
-  const _SettingsTile({
-    required this.icon,
-    required this.label,
-    this.subtitle,
-    this.isDestructive = false,
-    this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final bool isDestructive;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isDestructive
-        ? const Color(0xFFD32F2F)
-        : AppColors.textPrimary(context);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isDestructive
-                  ? Colors.red
-                  : Theme.of(context).colorScheme.primary,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: color,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppColors.textSecondary(context),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (onTap != null)
-              Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textHint(context),
-                size: 20,
-              ),
-          ],
+  Widget _buildLogoutButton() {
+    return Container(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          await ref.read(authServiceProvider).signOut();
+          if (mounted) context.go('/login');
+        },
+        icon: const Icon(Icons.logout_rounded, size: 20),
+        label: const Text('Sign Out'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.redAccent,
+          side: const BorderSide(color: Colors.redAccent),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
-    );
+    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2);
   }
 }

@@ -72,15 +72,17 @@ class NotificationService {
     );
   }
 
-  Future<void> registerDevice(String userId) async {
+  Future<void> registerDevice(String userId, {String? name, String? email}) async {
     try {
       String? token = await _fcm.getToken();
       if (token != null) {
         debugPrint('🎟️ FCM Token: $token');
-        // Update user record in Supabase via backend API
+        // Include name/email to satisfy backend not-null constraints during UPSERT
         await _apiService.syncUser({
           'uid': userId,
           'fcm_token': token,
+          if (name != null) 'name': name,
+          if (email != null) 'email': email,
         });
       }
     } catch (e) {

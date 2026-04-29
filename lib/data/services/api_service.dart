@@ -2,9 +2,46 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
+import '../models/simple_post_model.dart';
+import './auth_service.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService();
+});
+
+final liveRefreshProvider = StreamProvider<int>((ref) {
+  return Stream.periodic(const Duration(seconds: 30), (count) => count);
+});
+
+final postsProvider = FutureProvider<List<SimplePostModel>>((ref) async {
+  // Watch the timer to trigger periodic refreshes
+  ref.watch(liveRefreshProvider);
+  
+  final api = ref.watch(apiServiceProvider);
+  final data = await api.getPosts();
+  return data.map((p) => SimplePostModel.fromMap(p)).toList();
+});
+
+final notificationsProvider = FutureProvider<List<dynamic>>((ref) async {
+  ref.watch(liveRefreshProvider);
+  final api = ref.watch(apiServiceProvider);
+  final user = ref.watch(authServiceProvider).currentUser;
+  if (user == null) return [];
+  
+  try {
+    final response = await api._dio.get('/notifications/${user.uid}');
+    return response.data as List;
+  } catch (e) {
+    return [];
+  }
+});
+
+final unreadCountProvider = FutureProvider<int>((ref) async {
+  ref.watch(liveRefreshProvider);
+  final api = ref.watch(apiServiceProvider);
+  final user = ref.watch(authServiceProvider).currentUser;
+  if (user == null) return 0;
+  return api.getUnreadCountForUser(user.uid);
 });
 
 class ApiService {

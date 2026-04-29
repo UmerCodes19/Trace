@@ -1,4 +1,6 @@
+// lib/presentation/screens/map/map_screen.dart
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:math' as math;
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
@@ -15,14 +18,12 @@ import '../../../data/services/campus_map_service.dart';
 import '../../../data/services/indoor_positioning_service.dart';
 import '../../widgets/map/indoor_map_widget.dart';
 import '../../widgets/common/glass_card.dart';
+import '../../widgets/common/pressable_scale.dart';
 
-// ─── Bahria University Karachi Main Campus ───────────────────────────────
 const _bahriaCampus = LatLng(24.893240, 67.088235);
 
-// ─── Map Screen ───────────────────────────────────────────────────────────────
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
-
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
@@ -31,18 +32,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final MapController _mapController = MapController();
   List<SimplePostModel> _posts = [];
   bool _isLoading = true;
-  String _selectedFilter = 'all'; // all, lost, found
+  String _selectedFilter = 'all'; 
   
-  // Indoor State
   bool _isIndoorMode = true;
   BuildingModel _activeBuilding = CampusMapService.buildings[0];
   int _activeFloor = 0;
   CampusLocation? _userIndoorPos;
   StreamSubscription? _posSubscription;
-
-  // Cached markers to avoid rebuilding on every setState
-  List<Marker>? _cachedMarkers;
-  String? _cachedFilterKey;
 
   @override
   void initState() {
@@ -57,7 +53,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (mounted) {
         setState(() {
           _userIndoorPos = loc;
-          // Optionally auto-switch floor if user moves
           if (loc.building == _activeBuilding.name) {
             _activeFloor = loc.floor;
           }
@@ -81,13 +76,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     setState(() {
       _posts = postsData.map((p) => SimplePostModel.fromMap(p)).toList();
       _isLoading = false;
-      _invalidateMarkerCache();
     });
-  }
-
-  void _invalidateMarkerCache() {
-    _cachedMarkers = null;
-    _cachedFilterKey = null;
   }
 
   List<SimplePostModel> get _filteredPosts {
@@ -99,157 +88,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return _posts;
   }
 
-  List<Marker> _buildMarkers() {
-    // Use cached markers if filter hasn't changed
-    final filterKey = '$_selectedFilter-${_posts.length}';
-    if (_cachedMarkers != null && _cachedFilterKey == filterKey) {
-      return _cachedMarkers!;
-    }
-
-    final markers = <Marker>[];
-    final filtered = _filteredPosts;
-
-    // Group nearby posts for clustering
-    final clusters = _clusterPosts(filtered, distanceThresholdMeters: 50);
-
-    for (final cluster in clusters) {
-      if (cluster.length == 1) {
-        // Single marker
-        final post = cluster.first;
-        final lat = post.location.latitude != 0
-            ? post.location.latitude
-            : _bahriaCampus.latitude;
-        final lng = post.location.longitude != 0
-            ? post.location.longitude
-            : _bahriaCampus.longitude;
-
-        markers.add(
-          Marker(
-            point: LatLng(lat, lng),
-            width: 50,
-            height: 50,
-            child: GestureDetector(
-              onTap: () => _showPinBottomSheet(post),
-              child: _SingleMarker(post: post),
-            ),
-          ),
-        );
-      } else {
-        // Cluster marker
-        final avgLat = cluster.fold<double>(0, (sum, p) {
-              final lat =
-                  p.location.latitude != 0 ? p.location.latitude : _bahriaCampus.latitude;
-              return sum + lat;
-            }) /
-            cluster.length;
-        final avgLng = cluster.fold<double>(0, (sum, p) {
-              final lng =
-                  p.location.longitude != 0 ? p.location.longitude : _bahriaCampus.longitude;
-              return sum + lng;
-            }) /
-            cluster.length;
-
-        markers.add(
-          Marker(
-            point: LatLng(avgLat, avgLng),
-            width: 56,
-            height: 56,
-            child: GestureDetector(
-              onTap: () {
-                // Zoom into cluster
-                _mapController.move(LatLng(avgLat, avgLng), 18);
-              },
-              child: _ClusterMarker(count: cluster.length),
-            ),
-          ),
-        );
-      }
-    }
-
-    _cachedMarkers = markers;
-    _cachedFilterKey = filterKey;
-    return markers;
-  }
-
-  /// Simple grid-based clustering
-  List<List<SimplePostModel>> _clusterPosts(
-    List<SimplePostModel> posts, {
-    required double distanceThresholdMeters,
-  }) {
-    if (posts.isEmpty) return [];
-
-    // Grid cell size in degrees (approximate: 50m ≈ 0.00045 degrees)
-    const gridSize = 0.0005;
-    final grid = <String, List<SimplePostModel>>{};
-
-    for (final post in posts) {
-      final lat = post.location.latitude != 0
-          ? post.location.latitude
-          : _bahriaCampus.latitude;
-      final lng = post.location.longitude != 0
-          ? post.location.longitude
-          : _bahriaCampus.longitude;
-
-      final cellKey =
-          '${(lat / gridSize).floor()}_${(lng / gridSize).floor()}';
-      grid.putIfAbsent(cellKey, () => []).add(post);
-    }
-
-    return grid.values.toList();
-  }
-
-  // Heatmap visualization - density overlay using circles
-  List<CircleMarker> _buildHeatmapCircles() {
-    final circles = <CircleMarker>[];
-
-    // Group posts by location
-    final locationGroups = <String, List<SimplePostModel>>{};
-    for (final post in _filteredPosts) {
-      final key =
-          '${post.location.latitude.toStringAsFixed(3)}_${post.location.longitude.toStringAsFixed(3)}';
-      locationGroups.putIfAbsent(key, () => []).add(post);
-    }
-
-    for (final entry in locationGroups.entries) {
-      final count = entry.value.length;
-      if (count > 1) {
-        final post = entry.value.first;
-        final lat = post.location.latitude != 0
-            ? post.location.latitude
-            : _bahriaCampus.latitude;
-        final lng = post.location.longitude != 0
-            ? post.location.longitude
-            : _bahriaCampus.longitude;
-
-        // Radius and opacity scale with density
-        final radius = 30.0 + (count * 15).clamp(0, 80).toDouble();
-        final opacity = (0.08 + count * 0.04).clamp(0.08, 0.3);
-        final hasLost = entry.value.any((p) => p.isLost);
-        final color = hasLost ? AppColors.lostAlert : AppColors.foundSuccess;
-
-        circles.add(
-          CircleMarker(
-            point: LatLng(lat, lng),
-            radius: radius,
-            color: color.withOpacity(opacity),
-            borderColor: color.withOpacity(opacity * 2),
-            borderStrokeWidth: 1.5,
-          ),
-        );
-      }
-    }
-
-    return circles;
-  }
-
   void _showPinBottomSheet(SimplePostModel post) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.pageBg(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => _PinPreviewSheet(
         post: post,
         onViewPost: () {
@@ -262,9 +106,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredPostsCount = _filteredPosts.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = AppColors.jadePrimary;
 
     return Scaffold(
+      backgroundColor: AppColors.pageBg(context),
       body: Stack(
         children: [
           // ── Map Layer ──────────────────────────────────────────────
@@ -272,446 +118,205 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ? IndoorMapWidget(
                 building: _activeBuilding,
                 floor: _activeFloor,
-                posts: _posts,
+                posts: _filteredPosts,
                 userPos: _userIndoorPos?.building == _activeBuilding.name ? _userIndoorPos?.relativePos : null,
                 onPostTap: _showPinBottomSheet,
-                onRoomTap: (room) {
-                  showAppSnack(context, 'Room ${room.number}: ${room.name}');
-                },
               )
             : FlutterMap(
                 mapController: _mapController,
-                options: MapOptions(
+                options: const MapOptions(
                   initialCenter: _bahriaCampus,
-                  initialZoom: 16,
+                  initialZoom: 17,
+                  maxZoom: 19,
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate: isDark 
+                      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
                     userAgentPackageName: 'pk.edu.bahria.lostfound',
                   ),
-                  CircleLayer(circles: _buildHeatmapCircles()),
-                  MarkerLayer(markers: _buildMarkers()),
+                  MarkerLayer(
+                    markers: _filteredPosts.map((p) {
+                      var point = LatLng(p.location.latitude, p.location.longitude);
+                      
+                      // Fallback to building coordinates if lat/lng are 0
+                      if (p.location.latitude == 0 || p.location.longitude == 0) {
+                        final b = CampusMapService.buildings.firstWhere(
+                          (b) => b.name == p.location.building,
+                          orElse: () => CampusMapService.buildings[0],
+                        );
+                        point = LatLng(b.lat, b.lng);
+                      }
+
+                      return Marker(
+                        point: point,
+                        width: 45, height: 45,
+                        child: GestureDetector(
+                          onTap: () => _showPinBottomSheet(p),
+                          child: _PulseMarker(color: p.isLost ? AppColors.lost : AppColors.found),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ],
               ),
 
-          // ── Loading indicator ───────────────────────────────────
-          if (_isLoading)
-            Container(
-              color: Colors.black45,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(color: Colors.white),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Triangulating campus nodes...',
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            
-          // ── Building & Floor Selectors (Indoor Only) ────────────────
-          if (_isIndoorMode) ...[
-             Positioned(
-               left: 20,
-               top: 140,
-               child: _BuildingSelector(
-                 active: _activeBuilding,
-                 onChanged: (b) => setState(() {
-                   _activeBuilding = b;
-                   _activeFloor = 0;
-                 }),
-               ),
-             ),
-             Positioned(
-               right: 20,
-               top: 140,
-               child: _FloorSelector(
-                 maxFloor: _activeBuilding.floors.length - 1,
-                 active: _activeFloor,
-                 onChanged: (f) => setState(() => _activeFloor = f),
-               ),
-             ),
-          ],
-
-          // ── Top bar overlay ────────────────────────────────────
+          // ── Header Overlay ────────────────────────────────────────
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppColors.navyDarkest,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  AppColors.navyDarkest.withOpacity(0.3),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
+                      _GlassButton(
+                        onPressed: () => setState(() => _isIndoorMode = !_isIndoorMode),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.map_rounded,
-                                color: AppColors.beigeWarm, size: 18),
+                            Icon(_isIndoorMode ? Icons.apartment_rounded : Icons.public_rounded, size: 18, color: accent),
                             const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => setState(() => _isIndoorMode = !_isIndoorMode),
-                              child: Text(
-                                _isIndoorMode ? 'CAMPUS VIEW' : 'WORLD VIEW',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: 1,
-                                ),
-                              ),
+                            Text(
+                              _isIndoorMode ? 'INDOOR' : 'CAMPUS',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1),
                             ),
                           ],
                         ),
                       ),
                       const Spacer(),
-                      if (_isIndoorMode)
-                        _MyIndoorLocationButton(
-                          onPressed: () {
-                            if (_userIndoorPos != null) {
-                              setState(() {
-                                _activeBuilding = CampusMapService.buildings.firstWhere(
-                                  (b) => b.name == _userIndoorPos!.building,
-                                  orElse: () => _activeBuilding,
-                                );
-                                _activeFloor = _userIndoorPos!.floor;
-                              });
-                            }
-                          },
-                        ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          filteredPostsCount > 0
-                              ? '$filteredPostsCount items'
-                              : 'No items',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary(context),
-                          ),
-                        ),
+                      _GlassButton(
+                        onPressed: _loadPosts,
+                        child: Icon(Icons.refresh_rounded, size: 18, color: AppColors.textPrimary(context)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Filter buttons
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _FilterButton(
-                          label: 'All',
-                          isSelected: _selectedFilter == 'all',
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _selectedFilter = 'all';
-                              _invalidateMarkerCache();
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterButton(
-                          label: '🔴 Lost',
-                          isSelected: _selectedFilter == 'lost',
-                          color: AppColors.lostAlert,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _selectedFilter = 'lost';
-                              _invalidateMarkerCache();
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterButton(
-                          label: '🟢 Found',
-                          isSelected: _selectedFilter == 'found',
-                          color: AppColors.foundSuccess,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _selectedFilter = 'found';
-                              _invalidateMarkerCache();
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildFilters(),
                 ],
               ),
             ),
           ),
 
-          // ── Legend ──────────────────────────────────────────────
-          Positioned(
-            left: 20,
-            bottom: 140,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _LegendItem(
-                  color: AppColors.lostAlert,
-                  label: 'Lost Items',
-                  icon: Icons.warning_rounded,
-                ),
-                const SizedBox(height: 6),
-                _LegendItem(
-                  color: AppColors.foundSuccess,
-                  label: 'Found Items',
-                  icon: Icons.check_circle_rounded,
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBg(context).withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color:
-                              AppColors.lostAlert.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.lostAlert.withOpacity(0.5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text('High Density',
-                          style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ],
+          // ── Building & Floor Controls (Indoor Only) ────────────────
+          if (_isIndoorMode) ...[
+            Positioned(
+              right: 20,
+              top: 180,
+              child: _FloorController(
+                maxFloor: _activeBuilding.floors.length - 1,
+                active: _activeFloor,
+                onChanged: (f) => setState(() => _activeFloor = f),
+              ),
             ),
-          ),
+            Positioned(
+              left: 20,
+              bottom: 120,
+              child: _BuildingController(
+                active: _activeBuilding,
+                onChanged: (b) => setState(() {
+                  _activeBuilding = b;
+                  _activeFloor = 0;
+                }),
+              ),
+            ),
+          ],
 
-          // ── Refresh Button ──────────────────────────────────────
-          Positioned(
-            right: 20,
-            bottom: 140,
-            child: FloatingActionButton(
-              mini: true,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                _invalidateMarkerCache();
-                _loadPosts();
-              },
-              child: const Icon(Icons.refresh_rounded,
-                  color: Colors.white, size: 20),
+          // ── Loading Overlay ──────────────────────────────────────
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: AppColors.pageBg(context).withOpacity(0.5),
+                child: Center(
+                  child: const CircularProgressIndicator(strokeWidth: 2).animate().scale(),
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
-}
 
-// ─── Single Marker ──────────────────────────────────────────────────────────
-class _SingleMarker extends StatelessWidget {
-  const _SingleMarker({required this.post});
-  final SimplePostModel post;
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: post.isLost ? AppColors.lostAlert : AppColors.foundSuccess,
-          boxShadow: [
-            BoxShadow(
-              color: (post.isLost
-                      ? AppColors.lostAlert
-                      : AppColors.foundSuccess)
-                  .withOpacity(0.4),
-              blurRadius: 8,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Icon(
-          post.isLost
-              ? Icons.warning_rounded
-              : Icons.check_circle_rounded,
-          color: Colors.white,
-          size: 20,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Cluster Marker ─────────────────────────────────────────────────────────
-class _ClusterMarker extends StatelessWidget {
-  const _ClusterMarker({required this.count});
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    return RepaintBoundary(
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [accent, accent.withOpacity(0.7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: Colors.white, width: 2.5),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withOpacity(0.4),
-              blurRadius: 10,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Center(
-          child: Text(
-            '$count',
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Legend Item ────────────────────────────────────────────────────────────
-class _LegendItem extends StatelessWidget {
-  const _LegendItem({
-    required this.color,
-    required this.label,
-    required this.icon,
-  });
-  final Color color;
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg(context).withOpacity(0.9),
-        borderRadius: BorderRadius.circular(12),
-      ),
+  Widget _buildFilters() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 14),
-          const SizedBox(width: 6),
-          Text(label,
-              style: GoogleFonts.inter(
-                  fontSize: 10, fontWeight: FontWeight.w500)),
+          _ChipFilter(
+            label: 'All Items',
+            isSelected: _selectedFilter == 'all',
+            onTap: () => setState(() => _selectedFilter = 'all'),
+          ),
+          const SizedBox(width: 8),
+          _ChipFilter(
+            label: '🔴 Lost',
+            isSelected: _selectedFilter == 'lost',
+            onTap: () => setState(() => _selectedFilter = 'lost'),
+          ),
+          const SizedBox(width: 8),
+          _ChipFilter(
+            label: '🟢 Found',
+            isSelected: _selectedFilter == 'found',
+            onTap: () => setState(() => _selectedFilter = 'found'),
+          ),
         ],
+      ),
+    ).animate().fadeIn(delay: 200.ms).slideY(begin: -0.2, end: 0);
+  }
+}
+
+class _GlassButton extends StatelessWidget {
+  const _GlassButton({required this.onPressed, required this.child});
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onPressed,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.card(context).withOpacity(0.7),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border(context).withOpacity(0.5)),
+            ),
+            child: child,
+          ),
+        ),
       ),
     );
   }
 }
 
-// ─── Filter Button ──────────────────────────────────────────────────────────
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    this.color,
-  });
+class _ChipFilter extends StatelessWidget {
+  const _ChipFilter({required this.label, required this.isSelected, required this.onTap});
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
-  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final btnColor = color ?? Theme.of(context).colorScheme.primary;
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? btnColor : AppColors.cardBg(context),
+          color: isSelected ? AppColors.jadePrimary : AppColors.card(context).withOpacity(0.7),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : AppColors.border(context),
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: btnColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+          border: Border.all(color: isSelected ? Colors.transparent : AppColors.border(context)),
+          boxShadow: isSelected ? [BoxShadow(color: AppColors.jadePrimary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))] : null,
         ),
         child: Text(
           label,
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : AppColors.textSecondary(context),
+            fontSize: 12, 
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? Colors.white : AppColors.textPrimary(context),
           ),
         ),
       ),
@@ -719,7 +324,99 @@ class _FilterButton extends StatelessWidget {
   }
 }
 
-// ─── Pin Preview Bottom Sheet ───────────────────────────────────────────────
+class _FloorController extends StatelessWidget {
+  const _FloorController({required this.maxFloor, required this.active, required this.onChanged});
+  final int maxFloor;
+  final int active;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(maxFloor + 1, (index) {
+        final f = maxFloor - index;
+        final isSelected = active == f;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: PressableScale(
+            onTap: () => onChanged(f),
+            child: Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.jadePrimary : AppColors.card(context).withOpacity(0.8),
+                shape: BoxShape.circle,
+                border: Border.all(color: isSelected ? Colors.transparent : AppColors.border(context)),
+              ),
+              child: Center(
+                child: Text(
+                  'F$f',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : AppColors.textPrimary(context)),
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    ).animate().fadeIn().slideX(begin: 0.5, end: 0);
+  }
+}
+
+class _BuildingController extends StatelessWidget {
+  const _BuildingController({required this.active, required this.onChanged});
+  final BuildingModel active;
+  final ValueChanged<BuildingModel> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: CampusMapService.buildings.map((b) {
+        final isSelected = active.name == b.name;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: PressableScale(
+            onTap: () => onChanged(b),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.jadePrimary : AppColors.card(context).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isSelected ? Colors.transparent : AppColors.border(context)),
+              ),
+              child: Text(
+                b.name,
+                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: isSelected ? Colors.white : AppColors.textPrimary(context)),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    ).animate().fadeIn().slideX(begin: -0.5, end: 0);
+  }
+}
+
+class _PulseMarker extends StatelessWidget {
+  const _PulseMarker({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 30, height: 30,
+          decoration: BoxDecoration(color: color.withOpacity(0.3), shape: BoxShape.circle),
+        ).animate(onPlay: (c) => c.repeat()).scale(begin: const Offset(1, 1), end: const Offset(2, 2), duration: 1.seconds).fadeOut(),
+        Container(
+          width: 14, height: 14,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5)),
+        ),
+      ],
+    );
+  }
+}
+
 class _PinPreviewSheet extends StatelessWidget {
   const _PinPreviewSheet({required this.post, required this.onViewPost});
   final SimplePostModel post;
@@ -727,207 +424,56 @@ class _PinPreviewSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
+      decoration: BoxDecoration(
+        color: AppColors.pageBg(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border.all(color: AppColors.border(context), width: 0.5),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: AppColors.border(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border(context), borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 24),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: post.isLost ? AppColors.lostAlertBg : AppColors.foundBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  post.isLost ? '🔴 Lost Item' : '🟢 Found Item',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: post.isLost
-                        ? AppColors.lostAlert
-                        : AppColors.foundSuccess,
-                  ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: 80, height: 80,
+                  color: AppColors.shimmerBase(context),
+                  child: post.imageUrls.isNotEmpty 
+                    ? Image.network(post.imageUrls.first, fit: BoxFit.cover)
+                    : Icon(Icons.image_not_supported_outlined, color: AppColors.textSecondary(context)),
                 ),
               ),
-              const Spacer(),
-              // AI Tags preview
-              if (post.aiTags.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.auto_awesome, size: 12,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 4),
-                      Text(
-                        post.aiTags.take(2).join(', '),
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            post.title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary(context),
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (post.description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              post.description,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: AppColors.textSecondary(context),
-                height: 1.4,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.location_on_rounded,
-                  color: AppColors.navyLight, size: 16),
-              const SizedBox(width: 6),
+              const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  post.location.building.isNotEmpty
-                      ? '${post.location.building} · Floor ${post.location.floor}'
-                      : 'Campus Location',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.textSecondary(context),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: (post.isLost ? AppColors.lost : AppColors.found).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                      child: Text(post.isLost ? 'LOST' : 'FOUND', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: post.isLost ? AppColors.lost : AppColors.found)),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(post.title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context))),
+                    Text('${post.location.building} • ${AppDateUtils.timeAgo(post.timestamp)}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context))),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onViewPost,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: post.isLost
-                    ? AppColors.lostAlert
-                    : AppColors.foundSuccess,
-              ),
-              child: const Text('View Full Details'),
-            ),
+            height: 54,
+            child: ElevatedButton(onPressed: onViewPost, child: const Text('View Full Details')),
           ),
         ],
       ),
-    );
-  }
-}
-
-extension LatLngTrig on LatLng {
-  double get latitudeInRad => latitude * math.pi / 180;
-  double get longitudeInRad => longitude * math.pi / 180;
-}
-
-extension RadToDeg on double {
-  double get toDeg => this * 180 / math.pi;
-}
-
-class _BuildingSelector extends StatelessWidget {
-  const _BuildingSelector({required this.active, required this.onChanged});
-  final BuildingModel active;
-  final Function(BuildingModel) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      borderRadius: 16,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButton<BuildingModel>(
-          value: active,
-          underline: const SizedBox(),
-          dropdownColor: AppColors.navyDarkest,
-          items: CampusMapService.buildings.map((b) {
-            return DropdownMenuItem(
-              value: b,
-              child: Text(b.name, style: GoogleFonts.inter(fontSize: 12, color: Colors.white)),
-            );
-          }).toList(),
-          onChanged: (v) => v != null ? onChanged(v) : null,
-        ),
-      ),
-    );
-  }
-}
-
-class _FloorSelector extends StatelessWidget {
-  const _FloorSelector({required this.maxFloor, required this.active, required this.onChanged});
-  final int maxFloor;
-  final int active;
-  final Function(int) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      borderRadius: 16,
-      child: Column(
-        children: List.generate(maxFloor + 1, (index) {
-          final isSelected = active == index;
-          return IconButton(
-            icon: Text('F$index', style: GoogleFonts.inter(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Theme.of(context).colorScheme.primary : AppColors.textSecondary(context),
-            )),
-            onPressed: () => onChanged(index),
-          );
-        }).reversed.toList(),
-      ),
-    );
-  }
-}
-
-class _MyIndoorLocationButton extends StatelessWidget {
-  const _MyIndoorLocationButton({required this.onPressed});
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FloatingActionButton.small(
-      onPressed: onPressed,
-      backgroundColor: AppColors.navyDarkest,
-      child: const Icon(Icons.my_location_rounded, color: Colors.white),
     );
   }
 }

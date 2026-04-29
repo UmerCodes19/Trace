@@ -12,8 +12,10 @@ import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/debug/debug_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
 import '../../presentation/screens/map/map_screen.dart';
+import '../../presentation/screens/notifications/notification_list_screen.dart';
 import '../../presentation/screens/post/create_post_screen.dart';
 import '../../presentation/screens/post/post_detail_screen.dart';
+import '../../presentation/screens/profile/edit_profile_screen.dart';
 import '../../presentation/screens/profile/profile_screen.dart';
 import '../../presentation/screens/profile/qr_code_screen.dart';
 import '../../presentation/screens/profile/settings_screen.dart';
@@ -96,6 +98,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ChatScreen(chatId: state.pathParameters['chatId']!),
       ),
       GoRoute(
+        path: '/profile/edit',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/view/:uid',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) => ProfileScreen(viewUid: state.pathParameters['uid']),
+      ),
+      GoRoute(
         path: '/profile/qr',
         parentNavigatorKey: _rootKey,
         builder: (ctx, state) => const QrCodeScreen(),
@@ -103,7 +115,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         parentNavigatorKey: _rootKey,
-        builder: (ctx, state) => const SettingsScreen(),
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        parentNavigatorKey: _rootKey,
+        builder: (context, state) => const NotificationListScreen(),
       ),
     ],
     redirect: (ctx, state) => null,

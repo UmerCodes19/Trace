@@ -17,6 +17,11 @@ class SimpleUserModel {
   final bool proximityAlertsEnabled;
   final bool chatNotificationsEnabled;
   final String? cmsStudentId;
+  final String? fatherName;
+  final String? registrationNo;
+  final String? currentAddress;
+  final String? permanentAddress;
+  final String? intakeSemester;
 
 
   SimpleUserModel({
@@ -37,6 +42,11 @@ class SimpleUserModel {
     this.proximityAlertsEnabled = true,
     this.chatNotificationsEnabled = true,
     this.cmsStudentId,
+    this.fatherName,
+    this.registrationNo,
+    this.currentAddress,
+    this.permanentAddress,
+    this.intakeSemester,
   });
 
   factory SimpleUserModel.fromMap(Map<String, dynamic> map) {
@@ -58,6 +68,61 @@ class SimpleUserModel {
       proximityAlertsEnabled: map['proximityAlertsEnabled'] as bool? ?? true,
       chatNotificationsEnabled: map['chatNotificationsEnabled'] as bool? ?? true,
       cmsStudentId: map['cmsStudentId'] as String?,
+      fatherName: map['fatherName'] as String?,
+      registrationNo: map['registrationNo'] as String?,
+      currentAddress: map['currentAddress'] as String?,
+      permanentAddress: map['permanentAddress'] as String?,
+      intakeSemester: map['intakeSemester'] as String?,
+    );
+  }
+
+  SimpleUserModel copyWith({
+    String? uid,
+    String? name,
+    String? email,
+    String? department,
+    String? contactNumber,
+    String? photoURL,
+    bool? isCMSVerified,
+    int? itemsLost,
+    int? itemsFound,
+    int? itemsReturned,
+    int? karmaPoints,
+    bool? isAdmin,
+    bool? isBanned,
+    bool? isDarkMode,
+    bool? proximityAlertsEnabled,
+    bool? chatNotificationsEnabled,
+    String? cmsStudentId,
+    String? fatherName,
+    String? registrationNo,
+    String? currentAddress,
+    String? permanentAddress,
+    String? intakeSemester,
+  }) {
+    return SimpleUserModel(
+      uid: uid ?? this.uid,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      department: department ?? this.department,
+      contactNumber: contactNumber ?? this.contactNumber,
+      photoURL: photoURL ?? this.photoURL,
+      isCMSVerified: isCMSVerified ?? this.isCMSVerified,
+      itemsLost: itemsLost ?? this.itemsLost,
+      itemsFound: itemsFound ?? this.itemsFound,
+      itemsReturned: itemsReturned ?? this.itemsReturned,
+      karmaPoints: karmaPoints ?? this.karmaPoints,
+      isAdmin: isAdmin ?? this.isAdmin,
+      isBanned: isBanned ?? this.isBanned,
+      isDarkMode: isDarkMode ?? this.isDarkMode,
+      proximityAlertsEnabled: proximityAlertsEnabled ?? this.proximityAlertsEnabled,
+      chatNotificationsEnabled: chatNotificationsEnabled ?? this.chatNotificationsEnabled,
+      cmsStudentId: cmsStudentId ?? this.cmsStudentId,
+      fatherName: fatherName ?? this.fatherName,
+      registrationNo: registrationNo ?? this.registrationNo,
+      currentAddress: currentAddress ?? this.currentAddress,
+      permanentAddress: permanentAddress ?? this.permanentAddress,
+      intakeSemester: intakeSemester ?? this.intakeSemester,
     );
   }
 
@@ -80,6 +145,11 @@ class SimpleUserModel {
       'proximityAlertsEnabled': proximityAlertsEnabled,
       'chatNotificationsEnabled': chatNotificationsEnabled,
       'cmsStudentId': cmsStudentId,
+      'fatherName': fatherName,
+      'registrationNo': registrationNo,
+      'currentAddress': currentAddress,
+      'permanentAddress': permanentAddress,
+      'intakeSemester': intakeSemester,
     };
   }
 }

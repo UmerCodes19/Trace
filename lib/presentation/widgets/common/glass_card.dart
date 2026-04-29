@@ -16,6 +16,7 @@ class GlassCard extends StatelessWidget {
     this.opacity,
     this.borderGlow,
     this.elevation = 0,
+    this.onTap,
   });
 
   final Widget child;
@@ -25,6 +26,7 @@ class GlassCard extends StatelessWidget {
   final double? opacity;
   final Color? borderGlow;
   final double elevation;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +43,7 @@ class GlassCard extends StatelessWidget {
             ? Colors.white.withOpacity(0.08)
             : Colors.white.withOpacity(0.8));
 
-    return Container(
+    final card = Container(
       decoration: elevation > 0
           ? BoxDecoration(
               borderRadius: BorderRadius.circular(borderRadius),
@@ -72,6 +74,16 @@ class GlassCard extends StatelessWidget {
         ),
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: card,
+      );
+    }
+
+    return card;
   }
 }
 

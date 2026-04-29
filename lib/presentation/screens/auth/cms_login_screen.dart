@@ -65,10 +65,10 @@ class _CmsLoginScreenState extends ConsumerState<CmsLoginScreen> {
           });
 
           // Save timetable to cloud
-          if (session.timetable.isNotEmpty) {
+          if (session.timetable != null && session.timetable!.isNotEmpty) {
             await api.saveTimetable(
               session.enrollment,
-              session.timetable.map((e) => e.toMap()).toList(),
+              session.timetable!.map((e) => e.toMap()).toList(),
             );
           }
         }

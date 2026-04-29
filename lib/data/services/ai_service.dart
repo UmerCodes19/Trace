@@ -17,10 +17,11 @@ class AIService {
   
   // List of models to try in order (Primary -> Fallback)
   final List<String> _modelsToTry = [
-    'gemini-1.5-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-pro',
-  ];
+  'models/gemini-2.5-flash',
+  'models/gemini-2.0-flash',
+  'models/gemini-2.0-flash-lite',
+  'models/gemini-2.5-pro',
+];
 
   AIService(this._apiKey);
 

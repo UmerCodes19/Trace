@@ -138,29 +138,31 @@ class SkeletonPostCard extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        width: 28,
-                        height: 28,
+                        width: 24,
+                        height: 24,
                         decoration: BoxDecoration(
                           color: AppColors.shimmerBaseColor(context),
                           shape: BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 80,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: AppColors.shimmerBaseColor(context),
-                          borderRadius: BorderRadius.circular(7),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Container(
+                          width: 60,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: AppColors.shimmerBaseColor(context),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 4),
                       Container(
-                        width: 70,
-                        height: 28,
+                        width: 50,
+                        height: 24,
                         decoration: BoxDecoration(
                           color: AppColors.shimmerBaseColor(context),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ],

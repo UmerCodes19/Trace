@@ -1,5 +1,7 @@
+// lib/presentation/widgets/map/indoor_map_widget.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/campus_map_service.dart';
@@ -25,6 +27,7 @@ class IndoorMapWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final floorData = building.floors.firstWhere((f) => f.level == floor);
+    final accent = Theme.of(context).colorScheme.primary;
     
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -38,7 +41,7 @@ class IndoorMapWidget extends StatelessWidget {
                 size: Size(constraints.maxWidth, constraints.maxHeight),
                 painter: _IndoorMapPainter(
                   rooms: floorData.rooms,
-                  accentColor: Theme.of(context).colorScheme.primary,
+                  accentColor: accent,
                   isDark: Theme.of(context).brightness == Brightness.dark,
                 ),
               ),
@@ -59,48 +62,71 @@ class IndoorMapWidget extends StatelessWidget {
                 );
               }),
 
-              // Pins
+              // Pins with Lively Pulse
               ...posts.where((p) {
-                // Filter posts that belong to this building and floor
-                // For now we match by room number string starting with building initial
-                return p.location.room != null && 
-                       p.location.room!.startsWith(building.name[0]) &&
-                       p.location.floor == floor;
+                // Show if it belongs to this building and floor
+                final inThisBuilding = p.location.building == building.name || 
+                                     (p.location.room != null && p.location.room!.startsWith(building.id[0].toUpperCase()));
+                return inThisBuilding && p.location.floor == floor;
               }).map((post) {
-                final room = CampusMapService.findRoom(post.location.room!);
-                if (room == null) return const SizedBox();
+                // Try to find specific room position
+                RoomModel? room;
+                if (post.location.room != null) {
+                  room = CampusMapService.findRoom(post.location.room!);
+                }
+                
+                // Fallback to lobby or center if room not found or not specified
+                final pos = room?.position ?? const Offset(0.5, 0.5);
 
                 return Positioned(
-                  left: room.position.dx * constraints.maxWidth,
-                  top: room.position.dy * constraints.maxHeight,
+                  left: pos.dx * constraints.maxWidth,
+                  top: pos.dy * constraints.maxHeight,
                   child: FractionalTranslation(
                     translation: const Offset(-0.5, -1.0),
                     child: GestureDetector(
                       onTap: () => onPostTap?.call(post),
-                      child: Icon(
-                        Icons.location_on_rounded,
-                        color: post.isLost ? AppColors.lostAlert : AppColors.foundSuccess,
-                        size: 30,
-                      ),
+                      child: _IndoorPin(color: post.isLost ? AppColors.lost : AppColors.found),
                     ),
                   ),
                 );
               }),
 
-              // User Location
+              // User Location with Dynamic Radar
               if (userPos != null)
                 Positioned(
                   left: userPos!.dx * constraints.maxWidth,
                   top: userPos!.dy * constraints.maxHeight,
                   child: const FractionalTranslation(
                     translation: Offset(-0.5, -0.5),
-                    child: _UserLocationIndicator(),
+                    child: _UserLocationRadar(),
                   ),
                 ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _IndoorPin extends StatelessWidget {
+  const _IndoorPin({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.location_on_rounded, color: color, size: 30)
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .moveY(begin: 0, end: -4, duration: 600.ms, curve: Curves.easeInOut),
+        Container(
+          width: 8, height: 2,
+          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2)),
+        ).animate(onPlay: (c) => c.repeat(reverse: true))
+            .scaleX(begin: 1, end: 1.5, duration: 600.ms),
+      ],
     );
   }
 }
@@ -118,13 +144,10 @@ class _IndoorMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..strokeWidth = 2.0;
-
+    final paint = Paint()..style = PaintingStyle.fill;
     final borderPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..color = isDark ? Colors.white24 : Colors.black12
+      ..color = isDark ? Colors.white10 : Colors.black12
       ..strokeWidth = 1.0;
 
     for (var room in rooms) {
@@ -135,20 +158,20 @@ class _IndoorMapPainter extends CustomPainter {
       );
 
       // Room Fill
-      paint.color = accentColor.withOpacity(0.1);
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), paint);
+      paint.color = accentColor.withOpacity(0.08);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(6)), paint);
       
       // Room Border
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), borderPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(6)), borderPaint);
 
       // Room Label
       final textPainter = TextPainter(
         text: TextSpan(
           text: room.number,
           style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white38 : Colors.black38,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white24 : Colors.black26,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -162,36 +185,24 @@ class _IndoorMapPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _UserLocationIndicator extends StatelessWidget {
-  const _UserLocationIndicator();
+class _UserLocationRadar extends StatelessWidget {
+  const _UserLocationRadar();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.2),
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: Colors.blue,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.blue.withOpacity(0.5),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
+    final accent = AppColors.jadePrimary;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: accent.withOpacity(0.2), shape: BoxShape.circle),
+        ).animate(onPlay: (c) => c.repeat()).scale(begin: const Offset(0, 0), end: const Offset(1, 1)).fadeOut(),
+        Container(
+          width: 12, height: 12,
+          decoration: BoxDecoration(color: accent, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: [BoxShadow(color: accent.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)]),
         ),
-      ),
+      ],
     );
   }
 }

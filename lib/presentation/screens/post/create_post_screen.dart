@@ -401,6 +401,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         },
       );
 
+      // Trigger real-time refresh
+      ref.invalidate(postsProvider);
+
       AppHaptics.success();
 
       if (!mounted) return;
