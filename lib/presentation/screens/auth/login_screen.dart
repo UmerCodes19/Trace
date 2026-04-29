@@ -40,8 +40,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       backgroundColor: AppColors.pageBg(context),
       body: Stack(
         children: [
-          // Minimalist Grid Pattern Background with Jade Tint
-          if (!isDark) Positioned.fill(child: CustomPaint(painter: _GridPainter(accent.withOpacity(0.05)))),
+          // Subtlest Background Glow
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topCenter,
+                  radius: 1.2,
+                  colors: [
+                    accent.withOpacity(isDark ? 0.08 : 0.05),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          if (!isDark) Positioned.fill(child: CustomPaint(painter: _GridPainter(accent.withOpacity(0.03)))),
           
           SafeArea(
             child: LayoutBuilder(
@@ -52,9 +67,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     constraints: BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SizedBox(height: 100),
+                          const SizedBox(height: 80),
                           _buildHeader(context, accent),
                           const Spacer(),
                           _buildAuthButtons(context, accent),
@@ -76,22 +91,59 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildHeader(BuildContext context, Color accent) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // Glowing Trace Logo
         Container(
-          width: 60, height: 60,
-          decoration: BoxDecoration(color: accent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: accent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]),
-          child: const Icon(Icons.radar_rounded, color: Colors.white, size: 32),
-        ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
-        const SizedBox(height: 32),
+          width: 80, height: 80,
+          decoration: BoxDecoration(
+            color: AppColors.card(context),
+            shape: BoxShape.circle,
+            border: Border.all(color: accent.withOpacity(0.2), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withOpacity(0.2),
+                blurRadius: 30,
+                spreadRadius: 2,
+              )
+            ],
+          ),
+          child: Center(child: Icon(Icons.radar_rounded, color: accent, size: 40)),
+        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+         .scale(duration: 2.seconds, begin: const Offset(1, 1), end: const Offset(1.05, 1.05), curve: Curves.easeInOut)
+         .shimmer(duration: 3.seconds, color: accent.withOpacity(0.1)),
+         
+        const SizedBox(height: 40),
+        
+        ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: [AppColors.textPrimary(context), accent.withOpacity(0.8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ).createShader(bounds),
+          child: Text(
+            'Trace.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 56, 
+              fontWeight: FontWeight.w900, 
+              color: Colors.white, 
+              letterSpacing: -3,
+              height: 1,
+            ),
+          ),
+        ).animate().fadeIn(duration: 800.ms).slideY(begin: 0.1, end: 0),
+        
+        const SizedBox(height: 12),
+        
         Text(
-          'Trace.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 48, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context), letterSpacing: -2),
-        ).animate().fadeIn(delay: 200.ms).slideX(begin: -0.2, end: 0),
-        const SizedBox(height: 8),
-        Text(
-          'The campus lost & found network, refined.',
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textSecondary(context), height: 1.5),
+          'Refined campus awareness.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: 16, 
+            fontWeight: FontWeight.w500, 
+            color: AppColors.textSecondary(context).withOpacity(0.8),
+            letterSpacing: 0.2,
+          ),
         ).animate().fadeIn(delay: 400.ms),
       ],
     );

@@ -81,6 +81,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                               ),
                             ),
                             const SizedBox(width: 12),
+                            // Subtle Trace Signature
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: accent.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: accent.withOpacity(0.2), width: 0.5),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.radar_rounded, color: accent, size: 14),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'TRACE',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                      color: accent,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.8, 0.8)),
+                            const SizedBox(width: 12),
                             GestureDetector(
                               onTap: () => context.push('/notifications'),
                               child: _NotificationIcon(accent: accent),
