@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
+const NotificationService = require('../services/notification_service');
 
 // Get chat by ID
 router.get('/:chatId', async (req, res) => {
@@ -163,6 +164,20 @@ router.post('/messages', async (req, res) => {
         lastMessageTime: message.timestamp
       })
       .eq('id', message.chatId);
+
+    // Send Notification to recipient
+    const { data: chat } = await supabase.from('chats').select('participants').eq('id', message.chatId).single();
+    if (chat) {
+      const recipientId = chat.participants.find(p => p !== message.senderId);
+      if (recipientId) {
+        await NotificationService.sendToUser(recipientId, {
+          title: `Message from ${message.senderName || 'Someone'}`,
+          body: message.text || '📷 Sent an image',
+          type: 'chat',
+          data: { chatId: message.chatId }
+        });
+      }
+    }
 
     res.status(201).json(msgData[0]);
   } catch (error) {

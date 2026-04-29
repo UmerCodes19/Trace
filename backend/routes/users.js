@@ -24,10 +24,24 @@ router.post('/sync', async (req, res) => {
     const user = req.body;
     user.lastActive = Date.now();
     
-    const { data, error } = await supabase
+    // Attempt upsert
+    let { data, error } = await supabase
       .from('users')
       .upsert(user, { onConflict: 'uid' })
       .select();
+
+    // If column doesn't exist, retry without privacy_settings
+    if (error && error.message.includes('privacy_settings')) {
+      console.warn('Database missing privacy_settings column. Retrying without it.');
+      const { privacy_settings, ...userWithoutPrivacy } = user;
+      const retry = await supabase
+        .from('users')
+        .upsert(userWithoutPrivacy, { onConflict: 'uid' })
+        .select();
+      
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
     res.json(data[0]);

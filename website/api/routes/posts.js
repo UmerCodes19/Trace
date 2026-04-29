@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
+const NotificationService = require('../services/notification_service');
 
 // Get all posts
 router.get('/', async (req, res) => {
@@ -45,6 +46,18 @@ router.post('/:postId/comments', async (req, res) => {
       .insert(req.body);
     
     if (error) throw error;
+
+    // Send Notification to post owner
+    const { data: post } = await supabase.from('posts').select('userId, title').eq('id', req.params.postId).single();
+    if (post && post.userId !== req.body.userId) {
+      await NotificationService.sendToUser(post.userId, {
+        title: 'New Comment',
+        body: `${req.body.userName || 'Someone'} commented on "${post.title}"`,
+        type: 'comment',
+        data: { postId: req.params.postId }
+      });
+    }
+
     res.json({ message: 'Comment added' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -107,6 +120,18 @@ router.post('/:postId/like', async (req, res) => {
     } else {
       await supabase.from('likes').insert({ postId, userId });
       const { data } = await supabase.from('posts').update({ likeCount: (post?.likeCount || 0) + 1 }).eq('id', postId).select();
+      
+      // Send Notification
+      const { data: fullPost } = await supabase.from('posts').select('userId, title').eq('id', postId).single();
+      if (fullPost && fullPost.userId !== userId) {
+        await NotificationService.sendToUser(fullPost.userId, {
+          title: 'New Like',
+          body: `Someone liked your post "${fullPost.title}"`,
+          type: 'like',
+          data: { postId }
+        });
+      }
+
       res.json({ liked: true, likeCount: data[0].likeCount });
     }
   } catch (error) {
@@ -170,6 +195,15 @@ router.post('/', async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    // Broadcast to Admins/Staff for new post
+    await NotificationService.broadcastToRole('admin', {
+      title: 'New Report',
+      body: `New ${post.type} item: ${post.title}`,
+      type: 'admin_alert',
+      data: { postId: data[0].id }
+    });
+
     res.status(201).json(data[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -187,6 +221,17 @@ router.put('/:id', async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    // Notify user if post is resolved (Karma update)
+    if (updates.status === 'resolved') {
+      await NotificationService.sendToUser(data[0].userId, {
+        title: 'Item Recovered!',
+        body: `Congratulations! Your item "${data[0].title}" is marked as resolved. +10 Karma!`,
+        type: 'karma_alert',
+        data: { postId: req.params.id }
+      });
+    }
+
     res.json(data[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });

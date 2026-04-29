@@ -205,20 +205,21 @@ class AuthService {
       final userMap = await apiService.getUser(firebaseUser.uid);
       if (userMap != null) {
         _currentUser = SimpleUserModel.fromMap(userMap);
-        return _currentUser;
+      } else {
+        final created = SimpleUserModel(
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName ?? 'User',
+          email: firebaseUser.email ?? '',
+          photoURL: firebaseUser.photoURL ?? '',
+        );
+        final synced = await apiService.syncUser(created.toMap());
+        _currentUser = SimpleUserModel.fromMap(synced);
       }
-      
-      final created = SimpleUserModel(
-        uid: firebaseUser.uid,
-        name: firebaseUser.displayName ?? 'User',
-        email: firebaseUser.email ?? '',
-        photoURL: firebaseUser.photoURL ?? '',
-      );
-      final synced = await apiService.syncUser(created.toMap());
-      _currentUser = SimpleUserModel.fromMap(synced);
 
-      // Ensure device is registered for notifications on app start
-      await NotificationService().registerDevice(_currentUser!.uid, name: _currentUser!.name, email: _currentUser!.email);
+      // Ensure device is registered for notifications on app start or login
+      if (_currentUser != null) {
+        await NotificationService().registerDevice(_currentUser!.uid, name: _currentUser!.name, email: _currentUser!.email);
+      }
 
       return _currentUser;
     }
