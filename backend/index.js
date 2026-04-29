@@ -50,6 +50,7 @@ const chatRoutes = require('./routes/chats');
 const cmsRoutes = require('./routes/cms');
 const adminRoutes = require('./routes/admin');
 const claimLogRoutes = require('./routes/claim_logs');
+const notificationRoutes = require('./routes/notifications');
 const { verifyToken, checkRole } = require('./middleware/auth');
 
 
@@ -76,6 +77,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chats', verifyToken, chatRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', verifyToken, checkRole(['admin', 'staff']), adminRoutes);
 app.use('/api/claim-logs', verifyToken, checkRole(['admin']), claimLogRoutes);
 

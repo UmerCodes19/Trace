@@ -18,25 +18,45 @@
 @source "src/**/*.{js,ts,jsx,tsx,mdx}";
 
 :root {
-  /* Light Theme (Ghost/Jade) */
-  --background: #F8FAFC;
-  --foreground: #004D40;
-  --card-bg: #ffffff;
-  --nav-bg: rgba(248, 250, 252, 0.8);
-  --border-color: rgba(0, 77, 64, 0.08);
+  /* Neutral Light Theme */
+  --background: #ffffff;
+  --foreground: #000000;
+  --card-bg: #f9f9f9;
+  --nav-bg: rgba(255, 255, 255, 0.8);
+  --border-color: rgba(0, 0, 0, 0.1);
   --accent-opacity: 0.1;
-  --aura-glow: rgba(0, 121, 107, 0.03);
+  --aura-glow: rgba(0, 0, 0, 0.02);
 }
 
 [data-theme='dark'] {
-  /* Dark Theme (Deep Forest) */
+  /* Neutral Dark Theme */
+  --background: #000000;
+  --foreground: #ffffff;
+  --card-bg: #0a0a0a;
+  --nav-bg: rgba(0, 0, 0, 0.8);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --accent-opacity: 0.15;
+  --aura-glow: rgba(255, 255, 255, 0.03);
+}
+
+/* Scoped Theme for Admin & Login */
+.admin-theme {
+  --background: #F8FAFC;
+  --foreground: #004D40;
+  --card-bg: #ffffff;
+  --border-color: rgba(0, 77, 64, 0.08);
+  --aura-glow: rgba(0, 121, 107, 0.03);
+  --accent-opacity: 0.1;
+}
+
+[data-theme='dark'] .admin-theme,
+.admin-theme[data-theme='dark'] {
   --background: #050B0A;
   --foreground: #F8FAFC;
   --card-bg: #0D1615;
-  --nav-bg: rgba(5, 11, 10, 0.8);
   --border-color: #1B2B28;
-  --accent-opacity: 0.15;
   --aura-glow: rgba(128, 203, 196, 0.05);
+  --accent-opacity: 0.15;
 }
 
 body {

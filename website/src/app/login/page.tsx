@@ -78,7 +78,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6 relative overflow-hidden transition-colors duration-500">
+    <div className="admin-theme min-h-screen bg-[var(--background)] flex items-center justify-center p-6 relative overflow-hidden transition-colors duration-500">
       {/* Brand Background Accents */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-jade-primary/5 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-sage-secondary/5 blur-[120px] rounded-full pointer-events-none"></div>

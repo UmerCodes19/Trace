@@ -360,4 +360,19 @@ class ApiService {
       rethrow;
     }
   }
+  Future<void> markAllNotificationsRead(String uid) async {
+    try {
+      await _dio.post('/notifications/user/$uid/read-all');
+    } catch (e) {
+      debugPrint('Error marking all notifications read: $e');
+    }
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    try {
+      await _dio.post('/notifications/$id/read');
+    } catch (e) {
+      debugPrint('Error marking notification read: $e');
+    }
+  }
 }

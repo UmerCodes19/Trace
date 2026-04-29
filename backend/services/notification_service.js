@@ -3,25 +3,43 @@ const supabase = require('../utils/supabase');
 
 class NotificationService {
   /**
-   * Sends a push notification to a specific user
+   * Sends a push notification to a specific user and saves it to the database
    * @param {string} userId - Target user ID
-   * @param {Object} payload - { title, body, data }
+   * @param {Object} payload - { title, body, data, type }
    */
   static async sendToUser(userId, payload) {
     try {
-      // 1. Get user's FCM token
+      // 1. Save to Database (In-app notification)
+      const { error: dbError } = await supabase
+        .from('notifications')
+        .insert({
+          userId: userId,
+          title: payload.title,
+          body: payload.body,
+          type: payload.type || 'general',
+          data: payload.data || {},
+          isRead: false,
+          timestamp: Date.now()
+        });
+
+      if (dbError) console.error('Error saving in-app notification:', dbError);
+
+      // 2. Get user's FCM token for Push Notification
       const { data: user, error } = await supabase
         .from('users')
-        .select('fcm_token')
+        .select('fcm_token, chatNotificationsEnabled, proximityAlertsEnabled')
         .eq('uid', userId)
         .single();
 
       if (error || !user || !user.fcm_token) {
-        console.warn(`Skipping notification: No token found for user ${userId}`);
+        console.warn(`Skipping push notification: No token found for user ${userId}`);
         return;
       }
 
-      // 2. Prepare message
+      // Check user preferences if applicable
+      if (payload.type === 'chat' && user.chatNotificationsEnabled === false) return;
+
+      // 3. Prepare message
       const message = {
         notification: {
           title: payload.title,
@@ -45,7 +63,7 @@ class NotificationService {
         },
       };
 
-      // 3. Send via FCM
+      // 4. Send via FCM
       const response = await admin.messaging().send(message);
       console.log(`Notification sent to ${userId}:`, response);
       return response;
@@ -64,7 +82,22 @@ class NotificationService {
   }
 
   /**
-   * Broadcast notification to multiple users (e.g., all admins)
+   * Broadcast notification to multiple users
+   */
+  static async broadcastToAll(payload) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('uid');
+
+    if (users) {
+      // Limit broadcast to avoid slamming FCM/DB if user count is huge
+      // For now, simple loop
+      await Promise.all(users.map(u => this.sendToUser(u.uid, payload)));
+    }
+  }
+
+  /**
+   * Broadcast notification to specific role
    */
   static async broadcastToRole(role, payload) {
     const { data: users } = await supabase

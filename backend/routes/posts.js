@@ -44,11 +44,35 @@ router.get('/:postId/comments', async (req, res) => {
 // Add comment to a post
 router.post('/:postId/comments', async (req, res) => {
   try {
+    const { postId } = req.params;
+    const comment = req.body;
+    
     const { error } = await supabase
       .from('comments')
-      .insert(req.body);
+      .insert(comment);
     
     if (error) throw error;
+
+    // Notify post owner
+    try {
+      const { data: post } = await supabase
+        .from('posts')
+        .select('userId, title')
+        .eq('id', postId)
+        .single();
+
+      if (post && post.userId !== comment.userId) {
+        await NotificationService.sendToUser(post.userId, {
+          title: '💬 New Comment',
+          body: `${comment.userName || 'Someone'} commented on "${post.title}"`,
+          type: 'comment',
+          data: { postId, type: 'comment' }
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to send comment notification:', notifErr);
+    }
+
     res.json({ message: 'Comment added' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -100,6 +124,27 @@ router.post('/:postId/like', async (req, res) => {
       res.json({ liked: false });
     } else {
       await supabase.from('likes').insert({ postId, userId });
+      
+      // Notify post owner
+      try {
+        const { data: post } = await supabase
+          .from('posts')
+          .select('userId, title')
+          .eq('id', postId)
+          .single();
+
+        if (post && post.userId !== userId) {
+          await NotificationService.sendToUser(post.userId, {
+            title: '❤️ New Like',
+            body: `Someone liked your post "${post.title}"`,
+            type: 'like',
+            data: { postId, type: 'like' }
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to send like notification:', notifErr);
+      }
+
       res.json({ liked: true });
     }
   } catch (error) {
@@ -223,6 +268,19 @@ router.post('/', async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    // Broadcast new post notification to all users
+    try {
+      await NotificationService.broadcastToAll({
+        title: `🔍 New ${post.type === 'lost' ? 'Lost' : 'Found'} Item`,
+        body: `${post.title} has been reported in ${post.location || 'campus'}.`,
+        type: 'new_post',
+        data: { postId: data[0].id, type: 'post' }
+      });
+    } catch (notifErr) {
+      console.error('Failed to broadcast new post notification:', notifErr);
+    }
+
     res.status(201).json(data[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -232,15 +290,46 @@ router.post('/', async (req, res) => {
 // Update post
 router.put('/:id', async (req, res) => {
   try {
+    const { id } = req.params;
     const updates = req.body;
-    const { data, error } = await supabase
+    
+    // 1. Fetch current post to check status change
+    const { data: oldPost } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    const { data: updatedPost, error } = await supabase
       .from('posts')
       .update(updates)
-      .eq('id', req.params.id)
+      .eq('id', id)
       .select();
 
     if (error) throw error;
-    res.json(data[0]);
+
+    // 2. Check for resolution
+    if (updates.status === 'resolved' && oldPost && oldPost.status !== 'resolved') {
+      // Notify Owner
+      await NotificationService.sendToUser(oldPost.userId, {
+        title: '🏁 Item Resolved',
+        body: `Your post "${oldPost.title}" has been marked as resolved.`,
+        type: 'resolution',
+        data: { postId: id, type: 'resolution' }
+      });
+
+      // Notify Claimer (if exists)
+      if (oldPost.claimedBy) {
+        await NotificationService.sendToUser(oldPost.claimedBy, {
+          title: '🌟 Karma Earned!',
+          body: `You earned 50 Karma points for helping resolve "${oldPost.title}"!`,
+          type: 'karma',
+          data: { postId: id, type: 'karma' }
+        });
+      }
+    }
+
+    res.json(updatedPost[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

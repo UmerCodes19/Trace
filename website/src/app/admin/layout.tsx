@@ -89,7 +89,7 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col md:flex-row font-sans selection:bg-jade-primary/30 overflow-x-hidden transition-colors duration-500">
+    <div className="admin-theme min-h-screen bg-[var(--background)] text-[var(--foreground)] flex flex-col md:flex-row font-sans selection:bg-jade-primary/30 overflow-x-hidden transition-colors duration-500">
       {/* Mobile Header */}
       <MobileNav onOpenSidebar={() => setIsSidebarOpen(true)} />
 

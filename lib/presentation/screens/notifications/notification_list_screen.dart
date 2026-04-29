@@ -2,37 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../data/services/api_service.dart';
+import '../../../data/services/auth_service.dart';
 
 class NotificationListScreen extends ConsumerWidget {
   const NotificationListScreen({super.key});
 
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'unknown';
+    final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp as int);
+    final Duration diff = DateTime.now().difference(dt);
+    
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return DateFormat('MMM d').format(dt);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Mock notifications for now, will link to service later
-    final notifications = [
-      {
-        'title': 'Match Found!',
-        'body': 'Someone found an item matching your "Blue Wallet" post.',
-        'time': '2m ago',
-        'type': 'match',
-        'isRead': false,
-      },
-      {
-        'title': 'New Message',
-        'body': 'Sarah sent you a message about the "Car Keys" you found.',
-        'time': '1h ago',
-        'type': 'chat',
-        'isRead': true,
-      },
-      {
-        'title': 'Karma Up!',
-        'body': 'You earned 10 points for returning an item successfully.',
-        'time': '5h ago',
-        'type': 'system',
-        'isRead': true,
-      },
-    ];
+    final notificationsAsync = ref.watch(notificationsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
@@ -44,21 +35,47 @@ class NotificationListScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimary(context),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.done_all_rounded),
+            tooltip: 'Mark all as read',
+            onPressed: () async {
+              final user = ref.read(authServiceProvider).currentUser;
+              if (user != null) {
+                await ref.read(apiServiceProvider).markAllNotificationsRead(user.uid);
+                ref.refresh(notificationsProvider);
+              }
+            },
+          ),
+        ],
       ),
-      body: notifications.isEmpty
-          ? _EmptyState()
-          : ListView.separated(
+      body: notificationsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (notifications) {
+          if (notifications.isEmpty) return _EmptyState();
+
+          return RefreshIndicator(
+            onRefresh: () async => ref.refresh(notificationsProvider),
+            child: ListView.separated(
               padding: const EdgeInsets.all(20),
               itemCount: notifications.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final n = notifications[index];
-                return _NotificationCard(notification: n)
-                    .animate()
-                    .fadeIn(delay: (index * 50).ms)
-                    .slideX(begin: 0.1, end: 0);
+                final n = notifications[index] as Map<String, dynamic>;
+                return _NotificationCard(
+                  notification: {
+                    ...n,
+                    'time': _formatTimestamp(n['timestamp']),
+                  },
+                ).animate()
+                  .fadeIn(delay: (index * 50).ms)
+                  .slideX(begin: 0.1, end: 0);
               },
             ),
+          );
+        },
+      ),
     );
   }
 }
