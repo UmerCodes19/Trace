@@ -14,12 +14,12 @@ class NotificationService {
       const { error: dbError } = await supabase
         .from('notifications')
         .insert({
-          userId: userId,
+          user_id: userId,
           title: payload.title,
           body: payload.body,
           type: payload.type || 'general',
           data: payload.data || {},
-          isRead: false,
+          is_read: false,
           timestamp: Date.now()
         });
 

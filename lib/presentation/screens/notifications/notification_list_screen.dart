@@ -87,8 +87,9 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isRead = notification['isRead'] as bool;
-    final type = notification['type'] as String;
+    // Handle both snake_case (new) and camelCase (old) for safety
+    final isRead = (notification['is_read'] ?? notification['isRead'] ?? true) as bool;
+    final type = (notification['type'] ?? 'general') as String;
 
     IconData icon;
     Color color;

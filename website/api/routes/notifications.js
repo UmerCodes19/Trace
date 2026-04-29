@@ -9,7 +9,7 @@ router.get('/:userId', async (req, res) => {
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('userId', userId)
+      .eq('user_id', userId)
       .order('timestamp', { ascending: false })
       .limit(50);
 
@@ -26,7 +26,7 @@ router.post('/:notificationId/read', async (req, res) => {
     const { notificationId } = req.params;
     const { error } = await supabase
       .from('notifications')
-      .update({ isRead: true })
+      .update({ is_read: true })
       .eq('id', notificationId);
 
     if (error) throw error;
@@ -42,9 +42,9 @@ router.post('/user/:userId/read-all', async (req, res) => {
     const { userId } = req.params;
     const { error } = await supabase
       .from('notifications')
-      .update({ isRead: true })
-      .eq('userId', userId)
-      .eq('isRead', false);
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
 
     if (error) throw error;
     res.json({ success: true });
