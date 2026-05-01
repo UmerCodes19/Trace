@@ -62,6 +62,8 @@ class ApiService {
     receiveTimeout: const Duration(seconds: 10),
   ));
 
+  Dio get dio => _dio;
+
   ApiService() {
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,

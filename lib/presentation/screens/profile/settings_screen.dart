@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_user_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
@@ -89,6 +90,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     title: 'My Profile QR',
                     subtitle: 'Share your digital student ID',
                     onTap: () => context.push('/profile/qr'),
+                    isDarkMode: isDarkMode,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSettingTile(
+                    icon: Icons.link_rounded,
+                    title: 'Link Discord Account',
+                    subtitle: 'Connect your Discord to the Trace bot',
+                    onTap: () => _showDiscordLinkDialog(isDarkMode, accent),
                     isDarkMode: isDarkMode,
                   ),
 
@@ -494,5 +503,112 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2);
+  }
+
+  void _showDiscordLinkDialog(bool isDarkMode, Color accent) async {
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+    String? code;
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.dio.post('/discord/link-code', data: {'userId': user.uid});
+      code = res.data['code'];
+    } catch (e) {
+      if (mounted) showAppSnack(context, 'Failed to generate code', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+
+    if (code == null || !mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDarkMode ? AppColors.navyDarkest : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: isDarkMode ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.discord_rounded, color: accent, size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Link Discord Account',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : AppColors.navyDarkest,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                )
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Copy this code and type /link <your code> in the Discord server to complete account linking.',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                decoration: BoxDecoration(
+                  color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isDarkMode ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08)),
+                ),
+                child: SelectableText(
+                  code!,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.0,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: Text('Copy Code', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: code!));
+                  Navigator.pop(context);
+                  showAppSnack(context, 'Code copied to clipboard!');
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
   }
 }

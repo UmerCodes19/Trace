@@ -30,6 +30,7 @@ const chatRoutes = require('./routes/chats');
 const cmsRoutes = require('./routes/cms');
 const claimRoutes = require('./routes/claims');
 const notificationRoutes = require('./routes/notifications');
+const discordRoutes = require('./routes/discord');
 
 // Use routes
 app.use('/api/posts', postRoutes);
@@ -38,5 +39,6 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/discord', discordRoutes);
 
 module.exports = app;
