@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../models/simple_post_model.dart';
 import './auth_service.dart';
@@ -70,7 +72,19 @@ class ApiService {
     // Add Auth Interceptor
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        if (token == null) {
+          try {
+            const storage = FlutterSecureStorage();
+            final value = await storage.read(key: 'session_user');
+            if (value != null) {
+              final Map<String, dynamic> map = jsonDecode(value);
+              if (map['uid'] != null) {
+                token = map['uid'];
+              }
+            }
+          } catch (_) {}
+        }
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
