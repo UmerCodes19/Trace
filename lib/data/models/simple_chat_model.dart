@@ -77,6 +77,7 @@ class SimpleMessageModel {
   final String? imageUrl;
   final DateTime timestamp;
   final bool isRead;
+  final String status;
 
   SimpleMessageModel({
     required this.id,
@@ -86,6 +87,7 @@ class SimpleMessageModel {
     this.imageUrl,
     required this.timestamp,
     this.isRead = false,
+    this.status = 'sent',
   });
 
   factory SimpleMessageModel.fromMap(Map<String, dynamic> map) {
@@ -96,9 +98,12 @@ class SimpleMessageModel {
       text: map['text'] as String? ?? '',
       imageUrl: map['imageUrl'] as String?,
       timestamp: DateTime.fromMillisecondsSinceEpoch(
-        map['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+        map['timestamp'] is String 
+            ? DateTime.parse(map['timestamp']).millisecondsSinceEpoch
+            : (map['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch),
       ),
       isRead: map['isRead'] == true || map['isRead'] == 1,
+      status: map['status'] as String? ?? 'sent',
     );
   }
 
@@ -111,6 +116,29 @@ class SimpleMessageModel {
       'imageUrl': imageUrl,
       'timestamp': timestamp.millisecondsSinceEpoch,
       'isRead': isRead ? 1 : 0,
+      'status': status,
     };
+  }
+
+  SimpleMessageModel copyWith({
+    String? id,
+    String? chatId,
+    String? senderId,
+    String? text,
+    String? imageUrl,
+    DateTime? timestamp,
+    bool? isRead,
+    String? status,
+  }) {
+    return SimpleMessageModel(
+      id: id ?? this.id,
+      chatId: chatId ?? this.chatId,
+      senderId: senderId ?? this.senderId,
+      text: text ?? this.text,
+      imageUrl: imageUrl ?? this.imageUrl,
+      timestamp: timestamp ?? this.timestamp,
+      isRead: isRead ?? this.isRead,
+      status: status ?? this.status,
+    );
   }
 }

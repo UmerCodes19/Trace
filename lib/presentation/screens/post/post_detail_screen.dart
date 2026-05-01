@@ -34,6 +34,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   SimplePostModel? _post;
   bool _isLoading = true;
   bool _hasLiked = false;
+  String? _userClaimStatus; // 'pending', 'approved', 'rejected'
+  String? _approvedClaimId;
   late final ConfettiController _confettiController;
 
   @override
@@ -58,6 +60,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       await api.incrementViewCount(widget.postId);
       if (currentUid != null) {
         _hasLiked = await api.hasLikedPost(widget.postId, currentUid);
+        // Check claim status
+        final claims = await api.getClaimsForPost(widget.postId);
+        for (final c in claims) {
+          if (c['claimer_id'] == currentUid) {
+            _userClaimStatus = c['status'];
+            _approvedClaimId = c['id'];
+            break;
+          }
+        }
       }
     }
     if (mounted) setState(() => _isLoading = false);
@@ -111,6 +122,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         hasLiked: _hasLiked,
         onResolved: _onResolved,
         onToggleLike: _toggleLike,
+        userClaimStatus: _userClaimStatus,
+        approvedClaimId: _approvedClaimId,
       ),
     );
   }
@@ -122,11 +135,15 @@ class _PostDetailBody extends ConsumerWidget {
     required this.hasLiked,
     required this.onResolved,
     required this.onToggleLike,
+    this.userClaimStatus,
+    this.approvedClaimId,
   });
   final SimplePostModel post;
   final bool hasLiked;
   final VoidCallback onResolved;
   final VoidCallback onToggleLike;
+  final String? userClaimStatus;
+  final String? approvedClaimId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -424,7 +441,14 @@ class _PostDetailBody extends ConsumerWidget {
                   ),
                   const SizedBox(height: 28),
                   if (!isOwner && post.isOpen)
-                    _ClaimSection(post: post, currentUid: currentUid ?? ''),
+                    _ClaimSection(
+                      post: post, 
+                      currentUid: currentUid ?? '',
+                      status: userClaimStatus,
+                      claimId: approvedClaimId,
+                    ),
+                  if (isOwner && post.isOpen)
+                    _ViewClaimsSection(post: post),
                   const SizedBox(height: 32),
                   CommentsSection(postId: post.id),
                   const SizedBox(height: 100),
@@ -450,9 +474,16 @@ class _PostDetailBody extends ConsumerWidget {
 }
 
 class _ClaimSection extends ConsumerWidget {
-  const _ClaimSection({required this.post, required this.currentUid});
+  const _ClaimSection({
+    required this.post, 
+    required this.currentUid, 
+    this.status,
+    this.claimId,
+  });
   final SimplePostModel post;
   final String currentUid;
+  final String? status;
+  final String? claimId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -467,9 +498,13 @@ class _ClaimSection extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              post.isLost
-                  ? '🔍 If you found this item, tap below to contact the owner securely.'
-                  : '✋ If this is your item, tap below to claim it.',
+              status == 'approved'
+                  ? '✅ Your claim is approved! Meet the finder and scan their QR code to complete the recovery.'
+                  : status == 'pending'
+                      ? '⏳ Your claim is being reviewed by the finder. We\'ll notify you once they respond.'
+                      : post.isLost
+                          ? '🔍 If you found this item, tap below to contact the owner securely.'
+                          : '✋ If this is your item, tap below to claim it.',
               style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AppColors.textSecondary(context),
@@ -479,28 +514,14 @@ class _ClaimSection extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         GestureDetector(
-          onTap: () async {
+          onTap: () {
             AppHaptics.medium();
-            try {
-              final api = ref.read(apiServiceProvider);
-              showAppSnack(context, 'Opening chat...', isError: false);
-              
-              final chatId = await api.createChat({
-                'postId': post.id,
-                'buyerId': currentUid, 
-                'sellerId': post.userId, 
-                'postTitle': post.title,
-                'otherUserName': post.posterName,
-              });
-              
-              if (context.mounted) {
-                context.push('/chat/${chatId['id']}');
-              }
-            } catch (e) {
-              debugPrint('Error starting chat: $e');
-              if (context.mounted) {
-                showAppSnack(context, 'Could not open chat. Please try again.', isError: true);
-              }
+            if (status == 'approved') {
+              context.push('/handover/scan');
+            } else if (status == 'pending') {
+              showAppSnack(context, 'Claim is still pending review.');
+            } else {
+              context.push('/post/${post.id}/claim', extra: post);
             }
           },
           child: Container(
@@ -508,8 +529,8 @@ class _ClaimSection extends ConsumerWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  color,
-                  HSLColor.fromColor(color)
+                  status == 'approved' ? AppColors.foundSuccess : color,
+                  status == 'approved' ? AppColors.jadePrimary : HSLColor.fromColor(color)
                       .withHue((HSLColor.fromColor(color).hue + 20) % 360)
                       .toColor(),
                 ],
@@ -517,7 +538,7 @@ class _ClaimSection extends ConsumerWidget {
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.35),
+                  color: (status == 'approved' ? AppColors.foundSuccess : color).withOpacity(0.35),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -525,7 +546,11 @@ class _ClaimSection extends ConsumerWidget {
             ),
             child: Center(
               child: Text(
-                post.isLost ? '💬 I Found This' : '💬 This Is Mine',
+                status == 'approved'
+                    ? '📸 Scan Handover QR'
+                    : status == 'pending'
+                        ? '⏳ Claim Pending'
+                        : post.isLost ? '💬 I Found This' : '💬 This Is Mine',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -692,6 +717,56 @@ class _PostImage extends StatelessWidget {
           color: AppColors.textHint(context),
         ),
       ),
+    );
+  }
+}
+
+class _ViewClaimsSection extends StatelessWidget {
+  const _ViewClaimsSection({required this.post});
+  final SimplePostModel post;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GlassCard(
+          borderRadius: 16,
+          borderGlow: AppColors.jadePrimary.withOpacity(0.15),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 20, color: AppColors.jadePrimary),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Manage Claims',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppColors.textPrimary(context)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Review who is claiming your item and verify their proof before handing it over.',
+                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary(context)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: () => context.push('/post/${post.id}/claims?title=${Uri.encodeComponent(post.title)}'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.jadePrimary,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          ),
+          child: const Text('View Claim Requests', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 }

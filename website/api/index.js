@@ -28,6 +28,7 @@ const postRoutes = require('./routes/posts');
 const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chats');
 const cmsRoutes = require('./routes/cms');
+const claimRoutes = require('./routes/claims');
 const notificationRoutes = require('./routes/notifications');
 
 // Use routes
@@ -35,6 +36,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/claims', claimRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 module.exports = app;

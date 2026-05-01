@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
@@ -22,6 +23,12 @@ final postsProvider = FutureProvider<List<SimplePostModel>>((ref) async {
   return data.map((p) => SimplePostModel.fromMap(p)).toList();
 });
 
+final myClaimsProvider = FutureProvider<List<dynamic>>((ref) async {
+  ref.watch(liveRefreshProvider);
+  final api = ref.watch(apiServiceProvider);
+  return api.getMyClaims();
+});
+
 final notificationsProvider = FutureProvider<List<dynamic>>((ref) async {
   ref.watch(liveRefreshProvider);
   final api = ref.watch(apiServiceProvider);
@@ -30,7 +37,9 @@ final notificationsProvider = FutureProvider<List<dynamic>>((ref) async {
   
   try {
     final response = await api._dio.get('/notifications/${user.uid}');
-    return response.data as List;
+    final list = response.data as List;
+    // Explicitly filter to matching user ID on client side for added security
+    return list.where((notif) => notif != null && (notif['userId'] == user.uid || notif['user_id'] == user.uid)).toList();
   } catch (e) {
     return [];
   }
@@ -56,6 +65,23 @@ class ApiService {
       requestBody: true,
       responseBody: true,
       logPrint: (obj) => debugPrint(obj.toString()),
+    ));
+
+    // Add Auth Interceptor
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        return handler.next(options);
+      },
+      onError: (DioException e, handler) async {
+        if (e.response?.statusCode == 401) {
+          await FirebaseAuth.instance.signOut();
+        }
+        return handler.next(e);
+      },
     ));
   }
 
@@ -219,9 +245,12 @@ class ApiService {
     }
   }
 
-  Future<List<dynamic>> getChatMessages(String chatId) async {
+  Future<List<dynamic>> getChatMessages(String chatId, {int? limit, int? before}) async {
     try {
-      final response = await _dio.get('/chats/$chatId/messages');
+      final response = await _dio.get('/chats/$chatId/messages', queryParameters: {
+        if (limit != null) 'limit': limit,
+        if (before != null) 'before': before,
+      });
       return response.data;
     } catch (e) {
       debugPrint('Error getting messages: $e');
@@ -373,6 +402,67 @@ class ApiService {
       await _dio.post('/notifications/$id/read');
     } catch (e) {
       debugPrint('Error marking notification read: $e');
+    }
+  }
+
+  // ==================== Claim Operations (The Gatekeeper) ====================
+
+  Future<Map<String, dynamic>> requestClaim({
+    required String postId,
+    required String proofText,
+    String? proofImageUrl,
+  }) async {
+    try {
+      final response = await _dio.post('/claims/request', data: {
+        'postId': postId,
+        'proofText': proofText,
+        'proofImageUrl': proofImageUrl,
+      });
+      return response.data;
+    } catch (e) {
+      debugPrint('Error requesting claim: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> respondToClaim(String claimId, String status) async {
+    try {
+      await _dio.put('/claims/respond/$claimId', data: {'status': status});
+    } catch (e) {
+      debugPrint('Error responding to claim: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyHandshake(String claimId) async {
+    try {
+      final response = await _dio.post('/claims/handshake/verify', data: {
+        'claimId': claimId,
+      });
+      return response.data;
+    } catch (e) {
+      debugPrint('Error verifying handshake: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<dynamic>> getClaimsForPost(String postId) async {
+    try {
+      final response = await _dio.get('/claims/post/$postId');
+      return response.data;
+    } catch (e) {
+      debugPrint('Error getting claims for post: $e');
+      return [];
+    }
+  }
+
+  Future<List<dynamic>> getMyClaims() async {
+    try {
+      final response = await _dio.get('/claims/my');
+      return response.data;
+    } catch (e) {
+      debugPrint('Error getting my claims: $e');
+      return [];
     }
   }
 }

@@ -17,6 +17,7 @@ class SimplePostModel {
   final String posterName;
   final String posterAvatarUrl;
   final bool isCMSVerified;
+  final String? secretDetailQuestion;
 
   SimplePostModel({
     required this.id,
@@ -35,6 +36,7 @@ class SimplePostModel {
     this.posterName = '',
     this.posterAvatarUrl = '',
     this.isCMSVerified = false,
+    this.secretDetailQuestion,
   });
 
   factory SimplePostModel.fromMap(Map<String, dynamic> map) {
@@ -65,6 +67,8 @@ class SimplePostModel {
         room: map['location_room'] as String?,
         latitude: (map['location_latitude'] as num? ?? map['location_lat'] as num? ?? 0.0).toDouble(),
         longitude: (map['location_longitude'] as num? ?? map['location_lng'] as num? ?? 0.0).toDouble(),
+        indoorX: (map['location_indoor_x'] as num?)?.toDouble(),
+        indoorY: (map['location_indoor_y'] as num?)?.toDouble(),
       ),
       timestamp: map['timestamp'] != null 
           ? (map['timestamp'] is int 
@@ -79,6 +83,7 @@ class SimplePostModel {
       posterName: map['posterName'] as String? ?? '',
       posterAvatarUrl: map['posterAvatarUrl'] as String? ?? '',
       isCMSVerified: map['isCMSVerified'] as bool? ?? false,
+      secretDetailQuestion: map['secret_detail_question'] as String?,
     );
   }
 
@@ -134,6 +139,8 @@ class SimplePostModel {
       'location_room': location.room,
       'location_lat': location.latitude,
       'location_lng': location.longitude,
+      'location_indoor_x': location.indoorX,
+      'location_indoor_y': location.indoorY,
       'timestamp': timestamp.toIso8601String(),
       'status': status,
       'aiTags': aiTags, // Supabase handles list/array directly
@@ -141,6 +148,7 @@ class SimplePostModel {
       'viewCount': viewCount,
       'likeCount': likesCount,
       'isCMSVerified': isCMSVerified,
+      'secret_detail_question': secretDetailQuestion,
     };
   }
 
@@ -156,6 +164,8 @@ class SimplePostLocation {
   final String? room;
   final double latitude;
   final double longitude;
+  final double? indoorX;
+  final double? indoorY;
 
   SimplePostLocation({
     required this.name,
@@ -164,5 +174,7 @@ class SimplePostLocation {
     this.room,
     this.latitude = 0.0,
     this.longitude = 0.0,
+    this.indoorX,
+    this.indoorY,
   });
 }

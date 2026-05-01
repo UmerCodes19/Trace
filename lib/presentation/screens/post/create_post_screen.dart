@@ -31,12 +31,29 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _descCtrl = TextEditingController();
   final _buildingCtrl = TextEditingController();
   final _roomCtrl = TextEditingController();
+  final _secretQuestionCtrl = TextEditingController();
   int _floor = 0;
+  double? _indoorX;
+  double? _indoorY;
 
   @override
   void initState() {
     super.initState();
     _roomCtrl.addListener(_onRoomChanged);
+    
+    // Handle pre-filled data from map long-press or room tap
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final extra = GoRouterState.of(context).extra as Map<String, dynamic>?;
+      if (extra != null) {
+        setState(() {
+          if (extra['building'] != null) _buildingCtrl.text = extra['building'];
+          if (extra['floor'] != null) _floor = extra['floor'];
+          if (extra['room'] != null) _roomCtrl.text = extra['room'];
+          if (extra['indoorX'] != null) _indoorX = extra['indoorX'];
+          if (extra['indoorY'] != null) _indoorY = extra['indoorY'];
+        });
+      }
+    });
   }
 
   void _onRoomChanged() {
@@ -65,6 +82,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     _descCtrl.dispose();
     _buildingCtrl.dispose();
     _roomCtrl.dispose();
+    _secretQuestionCtrl.dispose();
     super.dispose();
   }
 
@@ -384,12 +402,15 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           room: _roomCtrl.text.isEmpty ? null : sanitizeInput(_roomCtrl.text),
           latitude: lat,
           longitude: lng,
+          indoorX: _indoorX,
+          indoorY: _indoorY,
         ),
         timestamp: _lostDateTime ?? DateTime.now(),
         aiTags: _aiTags,
         posterName: currentUser.name,
         posterAvatarUrl: currentUser.photoURL ?? '',
         isCMSVerified: currentUser.isCMSVerified,
+        secretDetailQuestion: _secretQuestionCtrl.text.isEmpty ? null : _secretQuestionCtrl.text.trim(),
       );
 
       await api.createPost(post.toMap());
@@ -665,6 +686,35 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 24),
+                    _SectionLabel(label: '🔒 Security Gatekeeper (Optional)'),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.jadePrimary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.jadePrimary.withOpacity(0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Set a secret question only the real owner would know. This helps verify claims automatically.',
+                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context)),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _secretQuestionCtrl,
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. What color is the keychain?',
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 32),
                   ],

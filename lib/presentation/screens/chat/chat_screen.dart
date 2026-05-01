@@ -115,20 +115,73 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final content = text?.trim() ?? imageUrl ?? '';
     if (content.isEmpty) return;
 
-    setState(() => _isSending = true);
-    _msgCtrl.clear();
+    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+    final optimisticMessage = SimpleMessageModel(
+      id: tempId,
+      chatId: widget.chatId,
+      senderId: uid,
+      text: text ?? '',
+      imageUrl: imageUrl,
+      timestamp: DateTime.now(),
+      status: 'sending',
+    );
 
-    final api = ref.read(apiServiceProvider);
-    await api.sendMessage({
-      'chatId': widget.chatId,
-      'senderId': uid,
-      'text': text ?? '',
-      'imageUrl': imageUrl,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    setState(() {
+      _messages.add(optimisticMessage);
+      _msgCtrl.clear();
+    });
+    _scrollToBottom();
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.sendMessage({
+        'chatId': widget.chatId,
+        'senderId': uid,
+        'text': text ?? '',
+        'imageUrl': imageUrl,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+      await _loadMessages();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == tempId);
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(status: 'failed');
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _retryMessage(SimpleMessageModel msg) async {
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1) {
+        _messages[idx] = _messages[idx].copyWith(status: 'sending');
+      }
     });
 
-    await _loadMessages();
-    setState(() => _isSending = false);
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.sendMessage({
+        'chatId': msg.chatId,
+        'senderId': msg.senderId,
+        'text': msg.text,
+        'imageUrl': msg.imageUrl,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+      await _loadMessages();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == msg.id);
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(status: 'failed');
+          }
+        });
+      }
+    }
   }
 
   Future<void> _sendImage() async {
@@ -282,7 +335,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           return Column(
                             children: [
                               if (showDate) _DateChip(date: msg.timestamp),
-                              _MessageBubble(msg: msg, isMine: isMine),
+                              _MessageBubble(
+                                msg: msg,
+                                isMine: isMine,
+                                onRetry: () => _retryMessage(msg),
+                              ),
                             ],
                           );
                         },
@@ -371,9 +428,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.msg, required this.isMine});
+  const _MessageBubble({required this.msg, required this.isMine, this.onRetry});
   final SimpleMessageModel msg;
   final bool isMine;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -437,14 +495,47 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 4),
-              Text(
-                AppDateUtils.shortTime(msg.timestamp),
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  color: isMine
-                      ? Colors.white.withOpacity(0.7)
-                      : AppColors.textHint(context),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    AppDateUtils.shortTime(msg.timestamp),
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: isMine
+                          ? Colors.white.withOpacity(0.7)
+                          : AppColors.textHint(context),
+                    ),
+                  ),
+                  if (isMine && msg.status == 'sending') ...[
+                    const SizedBox(width: 4),
+                    const SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.2,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                  if (isMine && msg.status == 'failed') ...[
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: onRetry,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.refresh, size: 12, color: Colors.amberAccent),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Retry',
+                            style: GoogleFonts.inter(fontSize: 10, color: Colors.amberAccent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

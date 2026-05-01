@@ -124,9 +124,11 @@ router.post('/:postId/like', async (req, res) => {
       // Send Notification
       const { data: fullPost } = await supabase.from('posts').select('userId, title').eq('id', postId).single();
       if (fullPost && fullPost.userId !== userId) {
+        const { data: liker } = await supabase.from('users').select('name').eq('uid', userId).single();
+        const likerName = liker ? liker.name : 'Someone';
         await NotificationService.sendToUser(fullPost.userId, {
-          title: 'New Like',
-          body: `Someone liked your post "${fullPost.title}"`,
+          title: '❤️ New Like',
+          body: `${likerName} liked your post "${fullPost.title}"`,
           type: 'like',
           data: { postId }
         });

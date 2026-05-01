@@ -29,7 +29,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -145,6 +145,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                   child: TabBar(
                     controller: _tabController,
                     indicatorColor: accent,
+                    isScrollable: true,
                     labelColor: AppColors.textPrimary(context),
                     unselectedLabelColor: AppColors.textSecondary(context),
                     labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
@@ -153,6 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                       Tab(text: 'Lost'),
                       Tab(text: 'Found'),
                       Tab(text: 'Resolved'),
+                      Tab(text: 'My Claims'),
                     ],
                   ),
                 ),
@@ -166,6 +168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
               _PostFeed(query: _searchQuery, filter: 'lost'),
               _PostFeed(query: _searchQuery, filter: 'found'),
               _PostFeed(query: _searchQuery, filter: 'resolved'),
+              _MyClaimsFeed(query: _searchQuery),
             ],
           ),
         ),
@@ -401,4 +404,85 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => child;
   @override
   bool shouldRebuild(_SliverAppBarDelegate oldDelegate) => false;
+}
+
+class _MyClaimsFeed extends ConsumerWidget {
+  final String query;
+  const _MyClaimsFeed({required this.query});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final claimsAsync = ref.watch(myClaimsProvider);
+
+    return claimsAsync.when(
+      data: (claims) {
+        var filtered = claims.where((c) {
+          final post = c['posts'];
+          if (post == null) return false;
+          final matchesQuery = (post['title']?.toString().toLowerCase().contains(query.toLowerCase()) == true) || 
+                               (post['description']?.toString().toLowerCase().contains(query.toLowerCase()) == true);
+          return matchesQuery;
+        }).toList();
+
+        if (filtered.isEmpty) {
+          return const LottieEmptyStateWidget(
+            lottieAsset: 'assets/animations/empty_feed.json',
+            fallbackIcon: Icons.inventory_2_outlined,
+            title: 'No claims found',
+            subtitle: 'You haven\'t submitted any claims yet.',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async => ref.refresh(myClaimsProvider),
+          child: RepaintBoundary(
+            child: GridView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 140),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.64,
+              ),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final claim = filtered[index];
+                final postMap = claim['posts'];
+                if (postMap == null) return const SizedBox.shrink();
+                final postModel = SimplePostModel.fromMap(postMap);
+
+                return Stack(
+                  children: [
+                    PostCard(post: postModel)
+                        .animate()
+                        .fadeIn(delay: (index * 30).ms)
+                        .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: claim['status'] == 'approved' 
+                              ? AppColors.foundSuccess
+                              : (claim['status'] == 'rejected' ? Colors.redAccent : Colors.orangeAccent),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          claim['status']?.toString().toUpperCase() ?? 'PENDING',
+                          style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+      loading: () => const _LoadingFeed(),
+      error: (e, _) => Center(child: Text('Error: $e')),
+    );
+  }
 }

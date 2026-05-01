@@ -62,6 +62,7 @@ void showAppSnack(
       content: Text(message),
       backgroundColor: isError ? const Color(0xFFD32F2F) : null,
       action: action,
+      behavior: SnackBarBehavior.floating,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     ),
   );

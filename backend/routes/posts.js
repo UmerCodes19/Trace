@@ -5,16 +5,83 @@ const BlockchainService = require('../services/blockchain_service');
 const NotificationService = require('../services/notification_service');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
+// Helper matching logic
+async function runMatchingLogic(newPost) {
+  if (newPost.status === 'resolved') return;
+  const oppositeType = newPost.type === 'lost' ? 'found' : 'lost';
+
+  const { data: potentialMatches, error } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('type', oppositeType)
+    .neq('status', 'resolved');
+
+  if (error || !potentialMatches) return;
+
+  const results = [];
+  const wordsA = (newPost.title || '').toLowerCase().split(/\W+/).filter(Boolean);
+
+  for (const match of potentialMatches) {
+    let score = 0;
+    // 1. Category matches exactly
+    if (newPost.category && match.category && newPost.category.toLowerCase() === match.category.toLowerCase()) {
+      score += 40;
+    }
+    // 2. Title keyword overlap > 50%
+    const wordsB = (match.title || '').toLowerCase().split(/\W+/).filter(Boolean);
+    const overlap = wordsA.filter(w => wordsB.includes(w)).length;
+    const maxWords = Math.max(wordsA.length, wordsB.length);
+    if (maxWords > 0 && (overlap / maxWords) > 0.5) {
+      score += 30;
+    }
+    // 3. Building AND Floor match
+    if (newPost.buildingName && match.buildingName && newPost.buildingName.toLowerCase() === match.buildingName.toLowerCase() &&
+        newPost.floor === match.floor) {
+      score += 30;
+    }
+
+    if (score >= 70) {
+      results.push({ post: match, score });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  const topMatches = results.slice(0, 3);
+
+  for (const m of topMatches) {
+    await NotificationService.sendToUser(newPost.userId, {
+      title: '🔍 Potential Item Match Found!',
+      body: `Your post "${newPost.title}" matched with "${m.post.title}".`,
+      type: 'match',
+      data: { postId: newPost.id, matchPostId: m.post.id }
+    });
+
+    await NotificationService.sendToUser(m.post.userId, {
+      title: '🔍 Potential Item Match Found!',
+      body: `Your post "${m.post.title}" matched with "${newPost.title}".`,
+      type: 'match',
+      data: { postId: m.post.id, matchPostId: newPost.id }
+    });
+  }
+}
+
+// Valid transitions check
+const validTransitions = {
+  'open': ['matched', 'claimed', 'resolved'],
+  'matched': ['claimed', 'resolved'],
+  'claimed': ['resolved'],
+  'resolved': []
+};
 
 // Get all posts
 router.get('/', async (req, res) => {
   try {
     const { type, status, limit, offset } = req.query;
-    let query = supabase.from('posts').select('*').order('timestamp', { ascending: false });
+    let query = supabase.from('posts').select('id, userId, type, title, description, imageUrl, location_name, buildingName, floor, location_room, location_lat, location_lng, timestamp, status, aiTags, reportCount, viewCount, likeCount, isCMSVerified, category').order('timestamp', { ascending: false });
 
     if (type) query = query.eq('type', type);
     if (status) query = query.eq('status', status);
-    if (limit) query = query.range(offset || 0, (parseInt(offset) || 0) + (parseInt(limit) - 1));
+    if (limit) query = query.range(parseInt(offset) || 0, (parseInt(offset) || 0) + (parseInt(limit) - 1));
 
     const { data, error } = await query;
 
@@ -42,10 +109,11 @@ router.get('/:postId/comments', async (req, res) => {
 });
 
 // Add comment to a post
-router.post('/:postId/comments', async (req, res) => {
+router.post('/:postId/comments', verifyToken, async (req, res) => {
   try {
     const { postId } = req.params;
     const comment = req.body;
+    comment.userId = req.user.uid;
     
     const { error } = await supabase
       .from('comments')
@@ -107,9 +175,9 @@ router.get('/:postId/liked/:userId', async (req, res) => {
 });
 
 // Toggle like
-router.post('/:postId/like', async (req, res) => {
+router.post('/:postId/like', verifyToken, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.user.uid;
     const { postId } = req.params;
 
     const { data: existing } = await supabase
@@ -134,9 +202,11 @@ router.post('/:postId/like', async (req, res) => {
           .single();
 
         if (post && post.userId !== userId) {
+          const { data: liker } = await supabase.from('users').select('name').eq('uid', userId).single();
+          const likerName = liker ? liker.name : 'Someone';
           await NotificationService.sendToUser(post.userId, {
             title: '❤️ New Like',
-            body: `Someone liked your post "${post.title}"`,
+            body: `${likerName} liked your post "${post.title}"`,
             type: 'like',
             data: { postId, type: 'like' }
           });
@@ -162,7 +232,6 @@ router.post('/:postId/report', verifyToken, async (req, res) => {
     
     if (error) throw error;
 
-    // Notify admins/staff about report
     await NotificationService.broadcastToRole('admin', {
       title: '🚨 Post Reported',
       body: `A post has been reported for moderation.`,
@@ -170,70 +239,6 @@ router.post('/:postId/report', verifyToken, async (req, res) => {
     });
 
     res.json({ message: 'Post reported' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Claim an item
-router.post('/:id/claim', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.uid;
-
-    // 1. Fetch post to get owner
-    const { data: post, error: fetchError } = await supabase
-      .from('posts')
-      .select('userId, title, status')
-      .eq('id', id)
-      .single();
-
-    if (fetchError || !post) throw new Error('Post not found');
-    if (post.status !== 'open') throw new Error('Item is no longer available');
-    if (post.userId === userId) throw new Error('You cannot claim your own item');
-
-    // 2. Update post status
-    const { error: updateError } = await supabase
-      .from('posts')
-      .update({ status: 'claimed', claimedBy: userId })
-      .eq('id', id);
-
-    if (updateError) throw updateError;
-
-    // 3. Record in Blockchain Log
-    const claimData = {
-      action: 'CLAIM_INITIATED',
-      itemId: id,
-      itemTitle: post.title,
-      claimerId: userId,
-      ownerId: post.userId
-    };
-    const logEntry = await BlockchainService.recordClaim(id, claimData);
-
-    // 4. Notify Post Owner
-    await NotificationService.sendToUser(post.userId, {
-      title: '🎁 New Claim!',
-      body: `Someone has claimed your item: "${post.title}"`,
-      data: { postId: id, type: 'claim', claimId: logEntry.id }
-    });
-
-    res.json({ message: 'Claim initiated successfully', logId: logEntry.id });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-
-// Delete post
-router.delete('/:postId', async (req, res) => {
-  try {
-    const { error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', req.params.postId);
-    
-    if (error) throw error;
-    res.json({ message: 'Post deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -256,9 +261,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create post
-router.post('/', async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
   try {
     const post = req.body;
+    post.userId = req.user.uid;
     post.timestamp = post.timestamp || Date.now();
     post.status = post.status || 'open';
     
@@ -269,17 +275,8 @@ router.post('/', async (req, res) => {
 
     if (error) throw error;
 
-    // Broadcast new post notification to all users
-    try {
-      await NotificationService.broadcastToAll({
-        title: `🔍 New ${post.type === 'lost' ? 'Lost' : 'Found'} Item`,
-        body: `${post.title} has been reported in ${post.location || 'campus'}.`,
-        type: 'new_post',
-        data: { postId: data[0].id, type: 'post' }
-      });
-    } catch (notifErr) {
-      console.error('Failed to broadcast new post notification:', notifErr);
-    }
+    // Run matching engine asynchronously
+    runMatchingLogic(data[0]).catch(e => console.error('Matching system error:', e));
 
     res.status(201).json(data[0]);
   } catch (error) {
@@ -288,17 +285,32 @@ router.post('/', async (req, res) => {
 });
 
 // Update post
-router.put('/:id', async (req, res) => {
+router.put('/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
     
-    // 1. Fetch current post to check status change
-    const { data: oldPost } = await supabase
+    // Fetch current post
+    const { data: oldPost, error: fetchErr } = await supabase
       .from('posts')
       .select('*')
       .eq('id', id)
       .single();
+
+    if (fetchErr || !oldPost) return res.status(404).json({ error: 'Post not found' });
+
+    // USER OWNERSHIP ENFORCEMENT
+    if (oldPost.userId !== req.user.uid) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this post' });
+    }
+
+    // STATE TRANSITION VALIDATION
+    if (updates.status && updates.status !== oldPost.status) {
+      const allowed = validTransitions[oldPost.status] || [];
+      if (!allowed.includes(updates.status)) {
+        return res.status(400).json({ error: `Invalid transition from ${oldPost.status} to ${updates.status}` });
+      }
+    }
 
     const { data: updatedPost, error } = await supabase
       .from('posts')
@@ -308,9 +320,8 @@ router.put('/:id', async (req, res) => {
 
     if (error) throw error;
 
-    // 2. Check for resolution
-    if (updates.status === 'resolved' && oldPost && oldPost.status !== 'resolved') {
-      // Notify Owner
+    // Check for resolution
+    if (updates.status === 'resolved' && oldPost.status !== 'resolved') {
       await NotificationService.sendToUser(oldPost.userId, {
         title: '🏁 Item Resolved',
         body: `Your post "${oldPost.title}" has been marked as resolved.`,
@@ -318,7 +329,6 @@ router.put('/:id', async (req, res) => {
         data: { postId: id, type: 'resolution' }
       });
 
-      // Notify Claimer (if exists)
       if (oldPost.claimedBy) {
         await NotificationService.sendToUser(oldPost.claimedBy, {
           title: '🌟 Karma Earned!',
@@ -327,6 +337,9 @@ router.put('/:id', async (req, res) => {
           data: { postId: id, type: 'karma' }
         });
       }
+    } else {
+      // Run matching if status hasn't resolved
+      runMatchingLogic(updatedPost[0]).catch(e => console.error('Matching system error:', e));
     }
 
     res.json(updatedPost[0]);
@@ -336,12 +349,27 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete post
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyToken, async (req, res) => {
   try {
+    const { id } = req.params;
+    
+    const { data: oldPost, error: fetchErr } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !oldPost) return res.status(404).json({ error: 'Post not found' });
+
+    // USER OWNERSHIP ENFORCEMENT
+    if (oldPost.userId !== req.user.uid) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this post' });
+    }
+
     const { error } = await supabase
       .from('posts')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', id);
 
     if (error) throw error;
     res.json({ message: 'Post deleted successfully' });

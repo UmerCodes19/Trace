@@ -104,6 +104,173 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
+  Future<void> _enterBuilding(BuildingModel building) async {
+    HapticFeedback.mediumImpact();
+    
+    // 1. Zoom in animation
+    _mapController.move(LatLng(building.lat, building.lng), 18.5);
+    
+    await Future.delayed(300.ms);
+    
+    if (mounted) {
+      setState(() {
+        _activeBuilding = building;
+        _activeFloor = 0;
+        _isIndoorMode = true;
+      });
+    }
+  }
+
+  void _checkGeofencing(LatLng userPos) {
+    for (var b in CampusMapService.buildings) {
+      final distance = const Distance().as(LengthUnit.Meter, userPos, LatLng(b.lat, b.lng));
+      if (distance < 60 && !_isIndoorMode && _activeBuilding.id != b.id) {
+        _showGeofencePrompt(b);
+        break;
+      }
+    }
+  }
+
+  void _showGeofencePrompt(BuildingModel building) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: GlassCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(Icons.location_on_rounded, color: AppColors.jadePrimary, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('You are near ${building.name}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context))),
+                    Text('Enter indoor map to find/post items?', style: GoogleFonts.inter(fontSize: 10, color: AppColors.textSecondary(context))),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  _enterBuilding(building);
+                },
+                child: Text('ENTER', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.jadePrimary)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onLongPressIndoor(Offset normalizedPos) {
+    HapticFeedback.heavyImpact();
+    // Pre-fill location data for creation
+    final room = _findRoomAt(normalizedPos);
+    context.push('/post/create', extra: {
+      'building': _activeBuilding.name,
+      'floor': _activeFloor,
+      'room': room?.number,
+      'indoorX': normalizedPos.dx,
+      'indoorY': normalizedPos.dy,
+    });
+  }
+
+  RoomModel? _findRoomAt(Offset pos) {
+    for (var room in _activeBuilding.floors[_activeFloor].rooms) {
+      final rect = Rect.fromCenter(center: room.position, width: room.size.width, height: room.size.height);
+      if (rect.contains(pos)) return room;
+    }
+    return null;
+  }
+
+  void _showRoomDetails(RoomModel room) {
+    final roomPosts = _filteredPosts.where((p) => p.location.room == room.number).toList();
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.pageBg(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.jadePrimary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(Icons.meeting_room_rounded, color: AppColors.jadePrimary, size: 20),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(room.name, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800)),
+                    Text('Room ${room.number}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context))),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (roomPosts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: Text('No items reported in this room', style: GoogleFonts.inter(color: AppColors.textSecondary(context)))),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: 300),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: roomPosts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final p = roomPosts[index];
+                    return ListTile(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showPinBottomSheet(p);
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(width: 48, height: 48, color: AppColors.shimmerBase(context), child: p.imageUrls.isNotEmpty ? Image.network(p.imageUrls.first, fit: BoxFit.cover) : Icon(Icons.image)),
+                      ),
+                      title: Text(p.title, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
+                      subtitle: Text(p.isLost ? 'Lost' : 'Found', style: GoogleFonts.inter(fontSize: 12, color: p.isLost ? AppColors.lost : AppColors.found)),
+                      trailing: Icon(Icons.chevron_right_rounded),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _onLongPressIndoor(room.position);
+                },
+                child: Text('Post Item Here'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -121,13 +288,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 posts: _filteredPosts,
                 userPos: _userIndoorPos?.building == _activeBuilding.name ? _userIndoorPos?.relativePos : null,
                 onPostTap: _showPinBottomSheet,
-              )
+                onRoomTap: _showRoomDetails,
+                onStairTap: (stair) => setState(() => _activeFloor = stair.connectsToFloor),
+                onLongPress: _onLongPressIndoor,
+              ).animate().fadeIn(duration: 400.ms)
             : FlutterMap(
                 mapController: _mapController,
-                options: const MapOptions(
+                options: MapOptions(
                   initialCenter: _bahriaCampus,
                   initialZoom: 17,
                   maxZoom: 19,
+                  onPositionChanged: (pos, hasGesture) {
+                    if (hasGesture && pos.center != null) {
+                      _checkGeofencing(pos.center!);
+                    }
+                  },
                 ),
                 children: [
                   TileLayer(
@@ -136,22 +311,44 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
                     userAgentPackageName: 'pk.edu.bahria.lostfound',
                   ),
+                  // Building Markers (Interactive)
+                  MarkerLayer(
+                    markers: CampusMapService.buildings.map((b) {
+                      return Marker(
+                        point: LatLng(b.lat, b.lng),
+                        width: 100, height: 100,
+                        child: GestureDetector(
+                          onTap: () => _enterBuilding(b),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(color: AppColors.card(context), borderRadius: BorderRadius.circular(8), border: Border.all(color: accent.withOpacity(0.5))),
+                                child: Text(b.name.split(' ')[0], style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800)),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                width: 12, height: 12,
+                                decoration: BoxDecoration(color: accent, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                              ).animate(onPlay: (c) => c.repeat()).scale(begin: Offset(1,1), end: Offset(1.5, 1.5)).fadeOut(),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  // Item Markers
                   MarkerLayer(
                     markers: _filteredPosts.map((p) {
                       var point = LatLng(p.location.latitude, p.location.longitude);
-                      
-                      // Fallback to building coordinates if lat/lng are 0
-                      if (p.location.latitude == 0 || p.location.longitude == 0) {
-                        final b = CampusMapService.buildings.firstWhere(
-                          (b) => b.name == p.location.building,
-                          orElse: () => CampusMapService.buildings[0],
-                        );
+                      if (p.location.latitude == 0) {
+                        final b = CampusMapService.buildings.firstWhere((b) => b.name == p.location.building, orElse: () => CampusMapService.buildings[0]);
                         point = LatLng(b.lat, b.lng);
                       }
-
                       return Marker(
                         point: point,
-                        width: 45, height: 45,
+                        width: 40, height: 40,
                         child: GestureDetector(
                           onTap: () => _showPinBottomSheet(p),
                           child: _PulseMarker(color: p.isLost ? AppColors.lost : AppColors.found),
@@ -160,7 +357,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     }).toList(),
                   ),
                 ],
-              ),
+              ).animate().fadeIn(duration: 400.ms),
 
           // ── Header Overlay ────────────────────────────────────────
           SafeArea(
@@ -178,8 +375,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                             Icon(_isIndoorMode ? Icons.apartment_rounded : Icons.public_rounded, size: 18, color: accent),
                             const SizedBox(width: 8),
                             Text(
-                              _isIndoorMode ? 'INDOOR' : 'CAMPUS',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1),
+                              _isIndoorMode ? 'INDOOR: ${_activeBuilding.name}' : 'CAMPUS VIEW',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                             ),
                           ],
                         ),
@@ -187,7 +384,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       const Spacer(),
                       _GlassButton(
                         onPressed: _loadPosts,
-                        child: Icon(Icons.refresh_rounded, size: 18, color: AppColors.textPrimary(context)),
+                        child: Icon(Icons.refresh_rounded, size: 18),
                       ),
                     ],
                   ),

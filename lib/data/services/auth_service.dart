@@ -1,16 +1,22 @@
 // lib/data/services/auth_service.dart
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/simple_user_model.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
 
-
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(apiService: ref.read(apiServiceProvider));
+});
+
+final currentUserProvider = StateProvider<SimpleUserModel?>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return authService.currentUser;
 });
 
 class AuthService {
@@ -19,6 +25,7 @@ class AuthService {
   final ApiService apiService;
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  static const _storage = FlutterSecureStorage();
 
   SimpleUserModel? _currentUser;
   bool _signedOutExplicitly = false;
@@ -30,6 +37,40 @@ class AuthService {
     final userMap = await apiService.getUser(uid);
     if (userMap != null) {
       _currentUser = SimpleUserModel.fromMap(userMap);
+      await persistSession(_currentUser!);
+    }
+  }
+
+  Future<void> persistSession(SimpleUserModel user) async {
+    try {
+      await _storage.write(key: 'session_user', value: jsonEncode(user.toMap()));
+    } catch (e) {
+      debugPrint('Error persisting session: $e');
+    }
+  }
+
+  Future<SimpleUserModel?> getStoredUser() async {
+    try {
+      final value = await _storage.read(key: 'session_user');
+      if (value != null) {
+        final Map<String, dynamic> map = jsonDecode(value);
+        _currentUser = SimpleUserModel.fromMap(map);
+        _signedOutExplicitly = false;
+        return _currentUser;
+      }
+    } catch (e) {
+      debugPrint('Error getting stored user: $e');
+    }
+    return null;
+  }
+
+  Future<void> clearSession() async {
+    try {
+      await _storage.delete(key: 'session_user');
+      _currentUser = null;
+      _signedOutExplicitly = true;
+    } catch (e) {
+      debugPrint('Error clearing session: $e');
     }
   }
 
@@ -117,6 +158,9 @@ class AuthService {
 
       debugPrint('Firebase sign-in successful: ${user.email}');
       
+      // Persist session
+      await persistSession(_currentUser!);
+
       // Register device for notifications
       await NotificationService().registerDevice(user.uid, name: user.name, email: user.email);
       
@@ -141,6 +185,7 @@ class AuthService {
     final syncedUser = await apiService.syncUser(localUser.toMap());
     _currentUser = SimpleUserModel.fromMap(syncedUser);
     _signedOutExplicitly = false;
+    await persistSession(_currentUser!);
     return _currentUser;
   }
 
@@ -178,6 +223,9 @@ class AuthService {
       _signedOutExplicitly = false;
       debugPrint('Email sign-in successful: $email');
       
+      // Persist session
+      await persistSession(_currentUser!);
+
       // Register device for notifications
       await NotificationService().registerDevice(_currentUser!.uid, name: _currentUser!.name, email: _currentUser!.email);
 
@@ -189,7 +237,7 @@ class AuthService {
     }
   }
 
-  /// Get current user from Firebase or SQLite
+  /// Get current user from Firebase or local cache
   Future<SimpleUserModel?> getCurrentUser() async {
     if (_signedOutExplicitly) {
       return null;
@@ -199,11 +247,15 @@ class AuthService {
       return _currentUser;
     }
 
-    // Try to get from Firebase
+    // Try to recover from secure storage first
+    final storedUser = await getStoredUser();
+    if (storedUser != null) {
+      return storedUser;
+    }
+
+    // Fallback to Firebase
     final firebaseUser = _firebaseAuth.currentUser;
     if (firebaseUser != null) {
-      // ALWAYS register device on startup if we have a firebase user
-      // This ensures the token is updated even if the user was already cached
       NotificationService().registerDevice(firebaseUser.uid, name: firebaseUser.displayName, email: firebaseUser.email);
 
       if (_currentUser != null) {
@@ -224,9 +276,11 @@ class AuthService {
         _currentUser = SimpleUserModel.fromMap(synced);
       }
 
+      if (_currentUser != null) {
+        await persistSession(_currentUser!);
+      }
       return _currentUser;
     }
-
 
     return null;
   }
@@ -237,6 +291,8 @@ class AuthService {
     _currentUser = SimpleUserModel.fromMap(userMap);
     _signedOutExplicitly = false;
     
+    await persistSession(_currentUser!);
+
     // Register device for notifications
     NotificationService().registerDevice(uid, name: _currentUser?.name, email: _currentUser?.email);
     
@@ -249,6 +305,7 @@ class AuthService {
       final updated = await apiService.syncUser(data);
       if (_currentUser?.uid == uid) {
         _currentUser = SimpleUserModel.fromMap(updated);
+        await persistSession(_currentUser!);
       }
       debugPrint('User profile updated');
     } catch (e) {
@@ -263,9 +320,8 @@ class AuthService {
       await _firebaseAuth.signOut();
       await _googleSignIn.signOut();
       await CookieManager.instance().deleteAllCookies();
-      // CMS data is now also in the cloud or cleared session-wise
       _signedOutExplicitly = true;
-      _currentUser = null;
+      await clearSession();
       debugPrint('User signed out successfully');
     } catch (e) {
       debugPrint('Sign-out error: $e');
@@ -291,6 +347,7 @@ class AuthService {
         final syncedUser = await apiService.syncUser(user.toMap());
         _currentUser = SimpleUserModel.fromMap(syncedUser);
         _signedOutExplicitly = false;
+        await persistSession(_currentUser!);
         return true;
       }
       return false;

@@ -8,6 +8,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_user_model.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../widgets/common/glass_card.dart';
 
@@ -477,6 +478,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: OutlinedButton.icon(
         onPressed: () async {
           await ref.read(authServiceProvider).signOut();
+          ref.invalidate(postsProvider);
+          ref.invalidate(notificationsProvider);
+          ref.invalidate(unreadCountProvider);
+          ref.invalidate(myClaimsProvider);
           if (mounted) context.go('/login');
         },
         icon: const Icon(Icons.logout_rounded, size: 20),

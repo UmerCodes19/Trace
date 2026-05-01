@@ -4,8 +4,12 @@ const supabase = require('../utils/supabase');
 const { verifyToken } = require('../middleware/auth');
 
 // Get notifications for a user
-router.get('/:uid', async (req, res) => {
+router.get('/:uid', verifyToken, async (req, res) => {
   try {
+    if (req.user.uid !== req.params.uid) {
+      return res.status(403).json({ error: 'Access denied: You cannot view notifications for other users.' });
+    }
+
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -21,7 +25,7 @@ router.get('/:uid', async (req, res) => {
 });
 
 // Mark notification as read
-router.post('/:id/read', async (req, res) => {
+router.post('/:id/read', verifyToken, async (req, res) => {
   try {
     const { error } = await supabase
       .from('notifications')
@@ -36,8 +40,12 @@ router.post('/:id/read', async (req, res) => {
 });
 
 // Mark all as read
-router.post('/user/:uid/read-all', async (req, res) => {
+router.post('/user/:uid/read-all', verifyToken, async (req, res) => {
   try {
+    if (req.user.uid !== req.params.uid) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const { error } = await supabase
       .from('notifications')
       .update({ isRead: true })

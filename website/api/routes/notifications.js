@@ -2,10 +2,45 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
 
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  const token = authHeader.split('Bearer ')[1];
+  try {
+    const admin = require('firebase-admin');
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    const { data: user } = await supabase
+      .from('users')
+      .select('role, isBanned')
+      .eq('uid', decodedToken.uid)
+      .single();
+
+    if (user && user.isBanned) {
+      return res.status(403).json({ error: 'User is banned' });
+    }
+
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      role: user ? user.role : 'user'
+    };
+    next();
+  } catch (error) {
+    console.error('Auth Error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
 // Get notification history for a user
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', verifyToken, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (req.user.uid !== userId) {
+      return res.status(403).json({ error: 'Access denied: You cannot view notifications for other users.' });
+    }
+
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -21,9 +56,21 @@ router.get('/:userId', async (req, res) => {
 });
 
 // Mark a single notification as read
-router.post('/:notificationId/read', async (req, res) => {
+router.post('/:notificationId/read', verifyToken, async (req, res) => {
   try {
     const { notificationId } = req.params;
+    
+    // Validate that the user owns the notification
+    const { data: notif } = await supabase
+      .from('notifications')
+      .select('user_id')
+      .eq('id', notificationId)
+      .single();
+
+    if (!notif || notif.user_id !== req.user.uid) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -37,9 +84,13 @@ router.post('/:notificationId/read', async (req, res) => {
 });
 
 // Mark all as read for a user
-router.post('/user/:userId/read-all', async (req, res) => {
+router.post('/user/:userId/read-all', verifyToken, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (req.user.uid !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })

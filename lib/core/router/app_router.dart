@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../data/models/simple_post_model.dart';
 
 import '../../presentation/screens/admin/admin_dashboard_screen.dart';
 import '../../presentation/screens/auth/cms_webview_login.dart';
@@ -12,9 +13,14 @@ import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/debug/debug_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
 import '../../presentation/screens/map/map_screen.dart';
+import '../../presentation/screens/map/isometric_campus_screen.dart';
 import '../../presentation/screens/notifications/notification_list_screen.dart';
 import '../../presentation/screens/post/create_post_screen.dart';
 import '../../presentation/screens/post/post_detail_screen.dart';
+import '../../presentation/screens/post/claim_request_screen.dart';
+import '../../presentation/screens/post/claim_review_list_screen.dart';
+import '../../presentation/screens/post/handover_qr_screen.dart';
+import '../../presentation/screens/post/handover_scanner_screen.dart';
 import '../../presentation/screens/profile/edit_profile_screen.dart';
 import '../../presentation/screens/profile/profile_screen.dart';
 import '../../presentation/screens/profile/qr_code_screen.dart';
@@ -92,6 +98,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             PostDetailScreen(postId: state.pathParameters['id']!),
       ),
       GoRoute(
+        path: '/post/:id/claim',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) {
+          final post = state.extra as SimplePostModel;
+          return ClaimRequestScreen(post: post);
+        },
+      ),
+      GoRoute(
+        path: '/post/:id/claims',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) =>
+            ClaimReviewListScreen(
+              postId: state.pathParameters['id']!,
+              postTitle: state.uri.queryParameters['title'] ?? 'Item',
+            ),
+      ),
+      GoRoute(
         path: '/chat/:chatId',
         parentNavigatorKey: _rootKey,
         builder: (ctx, state) =>
@@ -106,6 +129,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/profile/view/:uid',
         parentNavigatorKey: _rootKey,
         builder: (ctx, state) => ProfileScreen(viewUid: state.pathParameters['uid']),
+      ),
+      GoRoute(
+        path: '/handover/qr',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) {
+          final args = state.extra as Map<String, dynamic>;
+          return HandoverQrScreen(
+            claimId: args['claimId'],
+            itemTitle: args['itemTitle'],
+            claimerName: args['claimerName'],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/map/isometric',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) => const IsometricCampusScreen(),
+      ),
+      GoRoute(
+        path: '/handover/scan',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) => const HandoverScannerScreen(),
       ),
       GoRoute(
         path: '/profile/qr',

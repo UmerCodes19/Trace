@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/api_service.dart';
 import '../../widgets/common/pressable_scale.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -24,6 +25,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = isGoogle ? (await auth.signInWithGoogle() != null) : await auth.signInWithGithub();
     
     if (success && mounted) {
+      ref.invalidate(postsProvider);
+      ref.invalidate(notificationsProvider);
+      ref.invalidate(unreadCountProvider);
       context.go('/home');
     } else if (mounted) {
       setState(() => _isLoading = false);
