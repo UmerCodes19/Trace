@@ -203,4 +203,47 @@ router.get('/post/:postId', verifyToken, async (req, res) => {
   }
 });
 
+/**
+ * Verify QR Handshake and complete the claim & post
+ */
+router.post('/handshake/verify', verifyToken, async (req, res) => {
+  try {
+    const { claimId } = req.body;
+    if (!claimId) {
+      return res.status(400).json({ error: 'Claim ID is required.' });
+    }
+
+    // 1. Fetch claim to verify its existence
+    const { data: claim, error: fetchError } = await supabase
+      .from('claims')
+      .select('*, posts(*)')
+      .eq('id', claimId)
+      .single();
+
+    if (fetchError || !claim) {
+      return res.status(404).json({ error: 'Claim not found' });
+    }
+
+    // 2. Update claim status
+    const { error: claimUpdateError } = await supabase
+      .from('claims')
+      .update({ status: 'approved' })
+      .eq('id', claimId);
+
+    if (claimUpdateError) throw claimUpdateError;
+
+    // 3. Update associated post status to 'resolved'
+    const { error: postUpdateError } = await supabase
+      .from('posts')
+      .update({ status: 'resolved' })
+      .eq('id', claim.post_id);
+
+    if (postUpdateError) throw postUpdateError;
+
+    res.json({ message: 'Handshake successful, item recovered!' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
