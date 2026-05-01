@@ -13,6 +13,7 @@ import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../widgets/cards/post_card.dart';
 import '../../widgets/common/lottie_empty_state.dart';
+import '../../widgets/common/trace_logo.dart';
 import '../../widgets/common/skeleton.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -49,91 +50,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       body: SafeArea(
         child: NestedScrollView(
           headerSliverBuilder: (context, _) => [
-            SliverAppBar(
-              floating: true,
-              snap: true,
-              expandedHeight: 250,
-              backgroundColor: AppColors.pageBg(context),
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                  child: SingleChildScrollView(
-                    physics: const NeverScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(timeGreeting(), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary(context))),
-                                  Text(
-                                    user?.name ?? 'Guest', 
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context), letterSpacing: -0.5),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(timeGreeting(), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary(context))),
+                              Text(
+                                user?.name ?? 'Guest', 
+                                style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context), letterSpacing: -0.5),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Subtle Trace Signature
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: accent.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: accent.withOpacity(0.2), width: 0.5),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.radar_rounded, color: accent, size: 14),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'TRACE',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900,
-                                      color: accent,
-                                      letterSpacing: 1.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.8, 0.8)),
-                            const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: () => context.push('/notifications'),
-                              child: _NotificationIcon(accent: accent),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        _buildSearchBar(context),
-                        const SizedBox(height: 12),
-                        Consumer(
-                          builder: (context, ref, _) {
-                            final posts = ref.watch(postsProvider).value ?? [];
-                            final lostToday = posts.where((p) => p.type == 'lost' && _isToday(p.timestamp)).length;
-                            final foundToday = posts.where((p) => p.type == 'found' && _isToday(p.timestamp)).length;
-                            final totalReturned = user?.itemsReturned ?? 0;
-                            
-                            return _StatusSummary(
-                              lost: lostToday.toString().padLeft(2, '0'),
-                              found: foundToday.toString().padLeft(2, '0'),
-                              returned: totalReturned.toString().padLeft(2, '0'),
-                              accent: accent,
-                            );
-                          },
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: accent.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: accent.withOpacity(0.2), width: 0.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TraceLogo(color: accent, size: 14),
+                              const SizedBox(width: 6),
+                              Text(
+                                'TRACE',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: accent,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.8, 0.8)),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () => context.push('/notifications'),
+                          child: _NotificationIcon(accent: accent),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    _buildSearchBar(context),
+                    const SizedBox(height: 12),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final posts = ref.watch(postsProvider).value ?? [];
+                        final activeCount = posts.where((p) => p.status == 'open').length;
+                        final recoveredCount = posts.where((p) => p.status == 'resolved').length;
+                        final myReportsCount = posts.where((p) => p.userId == user?.uid).length;
+                        
+                        return _StatusSummary(
+                          active: activeCount.toString().padLeft(2, '0'),
+                          recovered: recoveredCount.toString().padLeft(2, '0'),
+                          myReports: myReportsCount.toString().padLeft(2, '0'),
+                          accent: accent,
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -142,10 +132,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
               delegate: _SliverAppBarDelegate(
                 child: Container(
                   color: AppColors.pageBg(context),
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: TabBar(
                     controller: _tabController,
                     indicatorColor: accent,
                     isScrollable: true,
+                    tabAlignment: TabAlignment.start,
                     labelColor: AppColors.textPrimary(context),
                     unselectedLabelColor: AppColors.textSecondary(context),
                     labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
@@ -238,29 +231,25 @@ class _NotificationIcon extends StatelessWidget {
 class _StatusSummary extends StatelessWidget {
   const _StatusSummary({
     required this.accent,
-    required this.lost,
-    required this.found,
-    required this.returned,
+    required this.active,
+    required this.recovered,
+    required this.myReports,
   });
   final Color accent;
-  final String lost;
-  final String found;
-  final String returned;
+  final String active;
+  final String recovered;
+  final String myReports;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          _SummaryItem(label: 'Lost Today', value: lost, color: AppColors.lost),
-          const SizedBox(width: 12),
-          _SummaryItem(label: 'Found Today', value: found, color: AppColors.found),
-          const SizedBox(width: 12),
-          _SummaryItem(label: 'My Recoveries', value: returned, color: accent),
-        ],
-      ),
+    return Row(
+      children: [
+        Expanded(child: _SummaryItem(label: 'Active Items', value: active, color: AppColors.lost)),
+        const SizedBox(width: 12),
+        Expanded(child: _SummaryItem(label: 'Campus Recovered', value: recovered, color: AppColors.found)),
+        const SizedBox(width: 12),
+        Expanded(child: _SummaryItem(label: 'My Reports', value: myReports, color: accent)),
+      ],
     ).animate().fadeIn(delay: 200.ms).slideX(begin: 0.1, end: 0);
   }
 }
@@ -280,7 +269,6 @@ class _SummaryItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.05),

@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
+import '../../widgets/common/trace_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -150,9 +151,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
                       ],
                     ),
                     child: const Center(
-                      child: Icon(
-                        Icons.layers_rounded,
-                        size: 35,
+                      child: TraceLogo(
+                        size: 45,
                         color: AppColors.jadePrimary,
                       ),
                     ),

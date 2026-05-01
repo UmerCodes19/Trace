@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../widgets/common/pressable_scale.dart';
+import '../../widgets/common/trace_logo.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -112,7 +113,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               )
             ],
           ),
-          child: Center(child: Icon(Icons.radar_rounded, color: accent, size: 40)),
+          child: Center(child: TraceLogo(color: accent, size: 55)),
         ).animate(onPlay: (controller) => controller.repeat(reverse: true))
          .scale(duration: 2.seconds, begin: const Offset(1, 1), end: const Offset(1.05, 1.05), curve: Curves.easeInOut)
          .shimmer(duration: 3.seconds, color: accent.withOpacity(0.1)),
