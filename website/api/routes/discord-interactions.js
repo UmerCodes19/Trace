@@ -202,6 +202,7 @@ router.post('/', verifyDiscordRequest, async (req, res) => {
         const { data: posts, error } = await supabase
           .from('posts')
           .insert([{
+            id: crypto.randomUUID(),
             userId,
             type: name,
             title: item,
