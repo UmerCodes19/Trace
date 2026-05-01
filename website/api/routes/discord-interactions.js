@@ -210,14 +210,7 @@ router.post('/', verifyDiscordRequest, async (req, res) => {
             buildingName: loc,
             floor: 0,
             status: 'open',
-            timestamp: new Date().toISOString(),
-            imageUrl: '',
-            aiTags: [],
-            reportCount: 0,
-            viewCount: 0,
-            likeCount: 0,
-            isCMSVerified: true,
-            category: 'General'
+            timestamp: new Date().toISOString()
           }])
           .select();
 
