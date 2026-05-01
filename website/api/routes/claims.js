@@ -103,13 +103,14 @@ router.post('/request', verifyToken, async (req, res) => {
 
     if (claimError) throw claimError;
 
-    // 4. Notify the Finder (Post Owner)
-    await NotificationService.sendToUser(post.userId, {
-      title: '🎁 New Claim Request',
-      body: `Someone wants to claim "${post.title}". Review their proof now.`,
-      type: 'claim_request',
-      data: { claimId: claim.id, postId: postId }
-    });
+    if (post && post.userId !== userId) {
+      await NotificationService.sendToUser(post.userId, {
+        title: '🎁 New Claim Request',
+        body: `Someone wants to claim "${post.title}". Review their proof now.`,
+        type: 'claim_request',
+        data: { claimId: claim.id, postId: postId }
+      });
+    }
 
     res.status(201).json(claim);
   } catch (error) {
@@ -150,15 +151,16 @@ router.put('/respond/:id', verifyToken, async (req, res) => {
 
     if (updateError) throw updateError;
 
-    // 4. Notify Claimer
-    await NotificationService.sendToUser(claim.claimer_id, {
-      title: status === 'approved' ? '✅ Claim Approved!' : '❌ Claim Rejected',
-      body: status === 'approved' 
-        ? `Your claim for "${claim.posts.title}" was approved. You can now chat with the finder.`
-        : `Your claim for "${claim.posts.title}" was rejected by the finder.`,
-      type: 'claim_response',
-      data: { claimId: id, status }
-    });
+    if (claim && claim.claimer_id !== req.user.uid) {
+      await NotificationService.sendToUser(claim.claimer_id, {
+        title: status === 'approved' ? '✅ Claim Approved!' : '❌ Claim Rejected',
+        body: status === 'approved' 
+          ? `Your claim for "${claim.posts.title}" was approved. You can now chat with the finder.`
+          : `Your claim for "${claim.posts.title}" was rejected by the finder.`,
+        type: 'claim_response',
+        data: { claimId: id, status }
+      });
+    }
 
     res.json(updatedClaim);
   } catch (error) {

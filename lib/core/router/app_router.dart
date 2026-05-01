@@ -121,6 +121,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ChatScreen(chatId: state.pathParameters['chatId']!),
       ),
       GoRoute(
+        path: '/post/:id/edit',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) {
+          final post = state.extra as SimplePostModel;
+          return CreatePostScreen(postToEdit: post);
+        },
+      ),
+      GoRoute(
         path: '/profile/edit',
         parentNavigatorKey: _rootKey,
         builder: (ctx, state) => const EditProfileScreen(),

@@ -17,7 +17,8 @@ import '../../../data/models/cms_models.dart';
 import '../../../data/services/campus_map_service.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
-  const CreatePostScreen({super.key});
+  const CreatePostScreen({super.key, this.postToEdit});
+  final SimplePostModel? postToEdit;
 
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -35,12 +36,26 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   int _floor = 0;
   double? _indoorX;
   double? _indoorY;
+  List<String> _existingImageUrls = [];
 
   @override
   void initState() {
     super.initState();
     _roomCtrl.addListener(_onRoomChanged);
     
+    if (widget.postToEdit != null) {
+      _type = widget.postToEdit!.type;
+      _titleCtrl.text = widget.postToEdit!.title;
+      _descCtrl.text = widget.postToEdit!.description;
+      _buildingCtrl.text = widget.postToEdit!.location.building;
+      _roomCtrl.text = widget.postToEdit!.location.room ?? '';
+      _floor = widget.postToEdit!.location.floor;
+      _lostDateTime = widget.postToEdit!.timestamp;
+      _secretQuestionCtrl.text = widget.postToEdit!.secretDetailQuestion ?? '';
+      _aiTags = List<String>.from(widget.postToEdit!.aiTags);
+      _existingImageUrls = List<String>.from(widget.postToEdit!.imageUrls);
+    }
+
     // Handle pre-filled data from map long-press or room tap
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final extra = GoRouterState.of(context).extra as Map<String, dynamic>?;
@@ -341,7 +356,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       return;
     }
 
-    if (_images.isEmpty) {
+    if (_images.isEmpty && _existingImageUrls.isEmpty) {
       if (mounted) showAppSnack(context, 'Please add at least one image');
       return;
     }
@@ -364,7 +379,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       final storageSvc = ref.read(storageServiceProvider);
 
       // Upload images
-      final urls = <String>[];
+      final urls = List<String>.from(_existingImageUrls);
       for (final img in _images) {
         try {
           final url = await storageSvc.uploadPostImage(img, currentUser.uid);
@@ -389,7 +404,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       }
 
       final post = SimplePostModel(
-        id: const Uuid().v4(),
+        id: widget.postToEdit != null ? widget.postToEdit!.id : const Uuid().v4(),
         userId: currentUser.uid,
         type: _type,
         title: sanitizeInput(_titleCtrl.text),
@@ -413,6 +428,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         secretDetailQuestion: _secretQuestionCtrl.text.isEmpty ? null : _secretQuestionCtrl.text.trim(),
       );
 
+      if (widget.postToEdit != null) {
+        await api.updatePost(widget.postToEdit!.id, post.toMap());
+        ref.invalidate(postsProvider);
+        AppHaptics.success();
+        if (mounted) {
+          showAppSnack(context, '✅ Post updated successfully!');
+          context.go('/home');
+        }
+        return;
+      }
+
       await api.createPost(post.toMap());
       await api.updateUserStats(
         currentUser.uid,
@@ -432,9 +458,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
       context.go('/home');
     } catch (e) {
-      debugPrint('Error creating post: $e');
+      debugPrint('Error submitting post: $e');
       if (mounted) {
-        showAppSnack(context, 'Failed to create post: $e', isError: true);
+        showAppSnack(context, 'Failed to submit post: $e', isError: true);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -462,7 +488,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'New Report',
+                    widget.postToEdit != null ? 'Edit Report' : 'New Report',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
@@ -479,7 +505,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(
-                            'Post',
+                            widget.postToEdit != null ? 'Save' : 'Post',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -507,9 +533,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     const SizedBox(height: 10),
                     _ImagePicker(
                       images: _images,
+                      existingUrls: _existingImageUrls,
                       onPickGallery: () => _pickImages(ImageSource.gallery),
                       onPickCamera: () => _pickImages(ImageSource.camera),
                       onRemove: _removeImage,
+                      onRemoveExisting: (i) {
+                        if (mounted) setState(() => _existingImageUrls.removeAt(i));
+                      },
                     ),
                     if (_analyzingImages || _aiTags.isNotEmpty) ...[
                       const SizedBox(height: 16),
@@ -807,15 +837,19 @@ class _ToggleOption extends StatelessWidget {
 class _ImagePicker extends StatelessWidget {
   const _ImagePicker({
     required this.images,
+    required this.existingUrls,
     required this.onPickGallery,
     required this.onPickCamera,
     required this.onRemove,
+    required this.onRemoveExisting,
   });
 
   final List<File> images;
+  final List<String> existingUrls;
   final VoidCallback onPickGallery;
   final VoidCallback onPickCamera;
   final ValueChanged<int> onRemove;
+  final ValueChanged<int> onRemoveExisting;
 
   @override
   Widget build(BuildContext context) {
@@ -824,7 +858,7 @@ class _ImagePicker extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          if (images.length < 4) ...[
+          if (images.length + existingUrls.length < 4) ...[
             _AddButton(
               icon: Icons.photo_library_outlined,
               label: 'Gallery',
@@ -838,6 +872,43 @@ class _ImagePicker extends StatelessWidget {
             ),
             const SizedBox(width: 10),
           ],
+          ...existingUrls.asMap().entries.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.network(
+                      e.value,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: () => onRemoveExisting(e.key),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           ...images.asMap().entries.map(
             (e) => Padding(
               padding: const EdgeInsets.only(right: 10),

@@ -60,7 +60,7 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
   Future<void> _submitComment() async {
     final text = _commentController.text.trim();
     final user = ref.read(authServiceProvider).currentUser;
-    if (user == null) return;
+    if (user == null || text.isEmpty) return;
 
     final api = ref.read(apiServiceProvider);
     final comment = CommentModel(
@@ -74,16 +74,21 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
       timestamp: DateTime.now(),
     );
 
+    final oldComments = List<CommentModel>.from(_comments);
+    setState(() {
+      _comments = [..._comments, comment];
+      _replyToId = null;
+      _replyToName = null;
+    });
+    _commentController.clear();
+    AppHaptics.success();
+
     try {
       await api.addComment(comment.toMap());
-      _commentController.clear();
-      setState(() {
-        _replyToId = null;
-        _replyToName = null;
-      });
-      await _loadComments();
-      AppHaptics.success();
     } catch (e) {
+      setState(() {
+        _comments = oldComments;
+      });
       if (mounted) showAppSnack(context, 'Failed to post comment', isError: true);
     }
   }

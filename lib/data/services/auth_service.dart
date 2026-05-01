@@ -10,16 +10,16 @@ import '../models/simple_user_model.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
 
-final authServiceProvider = Provider<AuthService>((ref) {
+final authServiceProvider = ChangeNotifierProvider<AuthService>((ref) {
   return AuthService(apiService: ref.read(apiServiceProvider));
 });
 
-final currentUserProvider = StateProvider<SimpleUserModel?>((ref) {
+final currentUserProvider = Provider<SimpleUserModel?>((ref) {
   final authService = ref.watch(authServiceProvider);
   return authService.currentUser;
 });
 
-class AuthService {
+class AuthService extends ChangeNotifier {
   AuthService({required this.apiService});
 
   final ApiService apiService;
@@ -38,6 +38,7 @@ class AuthService {
     if (userMap != null) {
       _currentUser = SimpleUserModel.fromMap(userMap);
       await persistSession(_currentUser!);
+      notifyListeners();
     }
   }
 
@@ -56,6 +57,7 @@ class AuthService {
         final Map<String, dynamic> map = jsonDecode(value);
         _currentUser = SimpleUserModel.fromMap(map);
         _signedOutExplicitly = false;
+        notifyListeners();
         return _currentUser;
       }
     } catch (e) {
@@ -69,6 +71,7 @@ class AuthService {
       await _storage.delete(key: 'session_user');
       _currentUser = null;
       _signedOutExplicitly = true;
+      notifyListeners();
     } catch (e) {
       debugPrint('Error clearing session: $e');
     }
@@ -155,6 +158,7 @@ class AuthService {
       final syncedUser = await apiService.syncUser(user.toMap());
       _currentUser = SimpleUserModel.fromMap(syncedUser);
       _signedOutExplicitly = false;
+      notifyListeners();
 
       debugPrint('Firebase sign-in successful: ${user.email}');
       
@@ -185,6 +189,7 @@ class AuthService {
     final syncedUser = await apiService.syncUser(localUser.toMap());
     _currentUser = SimpleUserModel.fromMap(syncedUser);
     _signedOutExplicitly = false;
+    notifyListeners();
     await persistSession(_currentUser!);
     return _currentUser;
   }
@@ -221,6 +226,7 @@ class AuthService {
       final syncedUser = await apiService.syncUser(user.toMap());
       _currentUser = SimpleUserModel.fromMap(syncedUser);
       _signedOutExplicitly = false;
+      notifyListeners();
       debugPrint('Email sign-in successful: $email');
       
       // Persist session
@@ -275,6 +281,7 @@ class AuthService {
         final synced = await apiService.syncUser(created.toMap());
         _currentUser = SimpleUserModel.fromMap(synced);
       }
+      notifyListeners();
 
       if (_currentUser != null) {
         await persistSession(_currentUser!);
@@ -290,6 +297,7 @@ class AuthService {
     if (userMap == null) return null;
     _currentUser = SimpleUserModel.fromMap(userMap);
     _signedOutExplicitly = false;
+    notifyListeners();
     
     await persistSession(_currentUser!);
 
@@ -306,6 +314,7 @@ class AuthService {
       if (_currentUser?.uid == uid) {
         _currentUser = SimpleUserModel.fromMap(updated);
         await persistSession(_currentUser!);
+        notifyListeners();
       }
       debugPrint('User profile updated');
     } catch (e) {
@@ -321,12 +330,15 @@ class AuthService {
       await _googleSignIn.signOut();
       await CookieManager.instance().deleteAllCookies();
       _signedOutExplicitly = true;
+      _currentUser = null;
       await clearSession();
+      notifyListeners();
       debugPrint('User signed out successfully');
     } catch (e) {
       debugPrint('Sign-out error: $e');
       _signedOutExplicitly = true;
       _currentUser = null;
+      notifyListeners();
     }
   }
 
@@ -347,6 +359,7 @@ class AuthService {
         final syncedUser = await apiService.syncUser(user.toMap());
         _currentUser = SimpleUserModel.fromMap(syncedUser);
         _signedOutExplicitly = false;
+        notifyListeners();
         await persistSession(_currentUser!);
         return true;
       }

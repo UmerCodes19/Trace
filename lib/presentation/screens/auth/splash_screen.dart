@@ -46,7 +46,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (!mounted) return;
 
     if (user != null) {
-      ref.read(currentUserProvider.notifier).state = user;
       context.go('/home');
     } else {
       context.go('/login');

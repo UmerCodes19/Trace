@@ -88,14 +88,31 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final currentUid = ref.read(authServiceProvider).currentUser?.uid;
     if (currentUid == null || _post == null) return;
 
-    final result = await api.toggleLike(_post!.id, currentUid);
+    final oldLiked = _hasLiked;
+    final oldLikesCount = _post!.likesCount;
+
     setState(() {
-      _hasLiked = result['liked'];
+      _hasLiked = !_hasLiked;
       _post = _post!.copyWith(
-        likesCount: result['likeCount'] ?? (_post!.likesCount + (result['liked'] ? 1 : -1)),
+        likesCount: _post!.likesCount + (_hasLiked ? 1 : -1),
       );
     });
     AppHaptics.light();
+
+    try {
+      final result = await api.toggleLike(_post!.id, currentUid);
+      setState(() {
+        _hasLiked = result['liked'];
+        _post = _post!.copyWith(
+          likesCount: result['likeCount'] ?? (_post!.likesCount),
+        );
+      });
+    } catch (_) {
+      setState(() {
+        _hasLiked = oldLiked;
+        _post = _post!.copyWith(likesCount: oldLikesCount);
+      });
+    }
   }
 
   @override
@@ -201,11 +218,16 @@ class _PostDetailBody extends ConsumerWidget {
                           value: 'resolve',
                           child: Text('Mark as Resolved'),
                         ),
-                      if (isOwner)
+                      if (isOwner) ...[
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit'),
+                        ),
                         const PopupMenuItem(
                           value: 'delete',
                           child: Text('Delete'),
                         ),
+                      ],
                     ],
                     onSelected: (action) async {
                       final api = ref.read(apiServiceProvider);
@@ -221,6 +243,8 @@ class _PostDetailBody extends ConsumerWidget {
                           showAppSnack(context, 'Item marked as resolved! 🎉');
                           onResolved();
                         }
+                      } else if (action == 'edit') {
+                        context.push('/post/${post.id}/edit', extra: post);
                       } else if (action == 'delete') {
                         await api.deletePost(post.id);
                         if (context.mounted) context.pop();
@@ -513,6 +537,48 @@ class _ClaimSection extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
+        if (status == 'approved') ...[
+          GestureDetector(
+            onTap: () async {
+              AppHaptics.medium();
+              final api = ref.read(apiServiceProvider);
+              final currentUid = ref.read(authServiceProvider).currentUser?.uid;
+              if (currentUid == null) return;
+              try {
+                final chat = await api.createChat({
+                  'postId': post.id,
+                  'postTitle': post.title,
+                  'buyerId': currentUid,
+                  'sellerId': post.userId,
+                });
+                if (context.mounted) {
+                  context.push('/chat/${chat['id']}');
+                }
+              } catch (e) {
+                showAppSnack(context, 'Failed to open chat: $e', isError: true);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.cardBg(context),
+                border: Border.all(color: AppColors.jadePrimary.withOpacity(0.4)),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Center(
+                child: Text(
+                  '💬 Chat with Finder',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.jadePrimary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         GestureDetector(
           onTap: () {
             AppHaptics.medium();

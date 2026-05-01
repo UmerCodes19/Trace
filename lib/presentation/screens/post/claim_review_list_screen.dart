@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
+import '../../../data/services/auth_service.dart';
 
 class ClaimReviewListScreen extends ConsumerStatefulWidget {
   const ClaimReviewListScreen({super.key, required this.postId, required this.postTitle});
@@ -144,6 +145,36 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final api = ref.read(apiServiceProvider);
+                                  final currentUid = ref.read(authServiceProvider).currentUser?.uid;
+                                  if (currentUid == null) return;
+                                  try {
+                                    final chat = await api.createChat({
+                                      'postId': widget.postId,
+                                      'postTitle': widget.postTitle,
+                                      'buyerId': claim['claimer_id'],
+                                      'sellerId': currentUid,
+                                    });
+                                    if (context.mounted) {
+                                      context.push('/chat/${chat['id']}');
+                                    }
+                                  } catch (e) {
+                                    showAppSnack(context, 'Failed to open chat');
+                                  }
+                                },
+                                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                                label: const Text('💬 Chat with Claimer'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.jadePrimary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
                                 onPressed: () {
                                   context.push('/handover/qr', extra: {
                                     'claimId': claim['id'],
@@ -151,7 +182,7 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                                     'claimerName': user['name'] ?? 'User',
                                   });
                                 },
-                                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                                icon: const Icon(Icons.qr_code_rounded, size: 18),
                                 label: const Text('Start Coordination'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.navyLight,
