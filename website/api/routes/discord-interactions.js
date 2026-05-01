@@ -43,6 +43,10 @@ function verifyDiscordRequest(req, res, next) {
   next();
 }
 
+router.get('/', (req, res) => {
+  res.send('Discord Interactions endpoint is active and ready for POST requests.');
+});
+
 router.post('/', verifyDiscordRequest, async (req, res) => {
   const interaction = req.body;
   if (!interaction) return res.status(400).send('Empty body');
@@ -72,52 +76,71 @@ router.post('/', verifyDiscordRequest, async (req, res) => {
     };
 
     const checkLink = async () => {
-      const { data } = await supabase
-        .from('cms_timetable')
-        .select('*')
-        .eq('enrollment', `discord:${discordId}`)
-        .single();
-      return data ? data.courseCode : null;
+      try {
+        const { data, error } = await supabase
+          .from('cms_timetable')
+          .select('*')
+          .eq('enrollment', `discord:${discordId}`)
+          .single();
+        if (error || !data) return null;
+        return data.courseCode;
+      } catch (e) {
+        return null;
+      }
     };
 
     // Command: /link
     if (name === 'link') {
-      const code = getOption('code').toUpperCase();
+      try {
+        const code = getOption('code').toUpperCase();
 
-      const { data: codeData, error: linkError } = await supabase
-        .from('cms_timetable')
-        .select('*')
-        .eq('enrollment', `link_code:${code}`)
-        .single();
+        const { data: codeData, error: linkError } = await supabase
+          .from('cms_timetable')
+          .select('*')
+          .eq('enrollment', `link_code:${code}`)
+          .single();
 
-      if (linkError || !codeData) {
+        if (linkError || !codeData) {
+          return res.json({
+            type: 4,
+            data: { content: '❌ Invalid or expired code. Please generate a new code in the Trace app.' }
+          });
+        }
+
+        const entry = {
+          enrollment: `discord:${discordId}`,
+          courseCode: codeData.courseCode,
+          courseTitle: discordName,
+          roomName: discordId,
+          buildingName: '#discord_link',
+          day: 1
+        };
+
+        await supabase
+          .from('cms_timetable')
+          .delete()
+          .eq('enrollment', `discord:${discordId}`);
+
+        const { error: insError } = await supabase.from('cms_timetable').insert([entry]);
+        if (insError) {
+          return res.json({
+            type: 4,
+            data: { content: `❌ Database insertion failed: ${insError.message || JSON.stringify(insError)}` }
+          });
+        }
+
+        await supabase.from('cms_timetable').delete().eq('enrollment', `link_code:${code}`);
+
         return res.json({
           type: 4,
-          data: { content: '❌ Invalid or expired code. Please generate a new code in the Trace app.' }
+          data: { content: `✅ Successfully linked your Discord to Trace account: **${discordName}**!` }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Error while linking: ${err.message || JSON.stringify(err)}` }
         });
       }
-
-      const entry = {
-        enrollment: `discord:${discordId}`,
-        courseCode: codeData.courseCode,
-        courseTitle: discordName,
-        roomName: discordId,
-        buildingName: '#discord_link',
-        day: 1
-      };
-
-      await supabase
-        .from('cms_timetable')
-        .delete()
-        .eq('enrollment', `discord:${discordId}`);
-
-      await supabase.from('cms_timetable').insert([entry]);
-      await supabase.from('cms_timetable').delete().eq('enrollment', `link_code:${code}`);
-
-      return res.json({
-        type: 4,
-        data: { content: `✅ Successfully linked your Discord to Trace account: **${discordName}**!` }
-      });
     }
 
     let userId = null;
@@ -136,14 +159,22 @@ router.post('/', verifyDiscordRequest, async (req, res) => {
 
     // Command: /unlink
     if (name === 'unlink') {
-      await supabase
-        .from('cms_timetable')
-        .delete()
-        .eq('enrollment', `discord:${discordId}`);
-      return res.json({
-        type: 4,
-        data: { content: `✅ Disconnected from your Trace account successfully.` }
-      });
+      try {
+        const { error } = await supabase
+          .from('cms_timetable')
+          .delete()
+          .eq('enrollment', `discord:${discordId}`);
+        if (error) throw error;
+        return res.json({
+          type: 4,
+          data: { content: `✅ Disconnected from your Trace account successfully.` }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Failed to unlink: ${err.message || JSON.stringify(err)}` }
+        });
+      }
     }
 
     // Command: /lost and /found
@@ -152,142 +183,211 @@ router.post('/', verifyDiscordRequest, async (req, res) => {
       const loc = getOption('location');
       const desc = getOption('description') || `Reported via Discord by ${discordName}`;
 
-      const { data: post, error } = await supabase
-        .from('posts')
-        .insert({
-          userId,
-          type: name,
-          title: item,
-          description: desc,
-          location_name: loc,
-          buildingName: loc,
-          floor: 0,
-          status: 'open',
-          timestamp: new Date().toISOString()
-        })
-        .select()
-        .single();
+      try {
+        // Auto-fill poster name/avatar if possible
+        let posterName = discordName;
+        let posterAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(discordName)}&background=1B3C53&color=fff`;
 
-      if (error) {
+        const { data: user } = await supabase
+          .from('users')
+          .select('name, photoURL')
+          .eq('uid', userId)
+          .single();
+        
+        if (user) {
+          posterName = user.name || posterName;
+          posterAvatarUrl = user.photoURL || posterAvatarUrl;
+        }
+
+        const { data: posts, error } = await supabase
+          .from('posts')
+          .insert([{
+            userId,
+            type: name,
+            title: item,
+            description: desc,
+            location_name: loc,
+            buildingName: loc,
+            floor: 0,
+            status: 'open',
+            timestamp: new Date().toISOString(),
+            imageUrl: '',
+            aiTags: [],
+            reportCount: 0,
+            viewCount: 0,
+            likeCount: 0,
+            isCMSVerified: true,
+            category: 'General'
+          }])
+          .select();
+
+        if (error || !posts || posts.length === 0) {
+          return res.json({
+            type: 4,
+            data: { content: `❌ Failed to submit your report: ${error?.message || JSON.stringify(error)}` }
+          });
+        }
+
+        const post = posts[0];
+        const emoji = name === 'lost' ? '🔴' : '🟢';
         return res.json({
           type: 4,
-          data: { content: `❌ Failed to submit your report. Please try again later.` }
+          data: {
+            content: `### ${emoji} ${name.toUpperCase()} Item Reported\n**Item:** ${item}\n**Location:** ${loc}\n**Posted by:** ${discordName}\n**Status:** Looking for item\n**Post ID:** \`${post.id}\``
+          }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Error processing your post: ${err.message || JSON.stringify(err)}` }
         });
       }
-
-      const emoji = name === 'lost' ? '🔴' : '🟢';
-      return res.json({
-        type: 4,
-        data: {
-          content: `### ${emoji} ${name.toUpperCase()} Item Reported\n**Item:** ${item}\n**Location:** ${loc}\n**Posted by:** ${discordName}\n**Status:** Looking for item\n**Post ID:** \`${post.id}\``
-        }
-      });
     }
 
     // Command: /recent
     if (name === 'recent') {
-      const limit = getOption('limit') || 5;
-      const { data: posts } = await supabase
-        .from('posts')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(Math.min(limit, 10));
+      try {
+        const limit = getOption('limit') || 5;
+        const { data: posts, error } = await supabase
+          .from('posts')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(Math.min(limit, 10));
 
-      if (!posts || posts.length === 0) {
+        if (error) throw error;
+
+        if (!posts || posts.length === 0) {
+          return res.json({
+            type: 4,
+            data: { content: '📭 No recent posts found on Trace.' }
+          });
+        }
+
+        let reply = `### 📋 Recent Posts (${posts.length})\n`;
+        posts.forEach((p, idx) => {
+          const emoji = p.type === 'lost' ? '🔴' : '🟢';
+          reply += `${idx + 1}. ${emoji} **${p.title}** - \`${p.status.toUpperCase()}\` at *${p.location_name}*\n> *Post ID:* \`${p.id}\`\n`;
+        });
+
         return res.json({
           type: 4,
-          data: { content: '📭 No recent posts found on Trace.' }
+          data: { content: reply }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Failed to load recent posts: ${err.message || JSON.stringify(err)}` }
         });
       }
-
-      let reply = `### 📋 Recent Posts (${posts.length})\n`;
-      posts.forEach((p, idx) => {
-        const emoji = p.type === 'lost' ? '🔴' : '🟢';
-        reply += `${idx + 1}. ${emoji} **${p.title}** - \`${p.status.toUpperCase()}\` at *${p.location_name}*\n> *Post ID:* \`${p.id}\`\n`;
-      });
-
-      return res.json({
-        type: 4,
-        data: { content: reply }
-      });
     }
 
     // Command: /myitems
     if (name === 'myitems') {
-      const { data: posts } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('userId', userId);
+      try {
+        const { data: posts, error } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('userId', userId);
 
-      if (!posts || posts.length === 0) {
+        if (error) throw error;
+
+        if (!posts || posts.length === 0) {
+          return res.json({
+            type: 4,
+            data: { content: '📭 You haven\'t reported any items yet.', flags: 64 }
+          });
+        }
+
+        let reply = `### 📂 Your Items (${posts.length})\n`;
+        posts.forEach((p, idx) => {
+          const emoji = p.type === 'lost' ? '🔴' : '🟢';
+          reply += `${idx + 1}. ${emoji} **${p.title}** - \`${p.status.toUpperCase()}\` at *${p.location_name}*\n> *Post ID:* \`${p.id}\`\n`;
+        });
+
         return res.json({
           type: 4,
-          data: { content: '📭 You haven\'t reported any items yet.', flags: 64 }
+          data: { content: reply, flags: 64 }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Failed to load items: ${err.message || JSON.stringify(err)}`, flags: 64 }
         });
       }
-
-      let reply = `### 📂 Your Items (${posts.length})\n`;
-      posts.forEach((p, idx) => {
-        const emoji = p.type === 'lost' ? '🔴' : '🟢';
-        reply += `${idx + 1}. ${emoji} **${p.title}** - \`${p.status.toUpperCase()}\` at *${p.location_name}*\n> *Post ID:* \`${p.id}\`\n`;
-      });
-
-      return res.json({
-        type: 4,
-        data: { content: reply, flags: 64 }
-      });
     }
 
     // Command: /claim
     if (name === 'claim') {
-      const postId = getOption('post_id');
-      const { data: post } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('id', postId)
-        .single();
+      try {
+        const postId = getOption('post_id');
+        const { data: post, error: fetchError } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('id', postId)
+          .single();
 
-      if (!post) {
+        if (fetchError || !post) {
+          return res.json({
+            type: 4,
+            data: { content: '❌ Post not found. Verify the ID and try again.' }
+          });
+        }
+
+        const { error: claimError } = await supabase.from('claims').insert([{
+          post_id: postId,
+          claimer_id: userId,
+          proof_text: `Claimed via Discord by ${discordName}`,
+          proof_image_url: '',
+          status: 'pending'
+        }]);
+
+        if (claimError) {
+          return res.json({
+            type: 4,
+            data: { content: `❌ Failed to request claim: ${claimError.message || JSON.stringify(claimError)}` }
+          });
+        }
+
         return res.json({
           type: 4,
-          data: { content: '❌ Post not found. Verify the ID and try again.' }
+          data: { content: `✅ Claim request submitted successfully for item **${post.title}**. The owner has been notified!` }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Error submitting claim: ${err.message || JSON.stringify(err)}` }
         });
       }
-
-      await supabase.from('claims').insert({
-        post_id: postId,
-        claimer_id: userId,
-        proof_text: `Claimed via Discord by ${discordName}`,
-        proof_image_url: '',
-        status: 'pending'
-      });
-
-      return res.json({
-        type: 4,
-        data: { content: `✅ Claim request submitted successfully for item **${post.title}**. The owner has been notified!` }
-      });
     }
 
     // Command: /resolve
     if (name === 'resolve') {
-      const postId = getOption('post_id');
-      const { error } = await supabase
-        .from('posts')
-        .update({ status: 'resolved' })
-        .eq('id', postId)
-        .eq('userId', userId);
+      try {
+        const postId = getOption('post_id');
+        const { data, error } = await supabase
+          .from('posts')
+          .update({ status: 'resolved' })
+          .eq('id', postId)
+          .eq('userId', userId)
+          .select();
 
-      if (error) {
+        if (error || !data || data.length === 0) {
+          return res.json({
+            type: 4,
+            data: { content: '❌ Failed to mark post as resolved. Ensure you are the author and that the ID is correct.' }
+          });
+        }
+
         return res.json({
           type: 4,
-          data: { content: '❌ Failed to mark post as resolved. Ensure you are the author.' }
+          data: { content: '✅ Item marked as resolved successfully!' }
+        });
+      } catch (err) {
+        return res.json({
+          type: 4,
+          data: { content: `❌ Error resolving post: ${err.message || JSON.stringify(err)}` }
         });
       }
-
-      return res.json({
-        type: 4,
-        data: { content: '✅ Item marked as resolved successfully!' }
-      });
     }
   }
 
