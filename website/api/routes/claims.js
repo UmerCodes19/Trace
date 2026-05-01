@@ -191,7 +191,7 @@ router.get('/post/:postId', verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('claims')
-      .select('*, users:claimer_id(name, email, profile_url)')
+      .select('*, users:claimer_id(name, email, photoURL)')
       .eq('post_id', req.params.postId);
 
     if (error) throw error;
