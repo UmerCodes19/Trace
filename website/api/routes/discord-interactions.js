@@ -89,6 +89,36 @@ router.post('/', verifyDiscordRequest, async (req, res) => {
       }
     };
 
+    // Command: /help
+    if (name === 'help') {
+      const helpText = `### 🔍 Trace Discord Bot Help
+Welcome to **Trace**, the ultimate university Lost & Found platform.
+
+#### 🛠️ Getting Started: Account Linking
+To link your Discord account to your Trace mobile app:
+1. Open the **Trace Mobile App** → Go to **Settings**.
+2. Tap **Link Discord Account** to generate a 6-character code.
+3. Come back to Discord and type: \`/link code:YOUR_CODE\`
+
+#### 📋 Commands Guide
+- \`/help\` - Displays this help message.
+- \`/link <code>\` - Connects your Discord profile to your Trace account.
+- \`/unlink\` - Unlinks your Discord profile from your Trace account.
+- \`/lost <item> <location> [description]\` - Report an item you have lost.
+- \`/found <item> <location> [description]\` - Report an item you have found.
+- \`/recent [limit]\` - Lists the most recently posted items on Trace.
+- \`/myitems\` - Lists the items you have reported on Trace.
+- \`/claim <post_id>\` - Submit a claim request for a lost item.
+- \`/resolve <post_id>\` - Mark an item as resolved or recovered.
+
+*Have any questions? Access the Trace Mobile App for more info!*`;
+
+      return res.json({
+        type: 4,
+        data: { content: helpText }
+      });
+    }
+
     // Command: /link
     if (name === 'link') {
       try {
