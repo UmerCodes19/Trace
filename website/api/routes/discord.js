@@ -53,12 +53,14 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired code. Generate a new code in the Trace app.' });
     }
 
+    // Safe mapping without string/BigInt parsing into the 'day' integer column
     const entry = {
       enrollment: `discord:${discord_id}`,
       courseCode: data.userId,
       courseTitle: discord_name,
-      day: discord_id,
-      timeFrom: Date.now().toString()
+      roomName: discord_id,
+      buildingName: '#discord_link',
+      day: 1
     };
 
     // Remove old mapping just in case
