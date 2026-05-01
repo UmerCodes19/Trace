@@ -31,6 +31,7 @@ const cmsRoutes = require('./routes/cms');
 const claimRoutes = require('./routes/claims');
 const notificationRoutes = require('./routes/notifications');
 const discordRoutes = require('./routes/discord');
+const discordInteractionsRoutes = require('./routes/discord-interactions');
 
 // Use routes
 app.use('/api/posts', postRoutes);
@@ -40,5 +41,6 @@ app.use('/api/cms', cmsRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/discord', discordRoutes);
+app.use('/api/discord-interactions', discordInteractionsRoutes);
 
 module.exports = app;

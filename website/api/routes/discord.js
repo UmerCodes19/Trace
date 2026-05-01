@@ -29,6 +29,16 @@ router.post('/link-code', async (req, res) => {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
 
+    // Save pending link code directly to database to survive serverless restarts
+    await supabase.from('cms_timetable').insert([{
+      enrollment: `link_code:${code}`,
+      courseCode: userId,
+      courseTitle: '#pending_code',
+      roomName: '#discord',
+      buildingName: '#discord_link',
+      day: 1
+    }]);
+
     activeLinkCodes[code] = {
       userId,
       expiresAt: Date.now() + 10 * 60 * 1000
