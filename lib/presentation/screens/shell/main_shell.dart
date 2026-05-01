@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
@@ -40,9 +39,16 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   void _onTap(int index) {
     if (index == _currentIndex) return;
-    HapticFeedback.mediumImpact();
+    HapticFeedback.selectionClick();
     setState(() => _currentIndex = index);
     context.go(_getTabs()[index].path);
+  }
+
+  void _onSwipe(int direction) {
+    final nextIndex = _currentIndex + direction;
+    if (nextIndex >= 0 && nextIndex < _getTabs().length) {
+      _onTap(nextIndex);
+    }
   }
 
   @override
@@ -54,12 +60,24 @@ class _MainShellState extends ConsumerState<MainShell> {
       Future.microtask(() { if (mounted) setState(() => _currentIndex = resolvedIndex); });
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      extendBody: true, // Allow body to flow behind the floating dock
-      body: widget.child,
-      bottomNavigationBar: _ImmersiveFloatingDock(
+      extendBody: true,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity == null) return;
+          // Swipe Left -> switch to next tab
+          if (details.primaryVelocity! < -400) {
+            _onSwipe(1);
+          } 
+          // Swipe Right -> switch to previous tab
+          else if (details.primaryVelocity! > 400) {
+            _onSwipe(-1);
+          }
+        },
+        child: widget.child,
+      ),
+      bottomNavigationBar: _MorphingActivePillDock(
         currentIndex: _currentIndex,
         tabs: tabs,
         onTap: _onTap,
@@ -68,8 +86,8 @@ class _MainShellState extends ConsumerState<MainShell> {
   }
 }
 
-class _ImmersiveFloatingDock extends StatelessWidget {
-  const _ImmersiveFloatingDock({
+class _MorphingActivePillDock extends StatelessWidget {
+  const _MorphingActivePillDock({
     required this.currentIndex,
     required this.tabs,
     required this.onTap,
@@ -85,36 +103,79 @@ class _ImmersiveFloatingDock extends StatelessWidget {
     final accent = AppColors.jadePrimary;
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final bottomMargin = bottomPadding > 0 ? bottomPadding + 32.0 : 50.0; // Higher for better ergonomics
+    final bottomMargin = bottomPadding > 0 ? bottomPadding + 14.0 : 26.0;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final dockWidth = screenWidth - 48;
+    
+    // Exact center-locked layout math for Morphing Active Pill
+    final baseTabWidth = (dockWidth - 24) / tabs.length;
+    final activeWidth = baseTabWidth * 1.42;
+
+    // Available width per half (left and right of center button)
+    final halfWidth = (dockWidth - 24 - baseTabWidth) / 2;
+    final tabWidths = List<double>.filled(tabs.length, 0.0);
+
+    // Left half (tabs 0, 1):
+    if (currentIndex == 0 || currentIndex == 1) {
+      tabWidths[currentIndex] = activeWidth;
+      final otherIndex = currentIndex == 0 ? 1 : 0;
+      tabWidths[otherIndex] = halfWidth - activeWidth;
+    } else {
+      tabWidths[0] = halfWidth / 2;
+      tabWidths[1] = halfWidth / 2;
+    }
+
+    // Right half (tabs 3, 4):
+    if (currentIndex == 3 || currentIndex == 4) {
+      tabWidths[currentIndex] = activeWidth;
+      final otherIndex = currentIndex == 3 ? 4 : 3;
+      tabWidths[otherIndex] = halfWidth - activeWidth;
+    } else {
+      tabWidths[3] = halfWidth / 2;
+      tabWidths[4] = halfWidth / 2;
+    }
+
+    // Lock center button exactly to the base width
+    tabWidths[2] = baseTabWidth;
+
+    double currentLeft = 0;
+    final tabPositions = <double>[];
+    for (int i = 0; i < tabs.length; i++) {
+      tabPositions.add(currentLeft);
+      currentLeft += tabWidths[i];
+    }
 
     return Container(
       margin: EdgeInsets.fromLTRB(24, 0, 24, bottomMargin),
-      height: 64,
+      height: 62,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Glass Background
+          // Translucent pure glass structure
           ClipRRect(
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(31),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: Container(
                 decoration: BoxDecoration(
                   color: isDark 
-                      ? Colors.black.withOpacity(0.7) 
-                      : Colors.white.withOpacity(0.85),
-                  borderRadius: BorderRadius.circular(32),
+                      ? const Color(0xEE0A1312)
+                      : const Color(0xF4FFFFFF),
+                  borderRadius: BorderRadius.circular(31),
                   border: Border.all(
                     color: isDark 
-                        ? Colors.white.withOpacity(0.1) 
-                        : Colors.black.withOpacity(0.05),
-                    width: 1.5,
+                        ? Colors.white.withOpacity(0.08) 
+                        : Colors.black.withOpacity(0.045),
+                    width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
+                      color: isDark 
+                          ? Colors.black.withOpacity(0.4) 
+                          : Colors.black.withOpacity(0.07),
+                      blurRadius: 26,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
@@ -122,44 +183,106 @@ class _ImmersiveFloatingDock extends StatelessWidget {
             ),
           ),
 
-          // Tab Items
+          // Option B — The Morphing Active Pill highlight shape
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+            left: 12 + tabPositions[currentIndex],
+            top: 7,
+            width: tabWidths[currentIndex],
+            height: 48,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark 
+                    ? AppColors.jadePrimary.withOpacity(0.18)
+                    : AppColors.jadePrimary.withOpacity(0.09),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: AppColors.jadePrimary.withOpacity(isDark ? 0.22 : 0.12),
+                  width: 1.0,
+                ),
+              ),
+            ),
+          ),
+
+          // Tab Content
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(tabs.length, (index) {
                 final isSelected = currentIndex == index;
                 final tab = tabs[index];
                 
-                // Special handling for the center 'Post' button
+                // Special rendering for center 'Post' button
                 if (index == 2) {
-                  return _PostActionCircle(onTap: () => onTap(index));
+                  return GestureDetector(
+                    onTap: () => onTap(index),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeOutCubic,
+                      width: tabWidths[index],
+                      height: 62,
+                      alignment: Alignment.center,
+                      child: Container(
+                        width: 44, height: 44,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.jadePrimary, AppColors.deepJade],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.jadePrimary.withOpacity(0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+                      ),
+                    ),
+                  );
                 }
 
                 return GestureDetector(
                   onTap: () => onTap(index),
                   behavior: HitTestBehavior.opaque,
-                  child: SizedBox(
-                    width: 50,
-                    child: Column(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutCubic,
+                    width: tabWidths[index],
+                    height: 62,
+                    alignment: Alignment.center,
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           isSelected ? tab.activeIcon : tab.icon,
-                          color: isSelected ? accent : AppColors.textSecondary(context),
-                          size: 24,
-                        ).animate(target: isSelected ? 1 : 0).scale(
-                          begin: const Offset(1, 1), 
-                          end: const Offset(1.2, 1.2),
-                          curve: Curves.elasticOut,
-                          duration: 400.ms,
+                          color: isSelected ? accent : AppColors.textSecondary(context).withOpacity(0.72),
+                          size: 21,
                         ),
-                        const SizedBox(height: 4),
-                        if (isSelected)
-                          Container(
-                            width: 4, height: 4,
-                            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-                          ).animate().scale(curve: Curves.easeOutBack),
+                        if (isSelected) ...[
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 250),
+                              opacity: isSelected ? 1.0 : 0.0,
+                              child: Text(
+                                tab.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: accent,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -169,42 +292,6 @@ class _ImmersiveFloatingDock extends StatelessWidget {
           ),
         ],
       ),
-    ).animate().fadeIn(duration: 600.ms).slideY(begin: 1, end: 0, curve: Curves.easeOutQuart);
-  }
-}
-
-class _PostActionCircle extends StatelessWidget {
-  const _PostActionCircle({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 54, height: 54,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.jadePrimary, AppColors.deepJade],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.jadePrimary.withOpacity(0.4),
-              blurRadius: 15,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
-      ),
-    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).scale(
-      begin: const Offset(1, 1),
-      end: const Offset(1.05, 1.05),
-      duration: 2.seconds,
-      curve: Curves.easeInOut,
     );
   }
 }

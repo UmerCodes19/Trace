@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../data/services/location_prediction_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -38,11 +40,28 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   double? _indoorY;
   List<String> _existingImageUrls = [];
 
+  // Date and Time fields
+  DateTime? _lostDateTime;
+  TimeOfDay? _lostTime;
+
+  final List<File> _images = [];
+  List<String> _aiTags = [];
+  bool _analyzingImages = false;
+  bool _isSubmitting = false;
+
   @override
   void initState() {
     super.initState();
     _roomCtrl.addListener(_onRoomChanged);
-    
+    _titleCtrl.addListener(_saveDraft);
+    _descCtrl.addListener(_saveDraft);
+    _buildingCtrl.addListener(_saveDraft);
+    _roomCtrl.addListener(_saveDraft);
+    _secretQuestionCtrl.addListener(_saveDraft);
+
+    // Keyword categories listener
+    _titleCtrl.addListener(_suggestCategoryTags);
+
     if (widget.postToEdit != null) {
       _type = widget.postToEdit!.type;
       _titleCtrl.text = widget.postToEdit!.title;
@@ -54,6 +73,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       _secretQuestionCtrl.text = widget.postToEdit!.secretDetailQuestion ?? '';
       _aiTags = List<String>.from(widget.postToEdit!.aiTags);
       _existingImageUrls = List<String>.from(widget.postToEdit!.imageUrls);
+    } else {
+      _loadDraft();
     }
 
     // Handle pre-filled data from map long-press or room tap
@@ -82,14 +103,152 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     }
   }
 
-  // Date and Time fields
-  DateTime? _lostDateTime;
-  TimeOfDay? _lostTime;
+  void _suggestCategoryTags() {
+    final text = _titleCtrl.text.toLowerCase();
+    final Map<String, String> keywordsToTags = {
+      'wallet': 'finance',
+      'money': 'finance',
+      'cash': 'finance',
+      'phone': 'electronics',
+      'laptop': 'electronics',
+      'airpods': 'electronics',
+      'headphone': 'electronics',
+      'charger': 'electronics',
+      'cnic': 'documents',
+      'card': 'documents',
+      'id': 'documents',
+      'license': 'documents',
+      'passport': 'documents',
+      'key': 'keys',
+      'bottle': 'utilities',
+      'flask': 'utilities',
+      'bag': 'bags',
+      'backpack': 'bags',
+      'book': 'books',
+      'notebook': 'books',
+    };
 
-  final List<File> _images = [];
-  List<String> _aiTags = [];
-  bool _analyzingImages = false;
-  bool _isSubmitting = false;
+    bool updated = false;
+    keywordsToTags.forEach((kw, tag) {
+      if (text.contains(kw) && !_aiTags.contains(tag)) {
+        _aiTags.add(tag);
+        updated = true;
+      }
+    });
+
+    if (updated) {
+      setState(() {});
+    }
+  }
+
+  void _saveDraft() {
+    if (widget.postToEdit != null) return;
+    const storage = FlutterSecureStorage();
+    final draft = {
+      'type': _type,
+      'title': _titleCtrl.text,
+      'description': _descCtrl.text,
+      'building': _buildingCtrl.text,
+      'room': _roomCtrl.text,
+      'floor': _floor,
+      'secretQuestion': _secretQuestionCtrl.text,
+      'aiTags': _aiTags,
+    };
+    storage.write(key: 'create_post_draft', value: jsonEncode(draft));
+  }
+
+  Future<void> _loadDraft() async {
+    try {
+      const storage = FlutterSecureStorage();
+      final val = await storage.read(key: 'create_post_draft');
+      if (val != null) {
+        final map = jsonDecode(val) as Map<String, dynamic>;
+        if (mounted) {
+          final restore = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text('Restore Draft?', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+              content: Text('Would you like to restore your previously saved draft for this report?', style: GoogleFonts.inter()),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    storage.delete(key: 'create_post_draft');
+                    Navigator.of(ctx).pop(false);
+                  },
+                  child: Text('Clear'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.jadePrimary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Restore'),
+                ),
+              ],
+            ),
+          );
+
+          if (restore == true && mounted) {
+            setState(() {
+              _type = map['type'] ?? 'lost';
+              _titleCtrl.text = map['title'] ?? '';
+              _descCtrl.text = map['description'] ?? '';
+              _buildingCtrl.text = map['building'] ?? '';
+              _roomCtrl.text = map['room'] ?? '';
+              _floor = map['floor'] ?? 0;
+              _secretQuestionCtrl.text = map['secretQuestion'] ?? '';
+              if (map['aiTags'] != null) {
+                _aiTags = List<String>.from(map['aiTags']);
+              }
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  bool _hasStartedTyping() {
+    if (widget.postToEdit != null) return false;
+    return _titleCtrl.text.isNotEmpty ||
+        _descCtrl.text.isNotEmpty ||
+        _buildingCtrl.text.isNotEmpty ||
+        _roomCtrl.text.isNotEmpty ||
+        _secretQuestionCtrl.text.isNotEmpty ||
+        _images.isNotEmpty;
+  }
+
+  Future<bool?> _showDiscardConfirm() {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Discard changes?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to discard this report? Any unsaved changes will be lost.',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.lostAlert,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -138,12 +297,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
     try {
       final aiSvc = ref.read(aiServiceProvider);
-      // Analyze the first image using Gemini
       final result = await aiSvc.analyzeItemImage(_images.first);
       
       if (result != null && mounted) {
         setState(() {
-          // Pre-fill fields only if they are currently empty
           if (_titleCtrl.text.isEmpty && result['title'] != null) {
             _titleCtrl.text = result['title'];
           }
@@ -152,7 +309,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           }
           if (result['tags'] != null) {
             final List<dynamic> tags = result['tags'];
-            // Combine new AI tags with existing ones, avoiding duplicates
             final newTags = tags.map((e) => e.toString().toLowerCase()).toSet();
             newTags.addAll(_aiTags);
             _aiTags = newTags.toList();
@@ -197,7 +353,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         _lostTime = time;
       });
 
-      // Show location prediction
       await _showPrediction(_lostDateTime!);
     }
   }
@@ -208,8 +363,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (user == null) return;
 
     final api = ref.read(apiServiceProvider);
-    
-    // Use uid (enrollment) to get timetable
     final timetableData = await api.getTimetable(user.uid);
     
     if (timetableData.isEmpty) {
@@ -223,18 +376,19 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
     final result = predictor.predictLostLocation(
       lostTime: lostTime,
-      enrollment: user.email, // Using email as enrollment if not explicitly in model
+      enrollment: user.email,
     );
 
     if (mounted && result.confidence > 0.6) {
       showDialog(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Row(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
             children: [
               Icon(Icons.location_on, color: AppColors.lostAlert),
-              SizedBox(width: 8),
-              Text('📍 Location Prediction'),
+              const SizedBox(width: 8),
+              Text('📍 Location Prediction', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           content: Column(
@@ -243,14 +397,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             children: [
               Text(
                 result.suggestion,
-                style: GoogleFonts.inter(fontSize: 14, height: 1.5),
+                style: GoogleFonts.inter(fontSize: 14, height: 1.4),
               ),
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.lostAlertBg,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
@@ -263,7 +417,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     Text(
                       'Confidence: ${(result.confidence * 100).toInt()}%',
                       style: GoogleFonts.inter(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppColors.lostAlert,
                       ),
@@ -271,11 +425,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                'Would you like to use this location?',
+                'Would you like to use this predicted location?',
                 style: GoogleFonts.inter(
-                  fontSize: 12,
+                  fontSize: 13,
                   color: AppColors.textSecondary(context),
                 ),
               ),
@@ -295,8 +449,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   }
                 });
                 Navigator.of(dialogContext).pop();
-                showAppSnack(context, '✓ Location filled from prediction');
+                showAppSnack(context, '✓ Location updated from prediction');
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.jadePrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text('Use Location'),
             ),
           ],
@@ -318,10 +476,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Location Suggestion'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Location Suggestion', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
         content: Text(
           'CMS timetable was not available, so this is a smart fallback suggestion.\n\nTry checking: $building',
-          style: GoogleFonts.inter(fontSize: 14, height: 1.5),
+          style: GoogleFonts.inter(fontSize: 14, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -334,8 +493,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 _buildingCtrl.text = building;
               });
               Navigator.of(dialogContext).pop();
-              showAppSnack(context, 'Location filled from fallback prediction');
+              showAppSnack(context, 'Location updated from fallback prediction');
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.jadePrimary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             child: const Text('Use'),
           ),
         ],
@@ -375,7 +538,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       }
 
       final api = ref.read(apiServiceProvider);
-
       final storageSvc = ref.read(storageServiceProvider);
 
       // Upload images
@@ -428,6 +590,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         secretDetailQuestion: _secretQuestionCtrl.text.isEmpty ? null : _secretQuestionCtrl.text.trim(),
       );
 
+      const storage = FlutterSecureStorage();
+      await storage.delete(key: 'create_post_draft');
+
       if (widget.postToEdit != null) {
         await api.updatePost(widget.postToEdit!.id, post.toMap());
         ref.invalidate(postsProvider);
@@ -450,12 +615,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
       // Trigger real-time refresh
       ref.invalidate(postsProvider);
-
       AppHaptics.success();
 
       if (!mounted) return;
       showAppSnack(context, '✅ Post created successfully!');
-
       context.go('/home');
     } catch (e) {
       debugPrint('Error submitting post: $e');
@@ -476,11 +639,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => context.pop(),
+                    onPressed: () async {
+                      if (_hasStartedTyping()) {
+                        final proceed = await _showDiscardConfirm();
+                        if (proceed == true && mounted) context.go('/home');
+                      } else {
+                        context.go('/home');
+                      }
+                    },
                     icon: Icon(
                       Icons.close_rounded,
                       color: AppColors.textPrimary(context),
@@ -490,8 +660,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   Text(
                     widget.postToEdit != null ? 'Edit Report' : 'New Report',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary(context),
                     ),
                   ),
@@ -508,7 +678,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             widget.postToEdit != null ? 'Save' : 'Post',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
@@ -520,239 +690,392 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               child: Form(
                 key: _formKey,
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
                   children: [
-                    _TypeToggle(
-                      selected: _type,
-                      onChanged: (t) {
-                        if (mounted) setState(() => _type = t);
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionLabel(label: 'Photos (up to 4)'),
-                    const SizedBox(height: 10),
-                    _ImagePicker(
-                      images: _images,
-                      existingUrls: _existingImageUrls,
-                      onPickGallery: () => _pickImages(ImageSource.gallery),
-                      onPickCamera: () => _pickImages(ImageSource.camera),
-                      onRemove: _removeImage,
-                      onRemoveExisting: (i) {
-                        if (mounted) setState(() => _existingImageUrls.removeAt(i));
-                      },
-                    ),
-                    if (_analyzingImages || _aiTags.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _AiTagsSection(
-                        tags: _aiTags,
-                        isLoading: _analyzingImages,
-                        onRemove: _removeTag,
+                    _PremiumSectionCard(
+                      stepNumber: 1,
+                      title: 'Report Type',
+                      child: _TypeToggle(
+                        selected: _type,
+                        onChanged: (t) {
+                          if (mounted) setState(() => _type = t);
+                        },
                       ),
-                    ],
-                    const SizedBox(height: 24),
-                    _SectionLabel(label: 'Title'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _titleCtrl,
-                      textCapitalization: TextCapitalization.sentences,
-                      maxLength: 50,
-                      decoration: InputDecoration(
-                        hintText: _type == 'lost'
-                            ? 'e.g. Black leather wallet'
-                            : 'e.g. Found blue water bottle',
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Title is required'
-                          : null,
                     ),
                     const SizedBox(height: 16),
-                    _SectionLabel(label: 'Description'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _descCtrl,
-                      maxLines: 4,
-                      maxLength: 500,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText:
-                            'Describe the item, any distinguishing features...',
-                      ),
-                      validator: (v) => (v == null || v.trim().length < 10)
-                          ? 'Please provide more detail (min 10 chars)'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    _SectionLabel(label: 'When did you lose/find it?'),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: _selectDateTime,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border(context)),
-                          borderRadius: BorderRadius.circular(14),
-                          color: AppColors.cardBg(context),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_rounded,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 20,
+                    _PremiumSectionCard(
+                      stepNumber: 2,
+                      title: 'Item Details',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _PremiumSectionLabel(label: 'Item Title'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _titleCtrl,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLength: 50,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 15),
+                            decoration: InputDecoration(
+                              hintText: _type == 'lost'
+                                  ? 'e.g. Black leather wallet'
+                                  : 'e.g. Found blue water bottle',
+                              hintStyle: GoogleFonts.inter(color: AppColors.textHint(context)),
+                              filled: true,
+                              fillColor: AppColors.surface(context),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _lostDateTime == null
-                                    ? 'Select date and time'
-                                    : '${AppDateUtils.friendlyDate(_lostDateTime!)} at ${_lostTime?.format(context) ?? ''}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: _lostDateTime == null
-                                      ? AppColors.textHint(context)
-                                      : AppColors.textPrimary(context),
-                                ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Title is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          _PremiumSectionLabel(label: 'Description'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _descCtrl,
+                            maxLines: 4,
+                            maxLength: 500,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 15),
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: InputDecoration(
+                              hintText: 'Provide details such as color, brand, distinct marks...',
+                              hintStyle: GoogleFonts.inter(color: AppColors.textHint(context)),
+                              filled: true,
+                              fillColor: AppColors.surface(context),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
                               ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             ),
-                            if (_lostDateTime != null)
-                              IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _lostDateTime = null;
-                                    _lostTime = null;
-                                  });
-                                },
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  size: 18,
-                                  color: AppColors.textSecondary(context),
-                                ),
-                              ),
-                          ],
-                        ),
+                            validator: (v) => (v == null || v.trim().length < 10)
+                                ? 'Please provide more detail (min 10 chars)'
+                                : null,
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _SectionLabel(label: 'Location'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _buildingCtrl,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        hintText: 'Building or Campus Area',
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Building is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Floor',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary(context),
-                                ),
+                    _PremiumSectionCard(
+                      stepNumber: 3,
+                      title: 'Date & Location',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _PremiumSectionLabel(label: _type == 'lost' ? 'When was it lost?' : 'When was it found?'),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: _selectDateTime,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
                               ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: AppColors.border(context)),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: DropdownButton<int>(
-                                  value: _floor,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  items: List.generate(
-                                    10,
-                                    (i) => DropdownMenuItem(
-                                      value: i,
-                                      child: Text('Floor $i'),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface(context),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_today_rounded,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _lostDateTime == null
+                                          ? 'Select date and time'
+                                          : '${AppDateUtils.friendlyDate(_lostDateTime!)} at ${_lostTime?.format(context) ?? ''}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        color: _lostDateTime == null
+                                            ? AppColors.textHint(context)
+                                            : AppColors.textPrimary(context),
+                                      ),
                                     ),
                                   ),
-                                  onChanged: (v) {
-                                    if (v != null && mounted) {
-                                      setState(() => _floor = v);
-                                    }
-                                  },
-                                ),
+                                  if (_lostDateTime != null)
+                                    IconButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _lostDateTime = null;
+                                          _lostTime = null;
+                                        });
+                                      },
+                                      icon: Icon(
+                                        Icons.close_rounded,
+                                        size: 18,
+                                        color: AppColors.textSecondary(context),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 16),
+                          _PremiumSectionLabel(label: 'Building / Area'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _buildingCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 15),
+                            decoration: InputDecoration(
+                              hintText: 'e.g. Main Library, Department Block',
+                              hintStyle: GoogleFonts.inter(color: AppColors.textHint(context)),
+                              filled: true,
+                              fillColor: AppColors.surface(context),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Building is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
                             children: [
-                              Text(
-                                'Room (Optional)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary(context),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Floor',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textSecondary(context),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surface(context),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: DropdownButton<int>(
+                                        value: _floor,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        style: GoogleFonts.plusJakartaSans(color: AppColors.textPrimary(context), fontSize: 14),
+                                        items: List.generate(
+                                          10,
+                                          (i) => DropdownMenuItem(
+                                            value: i,
+                                            child: Text('Floor $i'),
+                                          ),
+                                        ),
+                                        onChanged: (v) {
+                                          if (v != null && mounted) {
+                                            setState(() => _floor = v);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              TextFormField(
-                                controller: _roomCtrl,
-                                decoration: const InputDecoration(
-                                  hintText: 'Room #',
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Room (Optional)',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textSecondary(context),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    TextFormField(
+                                      controller: _roomCtrl,
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                                      decoration: InputDecoration(
+                                        hintText: 'e.g. Room #3',
+                                        hintStyle: GoogleFonts.inter(color: AppColors.textHint(context)),
+                                        filled: true,
+                                        fillColor: AppColors.surface(context),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionLabel(label: '🔒 Security Gatekeeper (Optional)'),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.jadePrimary.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.jadePrimary.withOpacity(0.2)),
+                        ],
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    _PremiumSectionCard(
+                      stepNumber: 4,
+                      title: 'Media & Uploads',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _PremiumSectionLabel(label: 'Photos (up to 4)'),
+                          const SizedBox(height: 10),
+                          _ImagePicker(
+                            images: _images,
+                            existingUrls: _existingImageUrls,
+                            onPickGallery: () => _pickImages(ImageSource.gallery),
+                            onPickCamera: () => _pickImages(ImageSource.camera),
+                            onRemove: _removeImage,
+                            onRemoveExisting: (i) {
+                              if (mounted) setState(() => _existingImageUrls.removeAt(i));
+                            },
+                          ),
+                          if (_analyzingImages || _aiTags.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _AiTagsSection(
+                              tags: _aiTags,
+                              isLoading: _analyzingImages,
+                              onRemove: _removeTag,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _PremiumSectionCard(
+                      stepNumber: 5,
+                      title: '🔒 Security Gatekeeper',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Set a secret question only the real owner would know. This helps verify claims automatically.',
-                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context)),
+                            'Set a distinct security question only the real owner would know. This prevents bad claims automatically.',
+                            style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary(context), height: 1.4),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _secretQuestionCtrl,
-                            decoration: const InputDecoration(
+                            style: GoogleFonts.plusJakartaSans(fontSize: 15),
+                            decoration: InputDecoration(
                               hintText: 'e.g. What color is the keychain?',
+                              hintStyle: GoogleFonts.inter(color: AppColors.textHint(context)),
                               filled: true,
-                              fillColor: Colors.white,
+                              fillColor: AppColors.surface(context),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.jadePrimary,
+                          elevation: 1,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : Text(
+                                widget.postToEdit != null ? 'Save Changes' : 'Post Report',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PremiumSectionCard extends StatelessWidget {
+  const _PremiumSectionCard({
+    required this.stepNumber,
+    required this.title,
+    required this.child,
+  });
+
+  final int stepNumber;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border(context), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: AppColors.jadePrimary.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  stepNumber.toString(),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.jadePrimary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppColors.textPrimary(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
       ),
     );
   }
@@ -769,20 +1092,21 @@ class _TypeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.cardBg(context),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppColors.border(context)),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           _ToggleOption(
-            label: '🔴 Lost',
+            label: 'Lost Item',
+            icon: Icons.search_rounded,
             isSelected: selected == 'lost',
             selectedColor: AppColors.lostAlert,
             onTap: () => onChanged('lost'),
           ),
           _ToggleOption(
-            label: '🟢 Found',
+            label: 'Found Item',
+            icon: Icons.check_circle_outline,
             isSelected: selected == 'found',
             selectedColor: AppColors.foundSuccess,
             onTap: () => onChanged('found'),
@@ -796,12 +1120,14 @@ class _TypeToggle extends StatelessWidget {
 class _ToggleOption extends StatelessWidget {
   const _ToggleOption({
     required this.label,
+    required this.icon,
     required this.isSelected,
     required this.selectedColor,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool isSelected;
   final Color selectedColor;
   final VoidCallback onTap;
@@ -812,21 +1138,41 @@ class _ToggleOption extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isSelected ? selectedColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: selectedColor.withOpacity(0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : [],
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : AppColors.textSecondary(context),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -971,7 +1317,7 @@ class _AddButton extends StatelessWidget {
         width: 100,
         height: 100,
         decoration: BoxDecoration(
-          color: AppColors.cardBg(context),
+          color: AppColors.surface(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.border(context), width: 1.5),
         ),
@@ -982,7 +1328,7 @@ class _AddButton extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               label,
-              style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary(context)),
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context)),
             ),
           ],
         ),
@@ -1012,10 +1358,10 @@ class _AiTagsSection extends StatelessWidget {
             const Text('✨', style: TextStyle(fontSize: 14)),
             const SizedBox(width: 6),
             Text(
-              isLoading ? 'AI is scanning your image...' : 'AI Generated Details',
-              style: GoogleFonts.inter(
+              isLoading ? 'AI is scanning your image...' : 'AI Generated Tags',
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary(context),
               ),
             ),
@@ -1035,25 +1381,41 @@ class _AiTagsSection extends StatelessWidget {
         const SizedBox(height: 8),
         if (tags.isNotEmpty)
           Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: tags
-              .map(
-                (tag) => Chip(
-                  label: Text(tag),
-                  deleteIcon: const Icon(Icons.close_rounded, size: 14),
-                  onDeleted: () => onRemove(tag),
-                ),
-              )
-              .toList(),
-        ),
+            spacing: 8,
+            runSpacing: 6,
+            children: tags
+                .map(
+                  (tag) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          tag,
+                          style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textPrimary(context)),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => onRemove(tag),
+                          child: Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
       ],
     );
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
+class _PremiumSectionLabel extends StatelessWidget {
+  const _PremiumSectionLabel({required this.label});
 
   final String label;
 
@@ -1061,8 +1423,8 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: GoogleFonts.inter(
-        fontSize: 13,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 13.5,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary(context),
       ),

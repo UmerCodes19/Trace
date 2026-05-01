@@ -76,7 +76,7 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
 
     final oldComments = List<CommentModel>.from(_comments);
     setState(() {
-      _comments = [..._comments, comment];
+      _comments = [comment, ..._comments]; // Prepend new comments for better UX
       _replyToId = null;
       _replyToName = null;
     });
@@ -96,7 +96,10 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     // Organize comments into parent-child structure
@@ -107,27 +110,38 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Comments (${_comments.length})',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary(context),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Comments (${_comments.length})',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary(context),
+                ),
+              ),
+            ],
           ),
         ),
+        const SizedBox(height: 12),
+
+        // Add a comment directly at the TOP for quick access
+        _buildInputArea(),
+
         const SizedBox(height: 16),
+
         if (_comments.isEmpty)
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(40.0),
+              padding: const EdgeInsets.symmetric(vertical: 36.0),
               child: Column(
                 children: [
                   Icon(Icons.chat_bubble_outline_rounded, 
-                    size: 40, color: AppColors.textHint(context)),
-                  const SizedBox(height: 12),
+                    size: 34, color: AppColors.textHint(context)),
+                  const SizedBox(height: 10),
                   Text('No comments yet. Be the first!',
-                    style: GoogleFonts.inter(color: AppColors.textSecondary(context))),
+                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary(context))),
                 ],
               ),
             ),
@@ -149,38 +163,36 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
                     _replyToId = id;
                     _replyToName = name;
                   });
-                  FocusScope.of(context).requestFocus(FocusNode()); // Optional: focus text field
+                  FocusScope.of(context).requestFocus(FocusNode()); // Focus if needed
                 },
               );
             },
           ),
-        const SizedBox(height: 20),
-        _buildInputArea(),
       ],
     );
   }
 
   Widget _buildInputArea() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: AppColors.cardBg(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         children: [
           if (_replyToId != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
+              padding: const EdgeInsets.only(bottom: 4.0),
               child: Row(
                 children: [
                   Text(
                     'Replying to $_replyToName',
                     style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
+                      fontSize: 11,
+                      color: AppColors.jadePrimary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -200,19 +212,28 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
               Expanded(
                 child: TextField(
                   controller: _commentController,
+                  style: GoogleFonts.inter(fontSize: 13.5),
                   decoration: const InputDecoration(
-                    hintText: 'Add a comment...',
+                    hintText: 'Share your thoughts or ask a question...',
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
+                    isDense: true,
                   ),
                   maxLines: null,
                 ),
               ),
-              IconButton(
-                onPressed: _submitComment,
-                icon: Icon(Icons.send_rounded, 
-                  color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _submitComment,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: AppColors.jadePrimary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 16),
+                ),
               ),
             ],
           ),
@@ -272,17 +293,17 @@ class _CommentTile extends StatelessWidget {
                           AppDateUtils.timeAgo(comment.timestamp),
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: AppColors.textSecondary(context),
+                            color: AppColors.textSecondary(context).withOpacity(0.6),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       comment.text,
                       style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: AppColors.textPrimary(context),
+                        fontSize: 13,
+                        color: AppColors.textPrimary(context).withOpacity(0.9),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -291,9 +312,9 @@ class _CommentTile extends StatelessWidget {
                       child: Text(
                         'Reply',
                         style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.jadePrimary,
                         ),
                       ),
                     ),
@@ -307,7 +328,7 @@ class _CommentTile extends StatelessWidget {
               padding: const EdgeInsets.only(left: 44, top: 8),
               child: Column(
                 children: replies.map((reply) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
+                  padding: const EdgeInsets.only(bottom: 6.0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -320,7 +341,7 @@ class _CommentTile extends StatelessWidget {
                             ? const Icon(Icons.person_rounded, size: 12)
                             : null,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,7 +361,7 @@ class _CommentTile extends StatelessWidget {
                                   AppDateUtils.timeAgo(reply.timestamp),
                                   style: GoogleFonts.inter(
                                     fontSize: 10,
-                                    color: AppColors.textSecondary(context),
+                                    color: AppColors.textSecondary(context).withOpacity(0.6),
                                   ),
                                 ),
                               ],
@@ -349,8 +370,8 @@ class _CommentTile extends StatelessWidget {
                             Text(
                               reply.text,
                               style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppColors.textPrimary(context),
+                                fontSize: 12.5,
+                                color: AppColors.textPrimary(context).withOpacity(0.85),
                               ),
                             ),
                           ],

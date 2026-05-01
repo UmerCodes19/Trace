@@ -83,7 +83,7 @@ class SimplePostModel {
       posterName: map['posterName'] as String? ?? '',
       posterAvatarUrl: map['posterAvatarUrl'] as String? ?? '',
       isCMSVerified: map['isCMSVerified'] as bool? ?? false,
-      secretDetailQuestion: map['secret_detail_question'] as String?,
+      secretDetailQuestion: map['secretQuestion'] as String? ?? map['secret_detail_question'] as String?,
     );
   }
 
@@ -139,8 +139,6 @@ class SimplePostModel {
       'location_room': location.room,
       'location_lat': location.latitude,
       'location_lng': location.longitude,
-      'location_indoor_x': location.indoorX,
-      'location_indoor_y': location.indoorY,
       'timestamp': timestamp.toIso8601String(),
       'status': status,
       'aiTags': aiTags, // Supabase handles list/array directly
@@ -148,7 +146,6 @@ class SimplePostModel {
       'viewCount': viewCount,
       'likeCount': likesCount,
       'isCMSVerified': isCMSVerified,
-      'secret_detail_question': secretDetailQuestion,
     };
   }
 

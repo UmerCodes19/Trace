@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../constants/app_colors.dart';
+
 /// ─── Date / Time ─────────────────────────────────────────────────────────────
 class AppDateUtils {
   AppDateUtils._();
@@ -57,13 +59,45 @@ void showAppSnack(
   bool isError = false,
   SnackBarAction? action,
 }) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  ScaffoldMessenger.of(context).clearSnackBars();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(message),
-      backgroundColor: isError ? const Color(0xFFD32F2F) : null,
+      content: Row(
+        children: [
+          Icon(
+            isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+            color: isError ? Colors.redAccent : AppColors.jadePrimary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: isDark ? const Color(0xFA151E1D) : const Color(0xFAFFFFFF),
+      elevation: 8,
       action: action,
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      duration: const Duration(milliseconds: 3200),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isError 
+              ? Colors.redAccent.withOpacity(0.3) 
+              : AppColors.jadePrimary.withOpacity(0.3),
+          width: 1.2,
+        ),
+      ),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 82), // Floats cleanly over the custom bottom navigation
     ),
   );
 }
