@@ -87,8 +87,20 @@ export default function AuditLogs() {
     await new Promise(resolve => setTimeout(resolve, 1200));
     
     try {
+      const getHashTimestamp = () => {
+        if (selectedLog.data && selectedLog.data.timestamp) {
+          return selectedLog.data.timestamp.toString();
+        }
+        const parsed = Number(selectedLog.timestamp);
+        if (!isNaN(parsed)) {
+          return parsed.toString();
+        }
+        return new Date(selectedLog.timestamp).getTime().toString();
+      };
+      const hashTimestamp = getHashTimestamp();
+
       // 1. Try raw/original order stringification (as stored by PostgreSQL or retrieved from database)
-      const rawContent = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(selectedLog.data) + selectedLog.timestamp.toString();
+      const rawContent = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(selectedLog.data) + hashTimestamp;
       const rawCalculated = await sha256(rawContent);
       
       // 2. Try deterministically sorted order stringification
@@ -98,7 +110,7 @@ export default function AuditLogs() {
           sortedData[key] = (selectedLog.data as any)[key];
         });
       }
-      const sortedContent = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(sortedData) + selectedLog.timestamp.toString();
+      const sortedContent = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(sortedData) + hashTimestamp;
       const sortedCalculated = await sha256(sortedContent);
 
       if (rawCalculated === selectedLog.current_hash) {

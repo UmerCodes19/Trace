@@ -233,7 +233,19 @@ class _PostDetailBody extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      _buildBlockDetail('Timestamp', AppDateUtils.friendlyDate(DateTime.parse(log['timestamp'].toString()))),
+                      _buildBlockDetail('Timestamp', () {
+                        try {
+                          final tsStr = log['timestamp'].toString();
+                          final tsInt = int.tryParse(tsStr);
+                          if (tsInt != null) {
+                            return AppDateUtils.friendlyDate(DateTime.fromMillisecondsSinceEpoch(tsInt));
+                          } else {
+                            return AppDateUtils.friendlyDate(DateTime.parse(tsStr));
+                          }
+                        } catch (_) {
+                          return 'N/A';
+                        }
+                      }()),
                       _buildBlockDetail('Current Hash', log['current_hash']?.toString() ?? 'N/A'),
                       _buildBlockDetail('Previous Hash', log['prev_hash']?.toString() ?? 'N/A'),
                     ],

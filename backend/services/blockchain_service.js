@@ -12,7 +12,8 @@ class BlockchainService {
         sortedData[key] = data[key];
       });
     }
-    const content = prevHash + JSON.stringify(sortedData) + timestamp.toString();
+    const hashTimestamp = (data && data.timestamp) ? data.timestamp.toString() : timestamp.toString();
+    const content = prevHash + JSON.stringify(sortedData) + hashTimestamp;
     return crypto.createHash('sha256').update(content).digest('hex');
   }
 
