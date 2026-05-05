@@ -16,12 +16,19 @@ import {
 
 interface AuditLog {
   id: string;
-  claimId: string;
-  previousHash: string;
-  currentHash: string;
+  claim_id: string;
+  prev_hash: string;
+  current_hash: string;
   timestamp: number;
-  action: string;
-  metadata: any;
+  data: {
+    action: string;
+    claimId: string;
+    itemId: string;
+    itemTitle: string;
+    claimerId: string;
+    finderId: string;
+    timestamp: number;
+  };
 }
 
 export default function AuditLogs() {
@@ -103,13 +110,13 @@ export default function AuditLogs() {
                     <div>
                        <span className="block text-[9px] font-black text-jade-primary/30 uppercase tracking-widest mb-2">Previous Checksum</span>
                        <code className="text-[10px] font-bold text-jade-primary/60 break-all bg-jade-primary/5 p-3 rounded-2xl block border border-jade-primary/5">
-                          {log.previousHash || "INITIAL_STATE"}
+                          {log.prev_hash || "INITIAL_STATE"}
                        </code>
                     </div>
                     <div>
                        <span className="block text-[9px] font-black text-jade-primary/30 uppercase tracking-widest mb-2">Operation Hash</span>
                        <code className="text-[10px] font-bold text-jade-primary break-all bg-jade-primary/10 p-3 rounded-2xl block border border-jade-primary/10">
-                          {log.currentHash}
+                          {log.current_hash}
                        </code>
                     </div>
                   </div>
@@ -118,7 +125,12 @@ export default function AuditLogs() {
                 <div className="lg:w-72 flex flex-row lg:flex-col justify-between items-center lg:items-start border-t lg:border-t-0 lg:border-l border-[var(--border-color)] pt-8 lg:pt-0 lg:pl-10">
                    <div>
                       <span className="block text-[9px] font-black text-jade-primary/30 uppercase tracking-widest mb-2">Action Performed</span>
-                      <div className="text-xl font-black uppercase tracking-tighter text-[var(--foreground)]">{log.action}</div>
+                      <div className="text-xl font-black uppercase tracking-tighter text-[var(--foreground)]">{log.data?.action || "ITEM_RECOVERED"}</div>
+                      {log.data?.itemTitle && (
+                         <span className="block text-[10px] font-bold text-jade-primary mt-1 uppercase tracking-wider">
+                            Item: {log.data.itemTitle}
+                         </span>
+                      )}
                    </div>
                    <button className="flex items-center gap-2 text-jade-primary/60 hover:text-jade-primary transition-all text-xs font-bold uppercase tracking-widest lg:mt-6 bg-jade-primary/5 px-4 py-2 rounded-xl border border-jade-primary/10">
                       <ExternalLink className="w-4 h-4" />

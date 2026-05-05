@@ -134,25 +134,15 @@ router.post('/handshake/verify', verifyToken, async (req, res) => {
 
     if (fetchError || !claim) return res.status(404).json({ error: 'Claim not found' });
     
-    const validStates = ['approved', 'finder_confirmed', 'owner_confirmed'];
+    const validStates = ['approved', 'finder_confirmed', 'owner_confirmed', 'resolved'];
     if (!validStates.includes(claim.status)) {
-      return res.status(400).json({ error: 'Claim must be approved or in confirmation phase' });
+      return res.status(400).json({ error: 'Claim must be approved' });
     }
 
-    let newStatus = claim.status;
-    if (currentUserId === claim.claimer_id) {
-      if (claim.status === 'finder_confirmed') {
-        newStatus = 'resolved';
-      } else {
-        newStatus = 'owner_confirmed';
-      }
-    } else if (currentUserId === claim.posts.userId) {
-      if (claim.status === 'owner_confirmed') {
-        newStatus = 'resolved';
-      } else {
-        newStatus = 'finder_confirmed';
-      }
-    } else {
+    // Single scan immediately resolves the claim, matching the single-scanner Flutter UI
+    const newStatus = 'resolved';
+
+    if (currentUserId !== claim.claimer_id && currentUserId !== claim.posts.userId) {
       return res.status(403).json({ error: 'Unauthorized to participate in this handshake' });
     }
 
@@ -164,7 +154,7 @@ router.post('/handshake/verify', verifyToken, async (req, res) => {
 
     if (claimUpdateError) throw claimUpdateError;
 
-    // If both have scanned and confirmed, finalize the Handover
+    // If resolved, finalize the Handover
     if (newStatus === 'resolved') {
       const { error: postUpdateError } = await supabase
         .from('posts')
