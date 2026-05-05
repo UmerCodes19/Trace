@@ -87,13 +87,28 @@ export default function AuditLogs() {
     await new Promise(resolve => setTimeout(resolve, 1200));
     
     try {
-      const content = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(selectedLog.data) + selectedLog.timestamp.toString();
-      const calculated = await sha256(content);
-      setComputedHash(calculated);
+      // 1. Try raw/original order stringification (as stored by PostgreSQL or retrieved from database)
+      const rawContent = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(selectedLog.data) + selectedLog.timestamp.toString();
+      const rawCalculated = await sha256(rawContent);
       
-      if (calculated === selectedLog.current_hash) {
+      // 2. Try deterministically sorted order stringification
+      const sortedData: any = {};
+      if (selectedLog.data && typeof selectedLog.data === 'object') {
+        Object.keys(selectedLog.data).sort().forEach((key: string) => {
+          sortedData[key] = (selectedLog.data as any)[key];
+        });
+      }
+      const sortedContent = (selectedLog.prev_hash || "GENESIS") + JSON.stringify(sortedData) + selectedLog.timestamp.toString();
+      const sortedCalculated = await sha256(sortedContent);
+
+      if (rawCalculated === selectedLog.current_hash) {
+        setComputedHash(rawCalculated);
+        setVerificationResult("success");
+      } else if (sortedCalculated === selectedLog.current_hash) {
+        setComputedHash(sortedCalculated);
         setVerificationResult("success");
       } else {
+        setComputedHash(sortedCalculated);
         setVerificationResult("fail");
       }
     } catch (e) {

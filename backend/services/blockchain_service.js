@@ -6,7 +6,13 @@ class BlockchainService {
    * Generates a SHA256 hash for a claim record
    */
   static generateHash(prevHash, data, timestamp) {
-    const content = prevHash + JSON.stringify(data) + timestamp.toString();
+    const sortedData = {};
+    if (data && typeof data === 'object') {
+      Object.keys(data).sort().forEach(key => {
+        sortedData[key] = data[key];
+      });
+    }
+    const content = prevHash + JSON.stringify(sortedData) + timestamp.toString();
     return crypto.createHash('sha256').update(content).digest('hex');
   }
 
