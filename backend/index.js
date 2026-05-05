@@ -80,7 +80,7 @@ app.use('/api/chats', verifyToken, chatRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', verifyToken, checkRole(['admin', 'staff']), adminRoutes);
-app.use('/api/claim-logs', verifyToken, checkRole(['admin']), claimLogRoutes);
+app.use('/api/claim-logs', verifyToken, claimLogRoutes);
 app.use('/api/claims', claimRoutes);
 
 

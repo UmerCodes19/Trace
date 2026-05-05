@@ -167,7 +167,12 @@ class _PostDetailBody extends ConsumerWidget {
     
     try {
       final response = await api.dio.get('/claim-logs');
-      final logs = response.data as List;
+      List<dynamic> logs = [];
+      if (response.data is Map) {
+        logs = response.data['logs'] as List? ?? [];
+      } else if (response.data is List) {
+        logs = response.data as List;
+      }
       final log = logs.firstWhere(
         (l) => l['claim_id'] == post.id || l['data']?['itemId'] == post.id, 
         orElse: () => null
