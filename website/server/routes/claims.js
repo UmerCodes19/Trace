@@ -158,7 +158,7 @@ router.post('/handshake/verify', verifyToken, async (req, res) => {
     if (newStatus === 'resolved') {
       const { error: postUpdateError } = await supabase
         .from('posts')
-        .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+        .update({ status: 'resolved' })
         .eq('id', claim.post_id);
 
       if (postUpdateError) throw postUpdateError;
