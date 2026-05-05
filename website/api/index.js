@@ -24,17 +24,17 @@ app.use(cors());
 app.use(express.json());
 
 // Import routes
-const postRoutes = require('./routes/posts');
-const userRoutes = require('./routes/users');
-const chatRoutes = require('./routes/chats');
-const cmsRoutes = require('./routes/cms');
-const claimRoutes = require('./routes/claims');
-const claimLogRoutes = require('./routes/claim_logs');
-const adminRoutes = require('./routes/admin');
-const notificationRoutes = require('./routes/notifications');
-const discordRoutes = require('./routes/discord');
-const discordInteractionsRoutes = require('./routes/discord-interactions');
-const { verifyToken, checkRole } = require('./middleware/auth');
+const postRoutes = require('../server/routes/posts');
+const userRoutes = require('../server/routes/users');
+const chatRoutes = require('../server/routes/chats');
+const cmsRoutes = require('../server/routes/cms');
+const claimRoutes = require('../server/routes/claims');
+const claimLogRoutes = require('../server/routes/claim_logs');
+const adminRoutes = require('../server/routes/admin');
+const notificationRoutes = require('../server/routes/notifications');
+const discordRoutes = require('../server/routes/discord');
+const discordInteractionsRoutes = require('../server/routes/discord-interactions');
+const { verifyToken, checkRole } = require('../server/middleware/auth');
 
 // Use routes
 app.use('/api/posts', postRoutes);
