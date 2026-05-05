@@ -29,9 +29,12 @@ const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chats');
 const cmsRoutes = require('./routes/cms');
 const claimRoutes = require('./routes/claims');
+const claimLogRoutes = require('./routes/claim_logs');
+const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
 const discordRoutes = require('./routes/discord');
 const discordInteractionsRoutes = require('./routes/discord-interactions');
+const { verifyToken, checkRole } = require('./middleware/auth');
 
 // Use routes
 app.use('/api/posts', postRoutes);
@@ -39,6 +42,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/claims', claimRoutes);
+app.use('/api/claim-logs', verifyToken, checkRole(['admin']), claimLogRoutes);
+app.use('/api/admin', verifyToken, checkRole(['admin', 'staff']), adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/discord', discordRoutes);
 app.use('/api/discord-interactions', discordInteractionsRoutes);

@@ -48,6 +48,91 @@ class _ProfileBody extends ConsumerWidget {
   final SimpleUserModel user;
   final bool isPublicView;
 
+  Widget _buildBadgesSection(SimpleUserModel user, bool isDarkMode) {
+    final successfulReturns = user.itemsFound;
+    final totalInteractions = user.itemsLost + user.itemsFound;
+
+    final showTrustedFinder = successfulReturns >= 3;
+    final showCommunityHelper = totalInteractions >= 10;
+
+    if (!showTrustedFinder && !showCommunityHelper) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        _buildSectionTitle('Badges & Achievements', isDarkMode),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            if (showTrustedFinder)
+              _buildBadgeCard(
+                'Trusted Finder',
+                'Successfully returned 3+ items',
+                Icons.verified_user_rounded,
+                Colors.green,
+                isDarkMode,
+              ),
+            if (showTrustedFinder && showCommunityHelper) const SizedBox(width: 12),
+            if (showCommunityHelper)
+              _buildBadgeCard(
+                'Community Helper',
+                'Participated in 10+ reports',
+                Icons.groups_rounded,
+                Colors.blue,
+                isDarkMode,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBadgeCard(String name, String desc, IconData icon, Color color, bool isDarkMode) {
+    return Expanded(
+      child: GlassCard(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? Colors.white : AppColors.navyDarkest,
+                    ),
+                  ),
+                  Text(
+                    desc,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: isDarkMode ? Colors.white54 : Colors.black54,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDarkMode = ref.watch(themeProvider);
@@ -66,6 +151,7 @@ class _ProfileBody extends ConsumerWidget {
               children: [
                 const SizedBox(height: 24),
                 _buildStatsGrid(user, isDarkMode, accent),
+                _buildBadgesSection(user, isDarkMode),
                 const SizedBox(height: 32),
                 _buildSectionTitle('Student Identity', isDarkMode),
                 const SizedBox(height: 16),

@@ -26,6 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   late final TabController _tabController;
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  String? _selectedBuilding;
   
   @override
   void initState() {
@@ -38,6 +39,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _showBuildingFilterSheet() {
+    final buildings = ['Library', 'Science Block', 'Hostel', 'Main Café', 'Admin Office', 'Engineering Dept'];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.pageBg(context),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Filter by Campus Building',
+                style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context)),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => _selectedBuilding = null);
+                      Navigator.pop(context);
+                    },
+                    child: Chip(
+                      backgroundColor: _selectedBuilding == null ? Theme.of(context).colorScheme.primary : AppColors.card(context),
+                      label: Text('All Buildings', style: TextStyle(color: _selectedBuilding == null ? Colors.white : AppColors.textPrimary(context))),
+                    ),
+                  ),
+                  ...buildings.map((b) {
+                    final isSelected = _selectedBuilding == b;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedBuilding = b);
+                        Navigator.pop(context);
+                      },
+                      child: Chip(
+                        backgroundColor: isSelected ? Theme.of(context).colorScheme.primary : AppColors.card(context),
+                        label: Text(b, style: TextStyle(color: isSelected ? Colors.white : AppColors.textPrimary(context))),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -157,11 +213,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           body: TabBarView(
             controller: _tabController,
             children: [
-              _PostFeed(query: _searchQuery, filter: 'all'),
-              _PostFeed(query: _searchQuery, filter: 'lost'),
-              _PostFeed(query: _searchQuery, filter: 'found'),
-              _PostFeed(query: _searchQuery, filter: 'resolved'),
-              _MyClaimsFeed(query: _searchQuery),
+              _PostFeed(query: _searchQuery, filter: 'all', building: _selectedBuilding),
+              _PostFeed(query: _searchQuery, filter: 'lost', building: _selectedBuilding),
+              _PostFeed(query: _searchQuery, filter: 'found', building: _selectedBuilding),
+              _PostFeed(query: _searchQuery, filter: 'resolved', building: _selectedBuilding),
+              _MyClaimsFeed(query: _searchQuery, building: _selectedBuilding),
             ],
           ),
         ),
@@ -170,35 +226,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   }
 
   Widget _buildSearchBar(BuildContext context) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border(context), width: 0.5),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, color: AppColors.textSecondary(context), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchQuery = v),
-              decoration: InputDecoration(
-                hintText: 'Search for lost items...',
-                hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary(context)),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-              ),
+    final accent = Theme.of(context).colorScheme.primary;
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border(context), width: 0.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: AppColors.textSecondary(context), size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search for lost items...',
+                      hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary(context)),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: _showBuildingFilterSheet,
+          child: Container(
+            height: 48,
+            width: 48,
+            decoration: BoxDecoration(
+              color: _selectedBuilding != null ? accent : AppColors.card(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border(context), width: 0.5),
+            ),
+            child: Icon(
+              Icons.filter_list_rounded,
+              color: _selectedBuilding != null ? Colors.white : AppColors.textPrimary(context),
+            ),
+          ),
+        ),
+      ],
     ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.1, end: 0);
   }
 }
@@ -254,12 +334,6 @@ class _StatusSummary extends StatelessWidget {
   }
 }
 
-bool _isToday(DateTime date) {
-  final now = DateTime.now();
-  final local = date.toLocal();
-  return local.year == now.year && local.month == now.month && local.day == now.day;
-}
-
 class _SummaryItem extends StatelessWidget {
   const _SummaryItem({required this.label, required this.value, required this.color});
   final String label;
@@ -305,8 +379,9 @@ class _SummaryItem extends StatelessWidget {
 class _PostFeed extends ConsumerWidget {
   final String query;
   final String filter;
+  final String? building;
 
-  const _PostFeed({required this.query, required this.filter});
+  const _PostFeed({required this.query, required this.filter, this.building});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -319,6 +394,9 @@ class _PostFeed extends ConsumerWidget {
                                p.description.toLowerCase().contains(query.toLowerCase());
           
           if (!matchesQuery) return false;
+
+          final matchesBuilding = building == null || p.location.building.toLowerCase() == building!.toLowerCase();
+          if (!matchesBuilding) return false;
 
           if (filter == 'lost') return p.type == 'lost' && p.status != 'resolved';
           if (filter == 'found') return p.type == 'found' && p.status != 'resolved';
@@ -396,7 +474,8 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 
 class _MyClaimsFeed extends ConsumerWidget {
   final String query;
-  const _MyClaimsFeed({required this.query});
+  final String? building;
+  const _MyClaimsFeed({required this.query, this.building});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -409,7 +488,11 @@ class _MyClaimsFeed extends ConsumerWidget {
           if (post == null) return false;
           final matchesQuery = (post['title']?.toString().toLowerCase().contains(query.toLowerCase()) == true) || 
                                (post['description']?.toString().toLowerCase().contains(query.toLowerCase()) == true);
-          return matchesQuery;
+          if (!matchesQuery) return false;
+
+          final postBuilding = post['location']?['building']?.toString();
+          final matchesBuilding = building == null || postBuilding?.toLowerCase() == building!.toLowerCase();
+          return matchesBuilding;
         }).toList();
 
         if (filtered.isEmpty) {

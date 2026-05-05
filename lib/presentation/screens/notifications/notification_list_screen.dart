@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -19,6 +20,33 @@ class NotificationListScreen extends ConsumerWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return DateFormat('MMM d').format(dt);
+  }
+
+  void _onNotificationTap(BuildContext context, WidgetRef ref, Map<String, dynamic> n) async {
+    final api = ref.read(apiServiceProvider);
+    
+    // Mark as read in background
+    try {
+      await api.markNotificationRead(n['id']);
+      ref.invalidate(notificationsProvider);
+    } catch (e) {
+      debugPrint('Error marking notification read: $e');
+    }
+
+    final type = n['type']?.toString().toLowerCase() ?? 'general';
+    final data = n['data'] as Map<String, dynamic>? ?? {};
+
+    if (type == 'match' && data['postId'] != null) {
+      context.push('/post/${data['postId']}');
+    } else if (type == 'claim_request' && data['postId'] != null) {
+      context.push('/post/${data['postId']}/claims?title=${Uri.encodeComponent(n['title'] ?? 'Post')}');
+    } else if ((type == 'claim_response' || type == 'claim_accepted') && data['chatId'] != null) {
+      context.push('/chat/${data['chatId']}');
+    } else if (type == 'item_resolved' && data['postId'] != null) {
+      context.push('/post/${data['postId']}');
+    } else if (data['postId'] != null) {
+      context.push('/post/${data['postId']}');
+    }
   }
 
   @override
@@ -63,11 +91,14 @@ class NotificationListScreen extends ConsumerWidget {
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final n = notifications[index] as Map<String, dynamic>;
-                return _NotificationCard(
-                  notification: {
-                    ...n,
-                    'time': _formatTimestamp(n['timestamp']),
-                  },
+                return GestureDetector(
+                  onTap: () => _onNotificationTap(context, ref, n),
+                  child: _NotificationCard(
+                    notification: {
+                      ...n,
+                      'time': _formatTimestamp(n['timestamp']),
+                    },
+                  ),
                 ).animate()
                   .fadeIn(delay: (index * 50).ms)
                   .slideX(begin: 0.1, end: 0);
@@ -87,7 +118,6 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Handle both snake_case (new) and camelCase (old) for safety
     final isRead = (notification['is_read'] ?? notification['isRead'] ?? true) as bool;
     final type = (notification['type'] ?? 'general') as String;
 
@@ -99,9 +129,17 @@ class _NotificationCard extends StatelessWidget {
         icon = Icons.auto_awesome;
         color = AppColors.jadePrimary;
         break;
+      case 'claim_request':
+        icon = Icons.card_giftcard_rounded;
+        color = Colors.amber;
+        break;
       case 'chat':
         icon = Icons.chat_bubble_outline_rounded;
         color = Colors.blue;
+        break;
+      case 'item_resolved':
+        icon = Icons.check_circle_outline_rounded;
+        color = Colors.green;
         break;
       default:
         icon = Icons.notifications_none_rounded;
@@ -140,14 +178,19 @@ class _NotificationCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      notification['title'],
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.textPrimary(context),
+                    Expanded(
+                      child: Text(
+                        notification['title'] ?? 'Notification',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppColors.textPrimary(context),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       notification['time'],
                       style: GoogleFonts.inter(
@@ -159,7 +202,7 @@ class _NotificationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  notification['body'],
+                  notification['body'] ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     color: AppColors.textSecondary(context),

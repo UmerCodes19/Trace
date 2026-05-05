@@ -1,62 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
+const { verifyToken } = require('../middleware/auth');
+const BlockchainService = require('../services/blockchain_service');
 const NotificationService = require('../services/notification_service');
-
-const verifyToken = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  const token = authHeader.split('Bearer ')[1];
-  try {
-    const admin = require('firebase-admin');
-    let decodedToken;
-    try {
-      decodedToken = await admin.auth().verifyIdToken(token);
-    } catch (e) {
-      // Fallback: Check if token is a valid UID in the users table
-      const { data: testUser } = await supabase
-        .from('users')
-        .select('uid, email, role, isBanned')
-        .eq('uid', token)
-        .single();
-
-      if (testUser) {
-        if (testUser.isBanned) {
-          return res.status(403).json({ error: 'User is banned' });
-        }
-        req.user = {
-          uid: testUser.uid,
-          email: testUser.email || `${testUser.uid}@bahria.edu.pk`,
-          role: testUser.role || 'user'
-        };
-        return next();
-      }
-      throw e;
-    }
-
-    const { data: user } = await supabase
-      .from('users')
-      .select('role, isBanned')
-      .eq('uid', decodedToken.uid)
-      .single();
-
-    if (user && user.isBanned) {
-      return res.status(403).json({ error: 'User is banned' });
-    }
-
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      role: user ? user.role : 'user'
-    };
-    next();
-  } catch (error) {
-    console.error('Auth Error:', error);
-    res.status(401).json({ error: 'Invalid token' });
-  }
-};
 
 /**
  * PHASE 2: The Gatekeeper
@@ -103,14 +50,13 @@ router.post('/request', verifyToken, async (req, res) => {
 
     if (claimError) throw claimError;
 
-    if (post && post.userId !== userId) {
-      await NotificationService.sendToUser(post.userId, {
-        title: '🎁 New Claim Request',
-        body: `Someone wants to claim "${post.title}". Review their proof now.`,
-        type: 'claim_request',
-        data: { claimId: claim.id, postId: postId }
-      });
-    }
+    // 4. Notify the Finder (Post Owner)
+    await NotificationService.sendToUser(post.userId, {
+      title: '🎁 New Claim Request',
+      body: `Someone wants to claim "${post.title}". Review their proof now.`,
+      type: 'claim_request',
+      data: { claimId: claim.id, postId: postId }
+    });
 
     res.status(201).json(claim);
   } catch (error) {
@@ -151,18 +97,117 @@ router.put('/respond/:id', verifyToken, async (req, res) => {
 
     if (updateError) throw updateError;
 
-    if (claim && claim.claimer_id !== req.user.uid) {
-      await NotificationService.sendToUser(claim.claimer_id, {
-        title: status === 'approved' ? '✅ Claim Approved!' : '❌ Claim Rejected',
-        body: status === 'approved' 
-          ? `Your claim for "${claim.posts.title}" was approved. You can now chat with the finder.`
-          : `Your claim for "${claim.posts.title}" was rejected by the finder.`,
-        type: 'claim_response',
-        data: { claimId: id, status }
-      });
-    }
+    // 3. If approved, unlock chat (handled by chat route usually, but we notify)
+    // and potentially mark other claims as rejected? (Optional)
+    
+    // 4. Notify Claimer
+    await NotificationService.sendToUser(claim.claimer_id, {
+      title: status === 'approved' ? '✅ Claim Approved!' : '❌ Claim Rejected',
+      body: status === 'approved' 
+        ? `Your claim for "${claim.posts.title}" was approved. You can now chat with the finder.`
+        : `Your claim for "${claim.posts.title}" was rejected by the finder.`,
+      type: 'claim_response',
+      data: { claimId: id, status }
+    });
 
     res.json(updatedClaim);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PHASE 3: The Handshake
+ * Verify the QR scan and finalize the recovery
+ */
+router.post('/handshake/verify', verifyToken, async (req, res) => {
+  try {
+    const { claimId } = req.body;
+    const currentUserId = req.user.uid;
+
+    // 1. Fetch the claim
+    const { data: claim, error: fetchError } = await supabase
+      .from('claims')
+      .select('*, posts(*)')
+      .eq('id', claimId)
+      .single();
+
+    if (fetchError || !claim) return res.status(404).json({ error: 'Claim not found' });
+    
+    const validStates = ['approved', 'finder_confirmed', 'owner_confirmed'];
+    if (!validStates.includes(claim.status)) {
+      return res.status(400).json({ error: 'Claim must be approved or in confirmation phase' });
+    }
+
+    let newStatus = claim.status;
+    if (currentUserId === claim.claimer_id) {
+      if (claim.status === 'finder_confirmed') {
+        newStatus = 'resolved';
+      } else {
+        newStatus = 'owner_confirmed';
+      }
+    } else if (currentUserId === claim.posts.userId) {
+      if (claim.status === 'owner_confirmed') {
+        newStatus = 'resolved';
+      } else {
+        newStatus = 'finder_confirmed';
+      }
+    } else {
+      return res.status(403).json({ error: 'Unauthorized to participate in this handshake' });
+    }
+
+    // Update claim status
+    const { error: claimUpdateError } = await supabase
+      .from('claims')
+      .update({ status: newStatus })
+      .eq('id', claimId);
+
+    if (claimUpdateError) throw claimUpdateError;
+
+    // If both have scanned and confirmed, finalize the Handover
+    if (newStatus === 'resolved') {
+      const { error: postUpdateError } = await supabase
+        .from('posts')
+        .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+        .eq('id', claim.post_id);
+
+      if (postUpdateError) throw postUpdateError;
+
+      // PHASE 4: Blockchain & Karma
+      const claimData = {
+        action: 'ITEM_RECOVERED_VIA_HANDSHAKE',
+        claimId: claim.id,
+        itemId: claim.post_id,
+        itemTitle: claim.posts.title,
+        claimerId: claim.claimer_id,
+        finderId: claim.posts.userId,
+        timestamp: Date.now()
+      };
+      
+      await BlockchainService.recordClaim(claim.post_id, claimData);
+
+      // Increment Karma for Finder
+      try {
+        const { error: rpcError } = await supabase.rpc('increment_karma', { user_id: claim.posts.userId, amount: 50 });
+        if (rpcError) {
+          const { data: user } = await supabase.from('users').select('karma_points').eq('uid', claim.posts.userId).single();
+          await supabase.from('users').update({ karma_points: (user?.karma_points || 0) + 50 }).eq('uid', claim.posts.userId);
+        }
+      } catch (e) {
+        console.error('Karma update failed:', e);
+      }
+
+      await NotificationService.sendToUser(claim.claimer_id, {
+        title: '🎉 Item Resolved!',
+        body: `"${claim.posts.title}" has been successfully returned and recorded on the blockchain.`,
+        type: 'item_resolved',
+        data: { postId: claim.post_id }
+      });
+
+      return res.json({ message: 'Handover complete and verified on blockchain! Karma awarded.', status: 'resolved' });
+    }
+
+    res.json({ message: `Confirmation recorded: ${newStatus}`, status: newStatus });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -198,49 +243,6 @@ router.get('/post/:postId', verifyToken, async (req, res) => {
 
     if (error) throw error;
     res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * Verify QR Handshake and complete the claim & post
- */
-router.post('/handshake/verify', verifyToken, async (req, res) => {
-  try {
-    const { claimId } = req.body;
-    if (!claimId) {
-      return res.status(400).json({ error: 'Claim ID is required.' });
-    }
-
-    // 1. Fetch claim to verify its existence
-    const { data: claim, error: fetchError } = await supabase
-      .from('claims')
-      .select('*, posts(*)')
-      .eq('id', claimId)
-      .single();
-
-    if (fetchError || !claim) {
-      return res.status(404).json({ error: 'Claim not found' });
-    }
-
-    // 2. Update claim status
-    const { error: claimUpdateError } = await supabase
-      .from('claims')
-      .update({ status: 'approved' })
-      .eq('id', claimId);
-
-    if (claimUpdateError) throw claimUpdateError;
-
-    // 3. Update associated post status to 'resolved'
-    const { error: postUpdateError } = await supabase
-      .from('posts')
-      .update({ status: 'resolved' })
-      .eq('id', claim.post_id);
-
-    if (postUpdateError) throw postUpdateError;
-
-    res.json({ message: 'Handshake successful, item recovered!' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -133,49 +133,81 @@ router.post('/handshake/verify', verifyToken, async (req, res) => {
       .single();
 
     if (fetchError || !claim) return res.status(404).json({ error: 'Claim not found' });
-    if (claim.status !== 'approved') return res.status(400).json({ error: 'Claim must be approved before handshake' });
-
-    // The person scanning (currentUserId) MUST be the claimer (the loser)
-    // The QR code displayed on the finder's phone contains the claimId.
-    if (claim.claimer_id !== currentUserId) {
-      return res.status(403).json({ error: 'Only the approved claimer can perform the handshake' });
-    }
-
-    // 2. Finalize the Handover
-    // Update post status to 'resolved'
-    const { error: postUpdateError } = await supabase
-      .from('posts')
-      .update({ status: 'resolved', resolved_at: new Date().toISOString() })
-      .eq('id', claim.post_id);
-
-    if (postUpdateError) throw postUpdateError;
-
-    // 3. PHASE 4: Blockchain & Karma
-    const claimData = {
-      action: 'ITEM_RECOVERED_VIA_HANDSHAKE',
-      claimId: claim.id,
-      itemId: claim.post_id,
-      itemTitle: claim.posts.title,
-      claimerId: claim.claimer_id,
-      finderId: claim.posts.userId,
-      timestamp: Date.now()
-    };
     
-    await BlockchainService.recordClaim(claim.post_id, claimData);
-
-    // Increment Karma for Finder
-    try {
-      const { error: rpcError } = await supabase.rpc('increment_karma', { user_id: claim.posts.userId, amount: 50 });
-      if (rpcError) {
-        // Fallback: Direct update if RPC is missing
-        const { data: user } = await supabase.from('users').select('karma_points').eq('uid', claim.posts.userId).single();
-        await supabase.from('users').update({ karma_points: (user?.karma_points || 0) + 50 }).eq('uid', claim.posts.userId);
-      }
-    } catch (e) {
-      console.error('Karma update failed:', e);
+    const validStates = ['approved', 'finder_confirmed', 'owner_confirmed'];
+    if (!validStates.includes(claim.status)) {
+      return res.status(400).json({ error: 'Claim must be approved or in confirmation phase' });
     }
 
-    res.json({ message: 'Handover successful! Karma awarded to finder.', claimData });
+    let newStatus = claim.status;
+    if (currentUserId === claim.claimer_id) {
+      if (claim.status === 'finder_confirmed') {
+        newStatus = 'resolved';
+      } else {
+        newStatus = 'owner_confirmed';
+      }
+    } else if (currentUserId === claim.posts.userId) {
+      if (claim.status === 'owner_confirmed') {
+        newStatus = 'resolved';
+      } else {
+        newStatus = 'finder_confirmed';
+      }
+    } else {
+      return res.status(403).json({ error: 'Unauthorized to participate in this handshake' });
+    }
+
+    // Update claim status
+    const { error: claimUpdateError } = await supabase
+      .from('claims')
+      .update({ status: newStatus })
+      .eq('id', claimId);
+
+    if (claimUpdateError) throw claimUpdateError;
+
+    // If both have scanned and confirmed, finalize the Handover
+    if (newStatus === 'resolved') {
+      const { error: postUpdateError } = await supabase
+        .from('posts')
+        .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+        .eq('id', claim.post_id);
+
+      if (postUpdateError) throw postUpdateError;
+
+      // PHASE 4: Blockchain & Karma
+      const claimData = {
+        action: 'ITEM_RECOVERED_VIA_HANDSHAKE',
+        claimId: claim.id,
+        itemId: claim.post_id,
+        itemTitle: claim.posts.title,
+        claimerId: claim.claimer_id,
+        finderId: claim.posts.userId,
+        timestamp: Date.now()
+      };
+      
+      await BlockchainService.recordClaim(claim.post_id, claimData);
+
+      // Increment Karma for Finder
+      try {
+        const { error: rpcError } = await supabase.rpc('increment_karma', { user_id: claim.posts.userId, amount: 50 });
+        if (rpcError) {
+          const { data: user } = await supabase.from('users').select('karma_points').eq('uid', claim.posts.userId).single();
+          await supabase.from('users').update({ karma_points: (user?.karma_points || 0) + 50 }).eq('uid', claim.posts.userId);
+        }
+      } catch (e) {
+        console.error('Karma update failed:', e);
+      }
+
+      await NotificationService.sendToUser(claim.claimer_id, {
+        title: '🎉 Item Resolved!',
+        body: `"${claim.posts.title}" has been successfully returned and recorded on the blockchain.`,
+        type: 'item_resolved',
+        data: { postId: claim.post_id }
+      });
+
+      return res.json({ message: 'Handover complete and verified on blockchain! Karma awarded.', status: 'resolved' });
+    }
+
+    res.json({ message: `Confirmation recorded: ${newStatus}`, status: newStatus });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

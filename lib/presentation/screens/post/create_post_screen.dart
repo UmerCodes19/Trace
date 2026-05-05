@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/location_prediction_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -665,6 +666,26 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       color: AppColors.textPrimary(context),
                     ),
                   ),
+                  if (_hasStartedTyping()) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.cloud_done_outlined, size: 10, color: Colors.green),
+                          const SizedBox(width: 4),
+                          Text(
+                            'DRAFT AUTO-SAVED',
+                            style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.green),
+                          ),
+                        ],
+                      ),
+                    ).animate().fadeIn().scale(),
+                  ],
                   const Spacer(),
                   TextButton(
                     onPressed: _isSubmitting ? null : _submit,
