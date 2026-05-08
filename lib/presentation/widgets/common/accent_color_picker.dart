@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../main.dart';
+import '../../../data/services/local_settings_service.dart';
 
 /// ─── Accent Color Picker ─────────────────────────────────────────────────────
 /// A horizontal scrollable row of curated color circles for customization.
@@ -11,7 +11,8 @@ class AccentColorPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentAccent = ref.watch(accentColorProvider);
+    final currentAccentInt = ref.watch(accentColorProvider);
+    final currentAccent = Color(currentAccentInt);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
@@ -51,7 +52,7 @@ class AccentColorPicker extends ConsumerWidget {
 
                     return GestureDetector(
                       onTap: () {
-                        ref.read(accentColorProvider.notifier).state = color;
+                        ref.read(accentColorProvider.notifier).state = color.value;
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
