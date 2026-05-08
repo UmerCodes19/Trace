@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +11,7 @@ class LocalSettingsService {
   static const String _keyCurrentAddress = 'profile_cur_addr';
   static const String _keyPermanentAddress = 'profile_perm_addr';
   static const String _keyIntakeSemester = 'profile_intake';
+  static const String _keySavedCMSAccounts = 'saved_cms_accounts';
 
   final SharedPreferences _prefs;
 
@@ -38,6 +40,36 @@ class LocalSettingsService {
 
   String? get intakeSemester => _prefs.getString(_keyIntakeSemester);
   Future<void> setIntakeSemester(String? value) => value != null ? _prefs.setString(_keyIntakeSemester, value) : _prefs.remove(_keyIntakeSemester);
+
+  List<Map<String, String>> getSavedCMSAccounts() {
+    final list = _prefs.getStringList(_keySavedCMSAccounts) ?? [];
+    return list.map((item) {
+      try {
+        final decoded = jsonDecode(item) as Map<String, dynamic>;
+        return {
+          'enrollment': decoded['enrollment']?.toString() ?? '',
+          'password': decoded['password']?.toString() ?? '',
+        };
+      } catch (_) {
+        return <String, String>{};
+      }
+    }).where((element) => element.isNotEmpty).toList();
+  }
+
+  Future<void> saveCMSAccount(String enrollment, String password) async {
+    final list = getSavedCMSAccounts();
+    list.removeWhere((acc) => acc['enrollment'] == enrollment);
+    list.insert(0, {'enrollment': enrollment, 'password': password});
+    final encoded = list.map((acc) => jsonEncode(acc)).toList();
+    await _prefs.setStringList(_keySavedCMSAccounts, encoded);
+  }
+
+  Future<void> deleteCMSAccount(String enrollment) async {
+    final list = getSavedCMSAccounts();
+    list.removeWhere((acc) => acc['enrollment'] == enrollment);
+    final encoded = list.map((acc) => jsonEncode(acc)).toList();
+    await _prefs.setStringList(_keySavedCMSAccounts, encoded);
+  }
 }
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {

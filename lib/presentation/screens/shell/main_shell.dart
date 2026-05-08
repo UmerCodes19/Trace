@@ -64,7 +64,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       extendBody: true,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragEnd: (details) {
+        onHorizontalDragEnd: location.startsWith('/map') ? null : (details) {
           if (details.primaryVelocity == null) return;
           // Swipe Left -> switch to next tab
           if (details.primaryVelocity! < -400) {

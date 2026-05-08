@@ -12,6 +12,7 @@ import '../../presentation/screens/chat/chat_list_screen.dart';
 import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/debug/debug_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
+import '../../presentation/screens/home/leaderboard_screen.dart';
 import '../../presentation/screens/map/map_screen.dart';
 import '../../presentation/screens/map/isometric_campus_screen.dart';
 import '../../presentation/screens/notifications/notification_list_screen.dart';
@@ -96,6 +97,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootKey,
         builder: (ctx, state) =>
             PostDetailScreen(postId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/leaderboard',
+        parentNavigatorKey: _rootKey,
+        builder: (ctx, state) => const LeaderboardScreen(),
       ),
       GoRoute(
         path: '/post/:id/claim',

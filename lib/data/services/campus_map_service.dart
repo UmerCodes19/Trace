@@ -77,8 +77,8 @@ class CampusMapService {
     BuildingModel(
       id: 'liaquat',
       name: 'Liaquat Block',
-      lat: 24.892661,
-      lng: 67.088732,
+      lat: 24.892692,
+      lng: 67.088686,
       floors: [
         FloorModel(
           level: 0, 
@@ -132,14 +132,14 @@ class CampusMapService {
           ],
           rooms: [
             RoomModel(
-              number: 'L-101', 
-              name: 'Lecture Hall 1', 
+              number: '201', 
+              name: 'Classroom 201', 
               position: const Offset(0.3, 0.5),
               polygonPoints: [Offset(0.15, 0.2), Offset(0.45, 0.2), Offset(0.45, 0.8), Offset(0.15, 0.8)],
             ),
             RoomModel(
-              number: 'L-102', 
-              name: 'Lecture Hall 2', 
+              number: '202', 
+              name: 'Classroom 202', 
               position: const Offset(0.7, 0.5),
               polygonPoints: [Offset(0.55, 0.2), Offset(0.85, 0.2), Offset(0.85, 0.8), Offset(0.55, 0.8)],
             ),

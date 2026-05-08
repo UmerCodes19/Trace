@@ -3,65 +3,15 @@ const router = express.Router();
 const supabase = require('../utils/supabase');
 const BlockchainService = require('../services/blockchain_service');
 const NotificationService = require('../services/notification_service');
+const MatchmakerService = require('../services/matchmaker_service');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
-// Helper matching logic
+// Helper matching logic delegated to proactive MatchmakerService
 async function runMatchingLogic(newPost) {
-  if (newPost.status === 'resolved') return;
-  const oppositeType = newPost.type === 'lost' ? 'found' : 'lost';
-
-  const { data: potentialMatches, error } = await supabase
-    .from('posts')
-    .select('*')
-    .eq('type', oppositeType)
-    .neq('status', 'resolved');
-
-  if (error || !potentialMatches) return;
-
-  const results = [];
-  const wordsA = (newPost.title || '').toLowerCase().split(/\W+/).filter(Boolean);
-
-  for (const match of potentialMatches) {
-    let score = 0;
-    // 1. Category matches exactly
-    if (newPost.category && match.category && newPost.category.toLowerCase() === match.category.toLowerCase()) {
-      score += 40;
-    }
-    // 2. Title keyword overlap > 50%
-    const wordsB = (match.title || '').toLowerCase().split(/\W+/).filter(Boolean);
-    const overlap = wordsA.filter(w => wordsB.includes(w)).length;
-    const maxWords = Math.max(wordsA.length, wordsB.length);
-    if (maxWords > 0 && (overlap / maxWords) > 0.5) {
-      score += 30;
-    }
-    // 3. Building AND Floor match
-    if (newPost.buildingName && match.buildingName && newPost.buildingName.toLowerCase() === match.buildingName.toLowerCase() &&
-        newPost.floor === match.floor) {
-      score += 30;
-    }
-
-    if (score >= 70) {
-      results.push({ post: match, score });
-    }
-  }
-
-  results.sort((a, b) => b.score - a.score);
-  const topMatches = results.slice(0, 3);
-
-  for (const m of topMatches) {
-    await NotificationService.sendToUser(newPost.userId, {
-      title: '🔍 Potential Item Match Found!',
-      body: `Your post "${newPost.title}" matched with "${m.post.title}".`,
-      type: 'match',
-      data: { postId: newPost.id, matchPostId: m.post.id }
-    });
-
-    await NotificationService.sendToUser(m.post.userId, {
-      title: '🔍 Potential Item Match Found!',
-      body: `Your post "${m.post.title}" matched with "${newPost.title}".`,
-      type: 'match',
-      data: { postId: m.post.id, matchPostId: newPost.id }
-    });
+  try {
+    await MatchmakerService.runMatching(newPost);
+  } catch (err) {
+    console.error('Error running matchmaking system:', err);
   }
 }
 

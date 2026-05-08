@@ -13,6 +13,7 @@ import 'data/services/notification_service.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data/services/local_settings_service.dart';
+import 'data/services/offline/sync_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +42,14 @@ void main() async {
 
   // Initialize Local Settings
   final prefs = await SharedPreferences.getInstance();
+
+  // Initialize Offline Sync Manager
+  try {
+    await SyncManager.instance.initialize();
+    debugPrint('Offline Sync Manager initialized successfully');
+  } catch (e) {
+    debugPrint('Offline Sync Manager initialization error: $e');
+  }
 
 
   SystemChrome.setSystemUIOverlayStyle(

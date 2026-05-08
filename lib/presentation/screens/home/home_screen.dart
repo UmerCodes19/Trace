@@ -15,6 +15,7 @@ import '../../widgets/cards/post_card.dart';
 import '../../widgets/common/lottie_empty_state.dart';
 import '../../widgets/common/trace_logo.dart';
 import '../../widgets/common/skeleton.dart';
+import '../../widgets/search/visual_search_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +28,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
   String? _selectedBuilding;
+
+  String _cleanCMSUsername(String name) {
+    if (name.toUpperCase().contains('CMS USER') || name.contains('(') || name.contains(')')) {
+      final regExp = RegExp(r'\d{2}-\d{5,6}-\d{3}');
+      final match = regExp.firstMatch(name);
+      if (match != null) return match.group(0)!;
+    }
+    return name;
+  }
   
   @override
   void initState() {
@@ -103,6 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
 
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
+      endDrawer: _buildNotificationsRightDrawer(context),
       body: SafeArea(
         child: NestedScrollView(
           headerSliverBuilder: (context, _) => [
@@ -121,7 +132,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                             children: [
                               Text(timeGreeting(), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary(context))),
                               Text(
-                                user?.name ?? 'Guest', 
+                                _cleanCMSUsername(user?.name ?? 'Guest'), 
                                 style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context), letterSpacing: -0.5),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -156,8 +167,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                         ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.8, 0.8)),
                         const SizedBox(width: 12),
                         GestureDetector(
-                          onTap: () => context.push('/notifications'),
-                          child: _NotificationIcon(accent: accent),
+                          onTap: () => context.push('/leaderboard'),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.card(context),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.border(context), width: 0.5),
+                            ),
+                            child: const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 22),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Builder(
+                          builder: (ctx) => GestureDetector(
+                            onTap: () => Scaffold.of(ctx).openEndDrawer(),
+                            child: _NotificationIcon(accent: accent),
+                          ),
                         ),
                       ],
                     ),
@@ -257,6 +283,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                     ),
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.center_focus_weak_rounded, color: AppColors.jadePrimary, size: 20),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => const VisualSearchSheet(),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -281,6 +318,166 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       ],
     ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.1, end: 0);
   }
+
+  Widget _buildNotificationsRightDrawer(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final drawerBg = isDark ? AppColors.navyDarkest : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? Colors.white60 : Colors.black54;
+
+    return Drawer(
+      width: MediaQuery.of(context).size.width * 0.85,
+      backgroundColor: drawerBg,
+      child: SafeArea(
+        child: Consumer(
+          builder: (context, ref, _) {
+            final notificationsAsync = ref.watch(notificationsProvider);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Notifications',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final user = ref.read(authServiceProvider).currentUser;
+                          if (user != null) {
+                            await ref.read(apiServiceProvider).markAllNotificationsRead(user.uid);
+                            ref.invalidate(notificationsProvider);
+                          }
+                        },
+                        child: Text(
+                          'Clear All',
+                          style: GoogleFonts.inter(fontSize: 13, color: AppColors.jadePrimary, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white10),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: notificationsAsync.when(
+                      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.jadePrimary)),
+                      error: (e, _) => Center(child: Text('Error: $e', style: TextStyle(color: textColor))),
+                      data: (list) {
+                        if (list.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.notifications_off_outlined, size: 48, color: subColor.withOpacity(0.4)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'All caught up!',
+                                  style: GoogleFonts.plusJakartaSans(color: subColor, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return ListView.separated(
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final n = list[index] as Map<String, dynamic>;
+                            final isRead = (n['is_read'] ?? n['isRead'] ?? true) as bool;
+                            return Dismissible(
+                              key: Key(n['id']?.toString() ?? index.toString()),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                padding: const EdgeInsets.only(right: 20),
+                                alignment: Alignment.centerRight,
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                                ),
+                                child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+                              ),
+                              onDismissed: (direction) async {
+                                final api = ref.read(apiServiceProvider);
+                                try {
+                                  await api.markNotificationRead(n['id']);
+                                  ref.invalidate(notificationsProvider);
+                                } catch (_) {}
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: isRead 
+                                      ? (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02))
+                                      : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05)),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isRead 
+                                        ? Colors.transparent
+                                        : AppColors.jadePrimary.withOpacity(0.2),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.jadePrimary.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.notifications_none_rounded, color: AppColors.jadePrimary, size: 18),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            n['title'] ?? 'Notification',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                              color: textColor,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            n['body'] ?? '',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              color: subColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+
 }
 
 class _NotificationIcon extends StatelessWidget {

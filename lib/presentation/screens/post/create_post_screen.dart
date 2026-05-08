@@ -18,6 +18,11 @@ import '../../../data/services/api_service.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/models/cms_models.dart';
 import '../../../data/services/campus_map_service.dart';
+import '../../../data/services/map/map_engine_service.dart';
+import '../../../data/models/map/campus_gis_models.dart';
+import '../../../data/services/offline/sync_manager.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
   const CreatePostScreen({super.key, this.postToEdit});
@@ -49,6 +54,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   List<String> _aiTags = [];
   bool _analyzingImages = false;
   bool _isSubmitting = false;
+
+  // Speech-to-text fields
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isListening = false;
+  String _speechText = '';
+  bool _speechParsing = false;
 
   @override
   void initState() {
@@ -95,6 +106,21 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   void _onRoomChanged() {
     final roomNum = _roomCtrl.text.toUpperCase();
+    if (MapEngineService.instance.isInitialized) {
+      final matchedRooms = MapEngineService.instance.searchRooms(roomNum, _floor);
+      if (matchedRooms.isNotEmpty) {
+        final room = matchedRooms.first;
+        final center = MapEngineService.instance.getRoomCenter(room);
+        setState(() {
+          _buildingCtrl.text = "Liaquat Block";
+          _floor = room.floor;
+          _indoorX = center.dx;
+          _indoorY = center.dy;
+        });
+        return;
+      }
+    }
+
     final location = CampusMapService.getLocation(roomNum);
     if (location != null) {
       setState(() {
@@ -526,7 +552,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     }
 
     if (mounted) setState(() => _isSubmitting = true);
-
+    SimplePostModel? post;
     try {
       final authService = ref.read(authServiceProvider);
       final currentUser = await authService.getCurrentUser();
@@ -566,7 +592,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         }
       }
 
-      final post = SimplePostModel(
+      post = SimplePostModel(
         id: widget.postToEdit != null ? widget.postToEdit!.id : const Uuid().v4(),
         userId: currentUser.uid,
         type: _type,
@@ -623,11 +649,167 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       context.go('/home');
     } catch (e) {
       debugPrint('Error submitting post: $e');
+      
+      // Check if it's a network-related failure to trigger offline queueing
+      final errStr = e.toString().toLowerCase();
+      final isOffline = errStr.contains('socketexception') || 
+                        errStr.contains('connectiontimeout') || 
+                        errStr.contains('network is unreachable') || 
+                        errStr.contains('failed host lookup') ||
+                        errStr.contains('dioexception');
+                        
+      if (isOffline) {
+        try {
+          final authService = ref.read(authServiceProvider);
+          final currentUser = await authService.getCurrentUser();
+          final String userId = currentUser?.uid ?? '';
+          final String posterName = currentUser?.name ?? '';
+          final String posterAvatar = currentUser?.photoURL ?? '';
+          final bool verified = currentUser?.isCMSVerified ?? false;
+
+          final SimplePostModel offlinePost = post ?? SimplePostModel(
+            id: widget.postToEdit != null ? widget.postToEdit!.id : const Uuid().v4(),
+            userId: userId,
+            type: _type,
+            title: sanitizeInput(_titleCtrl.text),
+            description: sanitizeInput(_descCtrl.text),
+            imageUrls: _images.map((img) => img.path).toList(),
+            location: SimplePostLocation(
+              name: sanitizeInput(_buildingCtrl.text),
+              building: sanitizeInput(_buildingCtrl.text),
+              floor: _floor,
+              room: _roomCtrl.text.isEmpty ? null : sanitizeInput(_roomCtrl.text),
+              latitude: 0,
+              longitude: 0,
+              indoorX: _indoorX,
+              indoorY: _indoorY,
+            ),
+            timestamp: _lostDateTime ?? DateTime.now(),
+            aiTags: _aiTags,
+            posterName: posterName,
+            posterAvatarUrl: posterAvatar,
+            isCMSVerified: verified,
+            secretDetailQuestion: _secretQuestionCtrl.text.isEmpty ? null : _secretQuestionCtrl.text.trim(),
+          );
+
+          await SyncManager.instance.addPostToQueue(offlinePost.toMap());
+          AppHaptics.success();
+          if (mounted) {
+            showAppSnack(context, '📡 Saved offline! We will auto-sync once connected.');
+            context.go('/home');
+          }
+          return;
+        } catch (innerEx) {
+          debugPrint('Offline queueing error: $innerEx');
+        }
+      }
+
       if (mounted) {
         showAppSnack(context, 'Failed to submit post: $e', isError: true);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _initAndListen() async {
+    try {
+      final status = await Permission.microphone.request();
+      if (status != PermissionStatus.granted) {
+        showAppSnack(context, '🎙️ Microphone permission denied. Please allow mic access in your device Settings!', isError: true);
+        return;
+      }
+
+      bool available = await _speech.initialize(
+        onStatus: (status) {
+          debugPrint('🎙️ Speech Status: $status');
+          if (status == 'notListening' || status == 'done') {
+            if (_isListening) {
+              _stopListeningAndParse();
+            }
+          }
+        },
+        onError: (val) {
+          debugPrint('🎙️ Speech Error: $val');
+          if (_isListening) {
+            _stopListeningAndParse();
+          }
+        },
+      );
+
+      if (available) {
+        setState(() {
+          _isListening = true;
+          _speechText = '';
+        });
+        
+        _speech.listen(
+          onResult: (val) {
+            setState(() {
+              _speechText = val.recognizedWords;
+            });
+          },
+        );
+      } else {
+        showAppSnack(context, 'Speech recognition not available on this device.', isError: true);
+      }
+    } catch (e) {
+      showAppSnack(context, 'Microphone permission or engine not ready: $e', isError: true);
+    }
+  }
+
+  Future<void> _stopListeningAndParse() async {
+    setState(() {
+      _isListening = false;
+    });
+    _speech.stop();
+
+    if (_speechText.trim().isEmpty) {
+      showAppSnack(context, 'No voice recorded. Please try again!');
+      return;
+    }
+
+    setState(() {
+      _speechParsing = true;
+    });
+
+    try {
+      final ai = ref.read(aiServiceProvider);
+      final result = await ai.parseVoiceTranscript(_speechText);
+      
+      if (result != null && mounted) {
+        setState(() {
+          if (result['title'] != null && result['title'].toString().isNotEmpty) {
+            _titleCtrl.text = result['title'];
+          }
+          if (result['type'] != null && (result['type'] == 'lost' || result['type'] == 'found')) {
+            _type = result['type'];
+          }
+          if (result['buildingName'] != null && result['buildingName'].toString().isNotEmpty) {
+            _buildingCtrl.text = result['buildingName'];
+          }
+          if (result['floor'] != null) {
+            _floor = result['floor'];
+          }
+          if (result['location_room'] != null && result['location_room'].toString().isNotEmpty) {
+            _roomCtrl.text = result['location_room'];
+          }
+          if (result['description'] != null && result['description'].toString().isNotEmpty) {
+            _descCtrl.text = result['description'];
+          }
+        });
+        showAppSnack(context, '✨ Voice report successfully pre-filled with AI!');
+      } else {
+        if (mounted) showAppSnack(context, 'AI could not understand details. Try speaking more clearly!', isError: true);
+      }
+    } catch (e) {
+      debugPrint('Voice parsing error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _speechParsing = false;
+        });
+      }
     }
   }
 
@@ -637,7 +819,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       backgroundColor: AppColors.pageBg(context),
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Stack(
+          children: [
+            Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
@@ -658,34 +842,49 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    widget.postToEdit != null ? 'Edit Report' : 'New Report',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary(context),
-                    ),
-                  ),
-                  if (_hasStartedTyping()) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.cloud_done_outlined, size: 10, color: Colors.green),
-                          const SizedBox(width: 4),
-                          Text(
-                            'DRAFT AUTO-SAVED',
-                            style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.green),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.postToEdit != null ? 'Edit Report' : 'New Report',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary(context),
+                            ),
+                          ),
+                        ),
+                        if (_hasStartedTyping()) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.cloud_done_outlined, size: 10, color: Colors.green),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      'DRAFT AUTO-SAVED',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.green),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ).animate().fadeIn().scale(),
                           ),
                         ],
-                      ),
-                    ).animate().fadeIn().scale(),
-                  ],
+                      ],
+                    ),
+                  ),
                   const Spacer(),
                   TextButton(
                     onPressed: _isSubmitting ? null : _submit,
@@ -713,6 +912,89 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
                   children: [
+                    GestureDetector(
+                      onTap: () {
+                        if (_isListening) {
+                          _stopListeningAndParse();
+                        } else {
+                          _initAndListen();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _isListening 
+                              ? [Colors.redAccent, Colors.red.shade900] 
+                              : [AppColors.jadePrimary, Colors.teal.shade700],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_isListening ? Colors.redAccent : AppColors.jadePrimary).withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: const BoxDecoration(
+                                color: Colors.white24,
+                                shape: BoxShape.circle,
+                              ),
+                              child: _speechParsing
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                    )
+                                  : Icon(
+                                      _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _speechParsing
+                                        ? 'AI is parsing your voice...'
+                                        : _isListening
+                                            ? 'Tap to Stop Recording'
+                                            : 'Quick Voice Report',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _speechParsing
+                                        ? 'Reading your campus speech details...'
+                                        : _isListening
+                                            ? 'Speaking... Tap when done'
+                                            : 'Speak naturally to auto-fill this report with AI!',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white.withOpacity(0.85),
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ).animate(onPlay: (controller) => _isListening ? controller.repeat(reverse: true) : null)
+                     .scaleXY(begin: 1.0, end: _isListening ? 1.03 : 1.0, duration: 800.ms),
+                    const SizedBox(height: 16),
                     _PremiumSectionCard(
                       stepNumber: 1,
                       title: 'Report Type',
@@ -885,6 +1167,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: DropdownButton<int>(
+                                        menuMaxHeight: 180,
                                         value: _floor,
                                         isExpanded: true,
                                         underline: const SizedBox(),
@@ -912,7 +1195,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Room (Optional)',
+                                      'Room / Lab',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
@@ -920,20 +1203,46 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    TextFormField(
-                                      controller: _roomCtrl,
-                                      style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                                    DropdownButtonFormField<String>(
+                                      menuMaxHeight: 180,
+                                      isExpanded: true,
+                                      value: MapEngineService.instance.isInitialized &&
+                                              MapEngineService.instance.getRoomsOnFloor(1).any((r) => r.roomNumber == _roomCtrl.text)
+                                          ? _roomCtrl.text
+                                          : null,
                                       decoration: InputDecoration(
-                                        hintText: 'e.g. Room #3',
-                                        hintStyle: GoogleFonts.inter(color: AppColors.textHint(context)),
                                         filled: true,
                                         fillColor: AppColors.surface(context),
                                         border: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(12),
                                           borderSide: BorderSide.none,
                                         ),
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                       ),
+                                      hint: Text('Select Room', style: GoogleFonts.inter(color: AppColors.textHint(context), fontSize: 13)),
+                                      items: MapEngineService.instance.isInitialized
+                                          ? MapEngineService.instance
+                                              .getRoomsOnFloor(1)
+                                              .where((r) => r.type != RoomType.hallway)
+                                              .map((r) => DropdownMenuItem(
+                                                    value: r.roomNumber,
+                                                    child: Text(r.roomNumber, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                                                  ))
+                                              .toList()
+                                          : [],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() {
+                                            _roomCtrl.text = val;
+                                            _buildingCtrl.text = "Liaquat Block";
+                                            _floor = 1;
+                                            final matched = MapEngineService.instance.getRoomsOnFloor(1).firstWhere((r) => r.roomNumber == val);
+                                            final center = MapEngineService.instance.getRoomCenter(matched);
+                                            _indoorX = center.dx;
+                                            _indoorY = center.dy;
+                                          });
+                                        }
+                                      },
                                     ),
                                   ],
                                 ),
@@ -1036,7 +1345,172 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             ),
           ],
         ),
+        if (_isListening) _buildListeningOverlay(),
+        if (_speechParsing) _buildParsingOverlay(),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildListeningOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.85),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.mic_rounded, color: Colors.redAccent, size: 48),
+            ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+             .scaleXY(begin: 1.0, end: 1.15, duration: 800.ms, curve: Curves.easeInOut),
+            const SizedBox(height: 24),
+            Text(
+              'Listening...',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Describe your lost or found item naturally, including building, floor, room, or any physical details.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.white70,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 40),
+            Container(
+              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.15)),
+              ),
+              child: Text(
+                _speechText.isEmpty ? 'Say something...' : '"$_speechText"',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: _speechText.isEmpty ? Colors.white.withOpacity(0.55) : Colors.white,
+                  fontStyle: _speechText.isEmpty ? FontStyle.italic : FontStyle.normal,
+                ),
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: _stopListeningAndParse,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(
+                'Done speaking',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '— OR DEMO WITH SIMULATOR —',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white38,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _PresetChip(
+                    label: 'Preset 1: Lost MacBook',
+                    onPressed: () {
+                      setState(() {
+                        _speechText = 'I lost my silver Apple MacBook Pro in the Software Engineering Lab inside the Engineering Block.';
+                      });
+                      _stopListeningAndParse();
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _PresetChip(
+                    label: 'Preset 2: Found Wallet',
+                    onPressed: () {
+                      setState(() {
+                        _speechText = 'I found a black leather wallet containing a student ID card on the 1st floor of Liaquat Block near Room 102.';
+                      });
+                      _stopListeningAndParse();
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _PresetChip(
+                    label: 'Preset 3: Found Keys',
+                    onPressed: () {
+                      setState(() {
+                        _speechText = 'Found a bunch of keys with a red keychain in the cafeteria of the Quaid Block.';
+                      });
+                      _stopListeningAndParse();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ).animate().fadeIn(duration: 200.ms),
+    );
+  }
+
+  Widget _buildParsingOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.6),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                Text(
+                  'Gemini AI parsing your voice...',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ).animate().fadeIn(duration: 200.ms),
     );
   }
 }
@@ -1448,6 +1922,30 @@ class _PremiumSectionLabel extends StatelessWidget {
         fontSize: 13.5,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary(context),
+      ),
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      onPressed: onPressed,
+      backgroundColor: Colors.white.withOpacity(0.12),
+      side: BorderSide(color: Colors.white.withOpacity(0.15)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      label: Text(
+        label,
+        style: GoogleFonts.plusJakartaSans(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

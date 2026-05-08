@@ -1,0 +1,285 @@
+[
+  {
+    "id": "liaquat_1_201",
+    "roomNumber": "201",
+    "name": "Classroom 201",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "aliases": ["Room 201", "201"],
+    "polygonPoints": [[0.05, 0.05], [0.18, 0.05], [0.18, 0.18], [0.05, 0.18]],
+    "connectedRooms": ["liaquat_1_202"],
+    "nearestHallway": "liaquat_1_top_corridor",
+    "anchorPoints": [
+      { "id": "ac_201_nb", "label": "Notice Board", "x": 0.06, "y": 0.08, "category": "notice_board" }
+    ]
+  },
+  {
+    "id": "liaquat_1_202",
+    "roomNumber": "202",
+    "name": "Classroom 202",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "aliases": ["Room 202", "202"],
+    "polygonPoints": [[0.18, 0.05], [0.31, 0.05], [0.31, 0.18], [0.18, 0.18]],
+    "connectedRooms": ["liaquat_1_201", "liaquat_1_203"],
+    "nearestHallway": "liaquat_1_top_corridor"
+  },
+  {
+    "id": "liaquat_1_203",
+    "roomNumber": "203",
+    "name": "Classroom 203",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "aliases": ["Room 203", "203"],
+    "polygonPoints": [[0.31, 0.05], [0.44, 0.05], [0.44, 0.18], [0.31, 0.18]],
+    "connectedRooms": ["liaquat_1_202", "liaquat_1_204"],
+    "nearestHallway": "liaquat_1_top_corridor"
+  },
+  {
+    "id": "liaquat_1_204",
+    "roomNumber": "204",
+    "name": "Classroom 204",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "aliases": ["Room 204", "204"],
+    "polygonPoints": [[0.44, 0.05], [0.57, 0.05], [0.57, 0.18], [0.44, 0.18]],
+    "connectedRooms": ["liaquat_1_203"],
+    "nearestHallway": "liaquat_1_top_corridor",
+    "nearestStair": "liaquat_1_st_top"
+  },
+  {
+    "id": "liaquat_1_st_top",
+    "roomNumber": "Top Row Stairs",
+    "name": "Top Row Stairs",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "staircase",
+    "polygonPoints": [[0.57, 0.05], [0.70, 0.05], [0.70, 0.18], [0.57, 0.18]]
+  },
+  {
+    "id": "liaquat_1_female_fac_wash",
+    "roomNumber": "Faculty Washroom",
+    "name": "Faculty Washroom",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "washroom",
+    "polygonPoints": [[0.70, 0.05], [0.82, 0.05], [0.82, 0.18], [0.70, 0.18]],
+    "connectedRooms": ["liaquat_1_girls_wash"]
+  },
+  {
+    "id": "liaquat_1_girls_wash",
+    "roomNumber": "Girls Washroom",
+    "name": "Girls Washroom",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "washroom",
+    "aliases": ["Female Washroom", "Ladies Toilet"],
+    "polygonPoints": [[0.82, 0.05], [0.95, 0.05], [0.95, 0.18], [0.82, 0.18]],
+    "connectedRooms": ["liaquat_1_female_fac_wash"]
+  },
+  {
+    "id": "liaquat_1_fac_top",
+    "roomNumber": "Top Faculty",
+    "name": "Top Faculty Rooms",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "faculty",
+    "polygonPoints": [[0.05, 0.22], [0.35, 0.22], [0.35, 0.28], [0.05, 0.28]]
+  },
+  {
+    "id": "liaquat_1_lift_stair_area",
+    "roomNumber": "Elevator Lobby",
+    "name": "Elevator & Stair Lobby",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "elevator",
+    "polygonPoints": [[0.05, 0.28], [0.35, 0.28], [0.35, 0.34], [0.05, 0.34]]
+  },
+  {
+    "id": "liaquat_1_lab_1",
+    "roomNumber": "Computer Lab 1",
+    "name": "Computer Lab 1",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.34], [0.35, 0.34], [0.35, 0.41], [0.05, 0.41]]
+  },
+  {
+    "id": "liaquat_1_lab_2",
+    "roomNumber": "Web Multimedia Lab",
+    "name": "Web Multimedia Lab",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.41], [0.35, 0.41], [0.35, 0.48], [0.05, 0.48]]
+  },
+  {
+    "id": "liaquat_1_lab_3",
+    "roomNumber": "Computer Lab 3",
+    "name": "Computer Lab 3",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.48], [0.35, 0.48], [0.35, 0.55], [0.05, 0.55]]
+  },
+  {
+    "id": "liaquat_1_lab_4",
+    "roomNumber": "Computer Lab 4",
+    "name": "Computer Lab 4",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.55], [0.35, 0.55], [0.35, 0.62], [0.05, 0.62]]
+  },
+  {
+    "id": "liaquat_1_lab_5",
+    "roomNumber": "Computer Lab 5",
+    "name": "Computer Lab 5",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.62], [0.35, 0.62], [0.35, 0.69], [0.05, 0.69]]
+  },
+  {
+    "id": "liaquat_1_lab_6",
+    "roomNumber": "Computer Lab 6",
+    "name": "Computer Lab 6",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.69], [0.35, 0.69], [0.35, 0.76], [0.05, 0.76]]
+  },
+  {
+    "id": "liaquat_1_lab_7",
+    "roomNumber": "Software Design Lab",
+    "name": "Software Design Lab",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.76], [0.35, 0.76], [0.35, 0.83], [0.05, 0.83]]
+  },
+  {
+    "id": "liaquat_1_lab_8",
+    "roomNumber": "Software Application Lab",
+    "name": "Software Application Lab",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.05, 0.83], [0.35, 0.83], [0.35, 0.90], [0.05, 0.90]]
+  },
+  {
+    "id": "liaquat_1_fac_mid",
+    "roomNumber": "Faculty Office",
+    "name": "Faculty Office Bottom",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "faculty",
+    "polygonPoints": [[0.05, 0.90], [0.35, 0.90], [0.35, 0.96], [0.05, 0.96]]
+  },
+  {
+    "id": "liaquat_1_205",
+    "roomNumber": "205",
+    "name": "Classroom 205",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.65, 0.22], [0.95, 0.22], [0.95, 0.32], [0.65, 0.32]],
+    "anchorPoints": [
+      { "id": "ac_205_wc", "label": "Water Cooler", "x": 0.68, "y": 0.25, "category": "water_cooler" }
+    ]
+  },
+  {
+    "id": "liaquat_1_206",
+    "roomNumber": "206",
+    "name": "Classroom 206",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.65, 0.32], [0.95, 0.32], [0.95, 0.42], [0.65, 0.42]]
+  },
+  {
+    "id": "liaquat_1_207",
+    "roomNumber": "207",
+    "name": "Classroom 207",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.65, 0.42], [0.95, 0.42], [0.95, 0.52], [0.65, 0.52]]
+  },
+  {
+    "id": "liaquat_1_208",
+    "roomNumber": "208",
+    "name": "Classroom 208",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.65, 0.52], [0.95, 0.52], [0.95, 0.62], [0.65, 0.62]]
+  },
+  {
+    "id": "liaquat_1_209",
+    "roomNumber": "209",
+    "name": "Classroom 209",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.65, 0.62], [0.95, 0.62], [0.95, 0.72], [0.65, 0.72]]
+  },
+  {
+    "id": "liaquat_1_210",
+    "roomNumber": "210",
+    "name": "Classroom 210",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.65, 0.72], [0.95, 0.72], [0.95, 0.82], [0.65, 0.82]]
+  },
+  {
+    "id": "liaquat_1_lab_right_upper",
+    "roomNumber": "Right Lab",
+    "name": "Large Upper Lab Right",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.65, 0.82], [0.95, 0.82], [0.95, 0.92], [0.65, 0.92]]
+  },
+  {
+    "id": "liaquat_1_pwr_rm",
+    "roomNumber": "Power Server",
+    "name": "Power Server Room",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "serverRoom",
+    "polygonPoints": [[0.40, 0.25], [0.60, 0.25], [0.60, 0.35], [0.40, 0.35]]
+  },
+  {
+    "id": "liaquat_1_219",
+    "roomNumber": "219",
+    "name": "Classroom 219",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "classroom",
+    "polygonPoints": [[0.40, 0.35], [0.60, 0.35], [0.60, 0.45], [0.40, 0.45]]
+  },
+  {
+    "id": "liaquat_1_fyp_lab",
+    "roomNumber": "FYP Lab",
+    "name": "FYP Laboratory",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "laboratory",
+    "polygonPoints": [[0.40, 0.45], [0.60, 0.45], [0.60, 0.55], [0.40, 0.55]]
+  },
+  {
+    "id": "liaquat_1_boys_wash",
+    "roomNumber": "Boys Washroom",
+    "name": "Boys Washroom",
+    "building": "Liaquat Block",
+    "floor": 1,
+    "type": "washroom",
+    "polygonPoints": [[0.40, 0.82], [0.60, 0.82], [0.60, 0.92], [0.40, 0.92]]
+  }
+]

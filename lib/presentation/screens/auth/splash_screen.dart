@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
 import '../../widgets/common/trace_logo.dart';
+import 'onboarding_screen.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -69,7 +70,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
-    if (hasSeenOnboarding != 'true') {
+    if (devForceOnboarding || hasSeenOnboarding != 'true') {
       context.go('/onboarding');
     } else if (user != null) {
       context.go('/home');

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'login_screen.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/cms_models.dart';
@@ -128,6 +129,8 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
             existingUser['fatherName'] != null) {
           debugPrint('💎 User fully verified with deep data, skipping sync.');
           setState(() => _loadingStatus = 'Welcome back!');
+          final localSettings = ref.read(localSettingsProvider);
+          await localSettings.saveCMSAccount(enrollment, _passwordController.text.trim());
           await ref.read(authServiceProvider).setCurrentUserFromUid(enrollment);
           if (mounted) context.go('/home');
           return;
@@ -233,6 +236,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       await localSettings.setCurrentAddress(curAddr);
       await localSettings.setPermanentAddress(permAddr);
       await localSettings.setIntakeSemester(intake);
+      await localSettings.saveCMSAccount(enrollment, _passwordController.text.trim());
 
       final api = ref.read(apiServiceProvider);
       await api.syncUser({
@@ -289,29 +293,39 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = AppColors.textPrimary(context);
+    final subColor = AppColors.textSecondary(context);
+
     return Scaffold(
-      backgroundColor: AppColors.navyDarkest,
+      backgroundColor: AppColors.pageBg(context),
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text('Campus Verification', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+        title: Text('Campus Verification', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: textColor)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.white,
+        foregroundColor: textColor,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: textColor),
+          onPressed: () => context.pop(),
+        ),
       ),
-      body: Stack(
+      body: FallingPatternBackground(
+        child: Stack(
         children: [
-          // Background WebView (Positioned behind content but active)
-          IgnorePointer(
-            child: Opacity(
-              opacity: 0.01, // Near invisible but keeps it rendering for reliability
-              child: SizedBox(
-                height: 10,
-                width: 10,
-                child: InAppWebView(
+          // Background WebView (Positioned off-screen so it is 100% invisible but fully active in the widget tree)
+          Positioned(
+            left: -1000,
+            top: -1000,
+            child: SizedBox(
+              width: 100,
+              height: 100,
+              child: InAppWebView(
                   initialUrlRequest: URLRequest(url: WebUri("https://cms.bahria.edu.pk/Logins/Student/Login.aspx")),
                   initialSettings: InAppWebViewSettings(
                     javaScriptEnabled: true,
                     domStorageEnabled: true,
+                    databaseEnabled: true,
+                    cacheEnabled: true,
                     useHybridComposition: true,
                   ),
                   onWebViewCreated: (controller) => _webViewController = controller,
@@ -344,7 +358,6 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
                 ),
               ),
             ),
-          ),
 
           // Scrollable UI Content
           SafeArea(
@@ -358,17 +371,17 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
                   const SizedBox(height: 24),
                   Text(
                     'Verify Student Identity',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Use your official CMS credentials to link your campus profile.',
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.white70),
+                    style: GoogleFonts.inter(fontSize: 14, color: subColor),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
-                  
+                  _buildPresetsRow(context),
                   _CustomField(
                     controller: _enrollmentController,
                     label: 'Enrollment ID',
@@ -418,6 +431,81 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
           if (_isSyncing) _SyncingOverlay(status: _loadingStatus),
         ],
       ),
+     ),
+    );
+  }
+
+  Widget _buildPresetsRow(BuildContext context) {
+    final settings = ref.read(localSettingsProvider);
+    final presets = settings.getSavedCMSAccounts();
+    if (presets.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = AppColors.textPrimary(context);
+    final subColor = AppColors.textSecondary(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Saved Accounts',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.jadePrimary),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: presets.length,
+            itemBuilder: (context, i) {
+              final preset = presets[i];
+              final enrollment = preset['enrollment'] ?? '';
+              final password = preset['password'] ?? '';
+              return Container(
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.jadePrimary.withOpacity(0.2)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _enrollmentController.text = enrollment;
+                          _passwordController.text = password;
+                        });
+                        _handleVerify();
+                      },
+                      child: Row(
+                        children: [
+                          const Icon(Icons.badge_rounded, size: 14, color: AppColors.jadePrimary),
+                          const SizedBox(width: 8),
+                          Text(
+                            enrollment,
+                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        await settings.deleteCMSAccount(enrollment);
+                        setState(() {});
+                      },
+                      child: Icon(Icons.close_rounded, size: 14, color: subColor.withOpacity(0.6)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }
@@ -439,21 +527,25 @@ class _CustomField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = AppColors.textPrimary(context);
+    final subColor = AppColors.textSecondary(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70)),
+        Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: subColor)),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           obscureText: isPassword,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: textColor),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white24),
+            hintStyle: TextStyle(color: subColor.withOpacity(0.3)),
             prefixIcon: Icon(icon, color: AppColors.jadePrimary, size: 20),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
+            fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.jadePrimary)),
           ),
@@ -469,8 +561,12 @@ class _SyncingOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = AppColors.textPrimary(context);
+    final subColor = AppColors.textSecondary(context);
+
     return Container(
-      color: AppColors.navyDarkest,
+      color: isDark ? AppColors.navyDarkest : Colors.white,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -480,7 +576,7 @@ class _SyncingOverlay extends StatelessWidget {
             Text(
               status,
               style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -489,7 +585,7 @@ class _SyncingOverlay extends StatelessWidget {
             Text(
               'Getting your timetable & campus data ready.',
               style: GoogleFonts.inter(
-                color: Colors.white70,
+                color: subColor,
                 fontSize: 14,
               ),
             ),

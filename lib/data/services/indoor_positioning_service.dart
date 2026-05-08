@@ -32,12 +32,12 @@ class IndoorPositioningService {
     _mockTimer?.cancel();
     _mockTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       // Simulate moving between rooms in Liaquat Block
-      final rooms = CampusMapService.buildings[0].floors[0].rooms;
+      final rooms = CampusMapService.buildings[0].floors[1].rooms;
       final randomRoom = rooms[Random().nextInt(rooms.length)];
       
       final location = CampusLocation(
         building: 'Liaquat Block',
-        floor: 0,
+        floor: 1,
         room: randomRoom.number,
         relativePos: randomRoom.position,
       );

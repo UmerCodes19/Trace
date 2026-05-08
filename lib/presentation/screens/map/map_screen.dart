@@ -1,6 +1,8 @@
 // lib/presentation/screens/map/map_screen.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
+import 'dart:ui' as ui show Path;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,9 +12,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../../data/models/map/campus_gis_models.dart';
+import '../../../data/services/map/map_engine_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
+import '../../../data/services/offline/offline_cache_service.dart';
+import '../../../data/services/offline/sync_manager.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/campus_map_service.dart';
 import '../../../data/services/indoor_positioning_service.dart';
@@ -36,7 +42,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   
   bool _isIndoorMode = true;
   BuildingModel _activeBuilding = CampusMapService.buildings[0];
-  int _activeFloor = 0;
+  int _activeFloor = 1;
   CampusLocation? _userIndoorPos;
   StreamSubscription? _posSubscription;
 
@@ -71,12 +77,50 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _loadPosts() async {
     final api = ref.read(apiServiceProvider);
-    final postsData = await api.getPosts(status: 'open');
+    List<dynamic> postsData = [];
+    bool loadedFromCache = false;
+
+    try {
+      postsData = await api.getPosts(status: 'open');
+      // Cache fresh data securely
+      await OfflineCacheService.instance.saveEncryptedString('posts_feed_cache', jsonEncode(postsData));
+    } catch (e) {
+      debugPrint('TRACE: Failed to load posts from API ($e). Falling back to encrypted local cache...');
+      try {
+        final cachedData = await OfflineCacheService.instance.readDecryptedString('posts_feed_cache');
+        if (cachedData != null) {
+          postsData = jsonDecode(cachedData);
+          loadedFromCache = true;
+        }
+      } catch (innerEx) {
+        debugPrint('TRACE: Error reading local cache: $innerEx');
+      }
+    }
+
     if (!mounted) return;
+
     setState(() {
-      _posts = postsData.map((p) => SimplePostModel.fromMap(p)).toList();
+      final List<SimplePostModel> loadedPosts = postsData.map((p) => SimplePostModel.fromMap(p)).toList();
+      
+      // Inject local pending posts into the map view instantly!
+      final pendingRaw = SyncManager.instance.getPendingPosts();
+      final pendingPosts = pendingRaw.map((p) => SimplePostModel.fromMap(p)).toList();
+      
+      final Map<String, SimplePostModel> uniqueMap = {};
+      for (var p in loadedPosts) {
+        uniqueMap[p.id] = p;
+      }
+      for (var p in pendingPosts) {
+        uniqueMap[p.id] = p;
+      }
+
+      _posts = uniqueMap.values.toList();
       _isLoading = false;
     });
+
+    if (loadedFromCache && mounted) {
+      showAppSnack(context, '📡 Showing cached posts (offline mode)');
+    }
   }
 
   List<SimplePostModel> get _filteredPosts {
@@ -193,15 +237,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.pageBg(context),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (sheetCtx) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.pageBg(context),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -238,7 +292,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     final p = roomPosts[index];
                     return ListTile(
                       onTap: () {
-                        Navigator.pop(context);
+                        Navigator.of(sheetCtx).pop();
                         _showPinBottomSheet(p);
                       },
                       contentPadding: EdgeInsets.zero,
@@ -257,13 +311,156 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             SizedBox(
               width: double.infinity,
               height: 50,
-              child: OutlinedButton(
+              child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context);
-                  _onLongPressIndoor(room.position);
+                  Navigator.of(sheetCtx).pop();
+                  _openSpotSelector(room);
                 },
-                child: Text('Post Item Here'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.jadePrimary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text('Zoom & Explore Room Blueprint', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
               ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+  void _openSpotSelector(RoomModel room) {
+    Offset selectedSpot = const Offset(0.5, 0.5); // Center by default
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          backgroundColor: AppColors.pageBg(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Column(
+            children: [
+              Text('Mark Spot inside ${room.name}', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('Tap anywhere on the blueprint grid to set a precise pin', style: GoogleFonts.inter(fontSize: 10, color: AppColors.textSecondary(context))),
+            ],
+          ),
+          content: Container(
+            width: 300, height: 300,
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border(context)),
+            ),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (details) {
+                final localPos = details.localPosition;
+                setModalState(() {
+                  selectedSpot = Offset(
+                    ((localPos.dx - 30.0) / 240.0).clamp(0.0, 1.0),
+                    ((localPos.dy - 30.0) / 240.0).clamp(0.0, 1.0),
+                  );
+                });
+              },
+              onPanUpdate: (details) {
+                final localPos = details.localPosition;
+                setModalState(() {
+                  selectedSpot = Offset(
+                    ((localPos.dx - 30.0) / 240.0).clamp(0.0, 1.0),
+                    ((localPos.dy - 30.0) / 240.0).clamp(0.0, 1.0),
+                  );
+                });
+              },
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _BlueprintGridPainter(isDark: Theme.of(context).brightness == Brightness.dark),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _RoomBlueprintPainter(
+                        polygonPoints: room.polygonPoints,
+                        accentColor: AppColors.jadePrimary,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0, top: 12, right: 0,
+                    child: Center(
+                      child: Text(
+                        'Room ${room.number}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.jadePrimary.withOpacity(0.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Interactive tagged items inside the room blueprint
+                  ..._filteredPosts.where((p) => p.location.room == room.number && p.location.indoorX != null && p.location.indoorY != null).map((p) {
+                    final double pinX = 30.0 + (p.location.indoorX! * 240.0);
+                    final double pinY = 30.0 + (p.location.indoorY! * 240.0);
+                    return Positioned(
+                      left: pinX - 10,
+                      top: pinY - 10,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pop(dialogCtx);
+                          _showPinBottomSheet(p);
+                        },
+                        child: Container(
+                          width: 20, height: 20,
+                          decoration: BoxDecoration(
+                            color: p.isLost ? AppColors.lost : AppColors.found,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1))],
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.location_on, size: 10, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+
+                  Positioned(
+                    left: (30.0 + (selectedSpot.dx * 240.0)) - 15,
+                    top: (30.0 + (selectedSpot.dy * 240.0)) - 30,
+                    child: Icon(Icons.add_location_alt_rounded, color: AppColors.jadePrimary, size: 30),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.textSecondary(context))),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogCtx);
+                context.push('/create', extra: {
+                  'building': _activeBuilding.name,
+                  'floor': _activeFloor,
+                  'room': room.number,
+                  'indoorX': selectedSpot.dx,
+                  'indoorY': selectedSpot.dy,
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.jadePrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text('Confirm Spot', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ],
         ),
@@ -282,16 +479,47 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         children: [
           // ── Map Layer ──────────────────────────────────────────────
           _isIndoorMode 
-            ? IndoorMapWidget(
-                building: _activeBuilding,
-                floor: _activeFloor,
-                posts: _filteredPosts,
-                userPos: _userIndoorPos?.building == _activeBuilding.name ? _userIndoorPos?.relativePos : null,
-                onPostTap: _showPinBottomSheet,
-                onRoomTap: _showRoomDetails,
-                onStairTap: (stair) => setState(() => _activeFloor = stair.connectsToFloor),
-                onLongPress: _onLongPressIndoor,
-              ).animate().fadeIn(duration: 400.ms)
+            ? (_activeBuilding.id == 'liaquat'
+                ? IndoorMapWidget(
+                    building: _activeBuilding,
+                    floor: _activeFloor,
+                    posts: _filteredPosts,
+                    userPos: _userIndoorPos?.building == _activeBuilding.name ? _userIndoorPos?.relativePos : null,
+                    onPostTap: _showPinBottomSheet,
+                    onRoomTap: (room) {
+                      if (room is CampusRoom) {
+                        final roomNum = room.roomNumber;
+                        final exists = _activeBuilding.floors[_activeFloor].rooms.any((r) => r.number == roomNum);
+                        if (exists) {
+                          final matchedRoom = _activeBuilding.floors[_activeFloor].rooms.firstWhere((r) => r.number == roomNum);
+                          _showRoomDetails(matchedRoom);
+                        } else {
+                          // Dynamically build RoomModel from GIS CampusRoom
+                          final tempRoomModel = RoomModel(
+                            number: room.roomNumber,
+                            name: room.name,
+                            position: MapEngineService.instance.getRoomCenter(room),
+                            polygonPoints: room.polygonPoints,
+                          );
+                          _showRoomDetails(tempRoomModel);
+                        }
+                      } else {
+                        try {
+                          final roomNum = (room as dynamic).roomNumber as String;
+                          final matchedRoom = _activeBuilding.floors[_activeFloor].rooms.firstWhere(
+                            (r) => r.number == roomNum,
+                            orElse: () => _activeBuilding.floors[_activeFloor].rooms.first,
+                          );
+                          _showRoomDetails(matchedRoom);
+                        } catch (_) {
+                          _showRoomDetails(room as RoomModel);
+                        }
+                      }
+                    },
+                    onStairTap: (stair) => setState(() => _activeFloor = stair.connectsToFloor),
+                    onLongPress: _onLongPressIndoor,
+                  ).animate().fadeIn(duration: 400.ms)
+                : _buildComingSoonPlaceholder(_activeBuilding))
             : FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
@@ -342,9 +570,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   MarkerLayer(
                     markers: _filteredPosts.map((p) {
                       var point = LatLng(p.location.latitude, p.location.longitude);
-                      if (p.location.latitude == 0) {
-                        final b = CampusMapService.buildings.firstWhere((b) => b.name == p.location.building, orElse: () => CampusMapService.buildings[0]);
-                        point = LatLng(b.lat, b.lng);
+                      if (p.location.latitude == 0.0) {
+                        final b = CampusMapService.buildings.firstWhere(
+                          (b) => b.name.toLowerCase().contains(p.location.building.toLowerCase()) || p.location.building.toLowerCase().contains(b.name.toLowerCase()),
+                          orElse: () => CampusMapService.buildings[0],
+                        );
+                        // Deterministic scattering in building radius (approx. 10m-20m)
+                        final shiftLat = ((p.id.hashCode % 100) - 50) * 0.0000028;
+                        final shiftLng = (((p.id.hashCode ~/ 100) % 100) - 50) * 0.0000032;
+                        point = LatLng(b.lat + shiftLat, b.lng + shiftLng);
                       }
                       return Marker(
                         point: point,
@@ -398,23 +632,49 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // ── Building & Floor Controls (Indoor Only) ────────────────
           if (_isIndoorMode) ...[
             Positioned(
-              right: 20,
-              top: 180,
-              child: _FloorController(
-                maxFloor: _activeBuilding.floors.length - 1,
-                active: _activeFloor,
-                onChanged: (f) => setState(() => _activeFloor = f),
-              ),
-            ),
-            Positioned(
-              left: 20,
-              bottom: 120,
-              child: _BuildingController(
-                active: _activeBuilding,
-                onChanged: (b) => setState(() {
-                  _activeBuilding = b;
-                  _activeFloor = 0;
-                }),
+              right: 16,
+              top: 155,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.card(context).withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.border(context)),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 22, height: 22,
+                      decoration: const BoxDecoration(
+                        color: AppColors.jadePrimary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          'F1',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'More floors coming soon!',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textSecondary(context),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -435,30 +695,86 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildFilters() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.card(context).withOpacity(0.85),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border(context).withOpacity(0.4)),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _ChipFilter(
-            label: 'All Items',
+          _PremiumSegmentButton(
+            label: 'ALL REPORTS',
+            icon: Icons.grid_view_rounded,
             isSelected: _selectedFilter == 'all',
             onTap: () => setState(() => _selectedFilter = 'all'),
           ),
-          const SizedBox(width: 8),
-          _ChipFilter(
-            label: '🔴 Lost',
+          _PremiumSegmentButton(
+            label: 'LOST',
+            icon: Icons.search_rounded,
             isSelected: _selectedFilter == 'lost',
+            color: AppColors.lost,
             onTap: () => setState(() => _selectedFilter = 'lost'),
           ),
-          const SizedBox(width: 8),
-          _ChipFilter(
-            label: '🟢 Found',
+          _PremiumSegmentButton(
+            label: 'FOUND',
+            icon: Icons.check_circle_outline_rounded,
             isSelected: _selectedFilter == 'found',
+            color: AppColors.found,
             onTap: () => setState(() => _selectedFilter = 'found'),
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 200.ms).slideY(begin: -0.2, end: 0);
+    ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.95, 0.95), end: const Offset(1.0, 1.0));
+  }
+
+  Widget _buildComingSoonPlaceholder(BuildingModel building) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: GlassCard(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.jadePrimary.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.architecture_rounded, size: 48, color: AppColors.jadePrimary),
+              ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(1, 1), end: const Offset(1.08, 1.08), duration: 1500.ms, curve: Curves.easeInOut),
+              const SizedBox(height: 24),
+              Text(
+                '${building.name} Layout Coming Soon',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context)),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Our GIS mapping engineers are currently digitizing the architectural layouts and indoor positioning infrastructure for this block. It will be available in later releases!',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 12, height: 1.5, color: AppColors.textSecondary(context)),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => setState(() => _activeBuilding = CampusMapService.buildings[0]),
+                icon: const Icon(Icons.map_rounded, size: 16),
+                label: const Text('Back to Liaquat Block'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.jadePrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -621,13 +937,22 @@ class _PinPreviewSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
-      decoration: BoxDecoration(
-        color: AppColors.pageBg(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: AppColors.border(context), width: 0.5),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        decoration: BoxDecoration(
+          color: AppColors.pageBg(context),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border(context), width: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            )
+          ],
+        ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -671,6 +996,137 @@ class _PinPreviewSheet extends StatelessWidget {
           ),
         ],
       ),
+     ),
     );
   }
+}
+
+class _BlueprintGridPainter extends CustomPainter {
+  final bool isDark;
+  _BlueprintGridPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04)
+      ..strokeWidth = 1.0;
+
+    const spacing = 15.0;
+    for (double i = 0; i < size.width; i += spacing) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    }
+    for (double i = 0; i < size.height; i += spacing) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+class _PremiumSegmentButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _PremiumSegmentButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = color ?? AppColors.jadePrimary;
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withOpacity(0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? activeColor.withOpacity(0.4) : Colors.transparent, width: 1.0),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isSelected ? activeColor : AppColors.textSecondary(context)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: isSelected ? activeColor : AppColors.textSecondary(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomBlueprintPainter extends CustomPainter {
+  final List<Offset>? polygonPoints;
+  final Color accentColor;
+
+  _RoomBlueprintPainter({required this.polygonPoints, required this.accentColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final points = polygonPoints ?? [const Offset(0.1, 0.1), const Offset(0.9, 0.1), const Offset(0.9, 0.9), const Offset(0.1, 0.9)];
+    
+    // Find min/max bounding box
+    double minX = double.infinity;
+    double maxX = -double.infinity;
+    double minY = double.infinity;
+    double maxY = -double.infinity;
+    
+    for (var p in points) {
+      if (p.dx < minX) minX = p.dx;
+      if (p.dx > maxX) maxX = p.dx;
+      if (p.dy < minY) minY = p.dy;
+      if (p.dy > maxY) maxY = p.dy;
+    }
+    
+    final width = (maxX - minX).clamp(0.01, 1.0);
+    final height = (maxY - minY).clamp(0.01, 1.0);
+    
+    final double margin = 30.0;
+    final drawWidth = size.width - (margin * 2);
+    final drawHeight = size.height - (margin * 2);
+    
+    final path = ui.Path();
+    final firstLocalX = margin + (((points.first.dx - minX) / width) * drawWidth);
+    final firstLocalY = margin + (((points.first.dy - minY) / height) * drawHeight);
+    path.moveTo(firstLocalX, firstLocalY);
+    
+    for (var p in points.skip(1)) {
+      final localX = margin + (((p.dx - minX) / width) * drawWidth);
+      final localY = margin + (((p.dy - minY) / height) * drawHeight);
+      path.lineTo(localX, localY);
+    }
+    path.close();
+
+    final fillPaint = Paint()
+      ..color = accentColor.withOpacity(0.12)
+      ..style = PaintingStyle.fill;
+
+    final strokePaint = Paint()
+      ..color = accentColor
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoomBlueprintPainter oldDelegate) => true;
 }

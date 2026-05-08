@@ -1,9 +1,11 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_post_model.dart';
-import '../../../data/services/campus_map_service.dart';
+import '../../../data/models/map/campus_gis_models.dart';
+import '../../../data/services/map/map_engine_service.dart';
 
 class IndoorMapWidget extends StatefulWidget {
   const IndoorMapWidget({
@@ -18,13 +20,13 @@ class IndoorMapWidget extends StatefulWidget {
     this.onLongPress,
   });
 
-  final BuildingModel building;
+  final dynamic building;
   final int floor;
   final List<SimplePostModel> posts;
   final Offset? userPos;
-  final Function(RoomModel)? onRoomTap;
+  final Function(dynamic)? onRoomTap;
   final Function(SimplePostModel)? onPostTap;
-  final Function(StairModel)? onStairTap;
+  final Function(dynamic)? onStairTap;
   final Function(Offset normalizedPos)? onLongPress;
 
   @override
@@ -34,17 +36,33 @@ class IndoorMapWidget extends StatefulWidget {
 class _IndoorMapWidgetState extends State<IndoorMapWidget> {
   final TransformationController _transformationController = TransformationController();
   double _currentScale = 1.0;
-  RoomModel? _hoveredRoom;
+  CampusRoom? _hoveredRoom;
+  bool _engineReady = false;
+  List<CampusRoom>? _activePath;
 
   @override
   void initState() {
     super.initState();
+    _initEngine();
     _transformationController.addListener(() {
       final scale = _transformationController.value.getMaxScaleOnAxis();
-      if ((scale - _currentScale).abs() > 0.05) {
+      if ((scale - _currentScale).abs() > 0.02) {
         setState(() => _currentScale = scale);
       }
     });
+  }
+
+  Future<void> _initEngine() async {
+    await MapEngineService.instance.initialize();
+    if (mounted) {
+      setState(() {
+        _engineReady = true;
+        // Center-zoom initial view so the entire map is visible and beautiful
+        _transformationController.value = Matrix4.identity()
+          ..translate(-200.0, -100.0)
+          ..scale(0.6);
+      });
+    }
   }
 
   @override
@@ -54,179 +72,264 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
   }
 
   void _handleTap(Offset localPos, Size mapSize) {
-    final floorData = widget.building.floors.firstWhere((f) => f.level == widget.floor);
+    if (!_engineReady) return;
     final normalizedPos = Offset(localPos.dx / mapSize.width, localPos.dy / mapSize.height);
+    final room = MapEngineService.instance.detectRoomFromCoordinate(normalizedPos, widget.floor);
 
-    for (var room in floorData.rooms) {
-      final path = _getRoomPath(room, mapSize);
-      if (path.contains(localPos)) {
-        widget.onRoomTap?.call(room);
-        return;
-      }
+    debugPrint('TRACE DEBUG: Tapped localPos=$localPos, normalizedPos=$normalizedPos, room detected=${room?.id} (${room?.roomNumber})');
+
+    if (room != null) {
+      final startId = widget.floor == 1 ? "liaquat_1_201" : "liaquat_${widget.floor}_201";
+      debugPrint('TRACE DEBUG: Calculating path from startId=$startId to endId=${room.id}');
+      final path = MapEngineService.instance.calculateAStarPath(startId, room.id);
+      debugPrint('TRACE DEBUG: Path calculation result length = ${path.length}, nodes = ${path.map((r) => r.roomNumber).toList()}');
+      setState(() {
+        _activePath = path;
+      });
+      widget.onRoomTap?.call(room);
     }
   }
 
-  Path _getRoomPath(RoomModel room, Size mapSize) {
-    final path = Path();
-    if (room.polygonPoints != null && room.polygonPoints!.isNotEmpty) {
-      path.moveTo(room.polygonPoints!.first.dx * mapSize.width, room.polygonPoints!.first.dy * mapSize.height);
-      for (var point in room.polygonPoints!.skip(1)) {
-        path.lineTo(point.dx * mapSize.width, point.dy * mapSize.height);
-      }
-      path.close();
-    } else {
-      final rect = Rect.fromCenter(
-        center: Offset(room.position.dx * mapSize.width, room.position.dy * mapSize.height),
-        width: room.size.width * mapSize.width,
-        height: room.size.height * mapSize.height,
-      );
-      path.addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)));
+  void _handleHover(Offset localPos, Size mapSize) {
+    if (!_engineReady) return;
+    final normalizedPos = Offset(localPos.dx / mapSize.width, localPos.dy / mapSize.height);
+    final room = MapEngineService.instance.detectRoomFromCoordinate(normalizedPos, widget.floor);
+
+    if (room != _hoveredRoom) {
+      setState(() {
+        _hoveredRoom = room;
+      });
     }
-    return path;
   }
 
   @override
   Widget build(BuildContext context) {
-    final floorData = widget.building.floors.firstWhere((f) => f.level == widget.floor);
+    if (!_engineReady) {
+      return Center(
+        child: const CircularProgressIndicator(strokeWidth: 2).animate().scale(),
+      );
+    }
+
+    final gisRooms = MapEngineService.instance.getRoomsOnFloor(widget.floor);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = AppColors.jadePrimary;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final mapSize = Size(constraints.maxWidth * 2.5, constraints.maxHeight * 2.5);
+    // Spacious 1200 x 1680 virtual layout canvas giving room vectors huge breathing room
+    const mapSize = Size(1200.0, 1680.0);
 
-        return GestureDetector(
-          onTapUp: (details) {
-            final RenderBox box = context.findRenderObject() as RenderBox;
-            final localPos = box.globalToLocal(details.globalPosition);
-            final scenePos = _transformationController.toScene(localPos);
-            _handleTap(scenePos, mapSize);
-          },
-          onLongPressStart: (details) {
-            final RenderBox box = context.findRenderObject() as RenderBox;
-            final localPos = box.globalToLocal(details.globalPosition);
-            final scenePos = _transformationController.toScene(localPos);
-            
-            final normalizedX = (scenePos.dx / mapSize.width).clamp(0.0, 1.0);
-            final normalizedY = (scenePos.dy / mapSize.height).clamp(0.0, 1.0);
-            widget.onLongPress?.call(Offset(normalizedX, normalizedY));
-          },
-          child: InteractiveViewer(
-            transformationController: _transformationController,
-            maxScale: 5.0,
-            minScale: 0.2,
-            boundaryMargin: const EdgeInsets.all(double.infinity),
-            constrained: false,
-            child: SizedBox(
-              width: mapSize.width,
-              height: mapSize.height,
-              child: Stack(
-                children: [
-                  // 1. Vector Map Layer
-                  Positioned.fill(
+    return MouseRegion(
+      onHover: (details) {
+        final RenderBox box = context.findRenderObject() as RenderBox;
+        final localPos = box.globalToLocal(details.position);
+        final scenePos = _transformationController.toScene(localPos);
+        _handleHover(scenePos, mapSize);
+      },
+      child: Container(
+        color: Colors.transparent,
+        child: InteractiveViewer(
+          transformationController: _transformationController,
+          maxScale: 3.0,
+          minScale: 0.3,
+          boundaryMargin: const EdgeInsets.symmetric(horizontal: 300.0, vertical: 400.0), // Restrict panning tightly
+          panEnabled: true,
+          scaleEnabled: true,
+          constrained: false, // Large unconstrained canvas for spacious placement
+          child: SizedBox(
+            width: mapSize.width,
+            height: mapSize.height,
+            child: Stack(
+              children: [
+                // Layer 0: Background Tap Target for Room Selection
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: (details) {
+                      final RenderBox box = context.findRenderObject() as RenderBox;
+                      final localPos = box.globalToLocal(details.globalPosition);
+                      final scenePos = _transformationController.toScene(localPos);
+                      _handleTap(scenePos, mapSize);
+                    },
+                    onLongPressStart: (details) {
+                      final RenderBox box = context.findRenderObject() as RenderBox;
+                      final localPos = box.globalToLocal(details.globalPosition);
+                      final scenePos = _transformationController.toScene(localPos);
+                      
+                      final normalizedX = (scenePos.dx / mapSize.width).clamp(0.0, 1.0);
+                      final normalizedY = (scenePos.dy / mapSize.height).clamp(0.0, 1.0);
+                      widget.onLongPress?.call(Offset(normalizedX, normalizedY));
+                    },
+                  ),
+                ),
+                // Layer 1-4: Map Custom Painters
+                Positioned.fill(
+                  child: IgnorePointer(
                     child: CustomPaint(
                       painter: _VectorMapPainter(
-                        floor: floorData,
+                        rooms: gisRooms,
                         isDark: isDark,
                         accent: accent,
                         scale: _currentScale,
+                        hoveredRoomId: _hoveredRoom?.id,
+                        activePath: _activePath,
+                      ),
+                    ),
+                  ),
+                ),
+
+                  // Layer 5: Heatmaps
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _HeatmapPainter(
+                          posts: widget.posts,
+                          rooms: gisRooms,
+                          scale: _currentScale,
+                        ),
                       ),
                     ),
                   ),
 
-                  // 2. Interactive Item Layer (Pins, User, Stairs)
-                  _buildInteractiveLayer(floorData, mapSize, accent),
+                  // Layer 6-8: Badges, Markers, Overlays
+                  _buildInteractiveLayer(gisRooms, mapSize, accent, isDark),
                 ],
               ),
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
   }
 
-  Widget _buildInteractiveLayer(FloorModel floor, Size mapSize, Color accent) {
+  Widget _buildInteractiveLayer(List<CampusRoom> rooms, Size mapSize, Color accent, bool isDark) {
     return Stack(
       children: [
-        // Room Labels (Procedural)
-        ...floor.rooms.map((room) {
-          final showLabel = _currentScale > 0.7;
-          if (!showLabel) return const SizedBox.shrink();
+        // Pill-Badge Room Labels (Incredibly spacious and clear on a 1200x1680 canvas!)
+        ...rooms.where((r) => r.type != RoomType.hallway).map((room) {
+          final center = MapEngineService.instance.getRoomCenter(room);
+
+          final isHovered = room.id == _hoveredRoom?.id;
+          final isWashroom = room.type == RoomType.washroom;
+          final isStairs = room.type == RoomType.staircase || room.type == RoomType.elevator;
+
+          Color badgeBorderColor = accent.withOpacity(0.35);
+          Color textColor = isDark ? Colors.white : Colors.black87;
+          
+          if (isHovered) {
+            badgeBorderColor = accent;
+          } else if (isWashroom) {
+            badgeBorderColor = Colors.blueAccent.withOpacity(0.4);
+          } else if (isStairs) {
+            badgeBorderColor = Colors.orangeAccent.withOpacity(0.4);
+          }
+
+          // Fixed readable text sizes on spacious canvas
+          final fontSize = isHovered ? 15.0 : 13.5;
 
           return Positioned(
-            left: room.position.dx * mapSize.width,
-            top: room.position.dy * mapSize.height,
+            left: center.dx * mapSize.width,
+            top: center.dy * mapSize.height,
             child: FractionalTranslation(
               translation: const Offset(-0.5, -0.5),
               child: IgnorePointer(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      room.number,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16 / _currentScale.clamp(0.5, 2.0),
-                        fontWeight: FontWeight.w900,
-                        color: accent.withOpacity(0.6),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    if (_currentScale > 1.2)
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF161F1B).withOpacity(0.92) : Colors.white.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: badgeBorderColor, width: isHovered ? 1.8 : 1.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        room.name.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 10 / _currentScale.clamp(0.5, 2.0),
-                          fontWeight: FontWeight.bold,
-                          color: accent.withOpacity(0.3),
-                          letterSpacing: 2,
+                        room.roomNumber,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                          letterSpacing: 0.5,
                         ),
-                      ).animate().fadeIn(),
-                  ],
+                      ),
+                      if (_currentScale > 0.6 && room.name != room.roomNumber)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2.0),
+                          child: Text(
+                            room.name.split(' ').take(2).join(' ').toUpperCase(),
+                            style: GoogleFonts.inter(
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
           );
         }),
 
-        // Stairs
-        ...floor.stairs.map((stair) {
+        // Semantic Landmarks
+        ...rooms.expand((room) => room.anchorPoints).map((anchor) {
           return Positioned(
-            left: stair.position.dx * mapSize.width,
-            top: stair.position.dy * mapSize.height,
+            left: anchor.position.dx * mapSize.width,
+            top: anchor.position.dy * mapSize.height,
             child: FractionalTranslation(
               translation: const Offset(-0.5, -0.5),
-              child: GestureDetector(
-                onTap: () => widget.onStairTap?.call(stair),
+              child: IgnorePointer(
                 child: Container(
-                  width: 44 / _currentScale.clamp(0.8, 2.0),
-                  height: 44 / _currentScale.clamp(0.8, 2.0),
+                  padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: AppColors.jadePrimary,
+                    color: Colors.orangeAccent.withOpacity(0.2),
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: AppColors.jadePrimary.withOpacity(0.4), blurRadius: 12, spreadRadius: 2),
-                    ],
+                    border: Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 1.0),
                   ),
-                  child: Icon(Icons.stairs_rounded, size: 22 / _currentScale.clamp(0.8, 2.0), color: Colors.white),
+                  child: const Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Colors.orangeAccent,
+                  ),
                 ),
-              ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
+              ),
             ),
           );
         }),
 
-        // Pins
+        // Active Post Pins
         ...widget.posts.where((p) {
-          return p.location.building == widget.building.name && p.location.floor == widget.floor;
+          final isLiaquat = p.location.building.toLowerCase().contains("liaquat");
+          final isCorrectFloor = p.location.floor == widget.floor || 
+                                (widget.floor == 1 && (p.location.room?.toLowerCase().contains("lab") ?? false));
+          return isLiaquat && isCorrectFloor;
         }).map((post) {
           Offset pos;
           if (post.location.indoorX != null && post.location.indoorY != null) {
             pos = Offset(post.location.indoorX!, post.location.indoorY!);
           } else {
-            final room = post.location.room != null ? CampusMapService.findRoom(post.location.room!) : null;
-            pos = room?.position ?? const Offset(0.5, 0.5);
+            final matchedRoom = rooms.firstWhere(
+              (r) {
+                final rNum = r.roomNumber.toLowerCase();
+                final postRoom = (post.location.room ?? '').toLowerCase();
+                return rNum == postRoom ||
+                       rNum.replaceAll('e-', '') == postRoom.replaceAll('e-', '') ||
+                       r.name.toLowerCase().contains(postRoom) ||
+                       postRoom.contains(r.name.toLowerCase()) ||
+                       postRoom.contains(rNum);
+              },
+              orElse: () => rooms.first,
+            );
+            pos = MapEngineService.instance.getRoomCenter(matchedRoom);
           }
 
-          final showPreview = _currentScale > 1.8;
+          final showPreview = _currentScale > 0.8;
 
           return Positioned(
             left: pos.dx * mapSize.width,
@@ -243,7 +346,6 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
                     RepaintBoundary(
                       child: _IndoorPin(
                         color: post.isLost ? AppColors.lost : AppColors.found,
-                        scale: 1.0 / _currentScale.clamp(0.5, 2.0),
                       ),
                     ),
                   ],
@@ -253,7 +355,7 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
           );
         }),
 
-        // User
+        // User Radar Dot
         if (widget.userPos != null)
           Positioned(
             left: widget.userPos!.dx * mapSize.width,
@@ -269,110 +371,257 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
 }
 
 class _VectorMapPainter extends CustomPainter {
-  final FloorModel floor;
+  final List<CampusRoom> rooms;
   final bool isDark;
   final Color accent;
   final double scale;
+  final String? hoveredRoomId;
+  final List<CampusRoom>? activePath;
 
   _VectorMapPainter({
-    required this.floor,
+    required this.rooms,
     required this.isDark,
     required this.accent,
     required this.scale,
+    this.hoveredRoomId,
+    this.activePath,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = isDark ? const Color(0xFF0A0F0D) : const Color(0xFFF5F7F6);
+    // 1. Layer: Background
+    final bgPaint = Paint()..color = isDark ? const Color(0xFF0F1412) : const Color(0xFFECEFEF);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
-    // Draw Grid
-    _drawGrid(canvas, size);
+    // 2. Layer: Unified structural floor plan outline
+    final floorBoundaryPaint = Paint()
+      ..color = isDark ? const Color(0xFF161F1B) : Colors.white
+      ..style = PaintingStyle.fill;
 
-    // Draw Rooms
-    for (var room in floor.rooms) {
-      _drawRoom(canvas, size, room);
-    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0.02 * size.width, 0.02 * size.height, 0.96 * size.width, 0.96 * size.height),
+        const Radius.circular(20),
+      ),
+      floorBoundaryPaint,
+    );
 
-    // Draw Walls
-    _drawWalls(canvas, size);
-  }
-
-  void _drawGrid(Canvas canvas, Size size) {
+    // Draw grid lines inside the boundary
     final gridPaint = Paint()
-      ..color = accent.withOpacity(isDark ? 0.05 : 0.1)
+      ..color = accent.withOpacity(isDark ? 0.03 : 0.06)
       ..strokeWidth = 1.0;
-
-    const spacing = 50.0;
+    const spacing = 45.0;
     for (double i = 0; i < size.width; i += spacing) {
       canvas.drawLine(Offset(i, 0), Offset(i, size.height), gridPaint);
     }
     for (double i = 0; i < size.height; i += spacing) {
       canvas.drawLine(Offset(0, i), Offset(size.width, i), gridPaint);
     }
-  }
 
-  void _drawRoom(Canvas canvas, Size size, RoomModel room) {
-    final path = Path();
-    if (room.polygonPoints != null && room.polygonPoints!.isNotEmpty) {
-      path.moveTo(room.polygonPoints!.first.dx * size.width, room.polygonPoints!.first.dy * size.height);
-      for (var point in room.polygonPoints!.skip(1)) {
-        path.lineTo(point.dx * size.width, point.dy * size.height);
-      }
-      path.close();
-    } else {
-      final rect = Rect.fromCenter(
-        center: Offset(room.position.dx * size.width, room.position.dy * size.height),
-        width: room.size.width * size.width,
-        height: room.size.height * size.height,
-      );
-      path.addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12)));
-    }
-
-    // Room Fill (Glass effect)
-    final fillPaint = Paint()
-      ..color = accent.withOpacity(isDark ? 0.08 : 0.12)
+    // 3. Layer: Main Corridor/Hallway connecting pathways
+    final corridorPaint = Paint()
+      ..color = isDark ? const Color(0xFF1E2724) : const Color(0xFFECEFEF)
       ..style = PaintingStyle.fill;
-    
-    canvas.drawPath(path, fillPaint);
 
-    // Room Border
-    final borderPaint = Paint()
-      ..color = accent.withOpacity(0.3)
+    // Symmetrical vertical spine corridor (width 0.30 spanning from 0.35 to 0.65)
+    canvas.drawRect(
+      Rect.fromLTRB(0.35 * size.width, 0.02 * size.height, 0.65 * size.width, 0.98 * size.height),
+      corridorPaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(0.02 * size.width, 0.18 * size.height, 0.98 * size.width, 0.22 * size.height),
+      corridorPaint,
+    );
+
+    // 4. Layer: Rooms rendering
+    for (var room in rooms.where((room) => room.type != RoomType.hallway)) {
+      final isHovered = room.id == hoveredRoomId;
+      final isWashroom = room.type == RoomType.washroom;
+      final isStairs = room.type == RoomType.staircase || room.type == RoomType.elevator;
+
+      Color roomColor = accent.withOpacity(isDark ? 0.09 : 0.06);
+      if (isWashroom) {
+        roomColor = Colors.blueAccent.withOpacity(isDark ? 0.08 : 0.05);
+      } else if (isStairs) {
+        roomColor = Colors.orangeAccent.withOpacity(isDark ? 0.08 : 0.05);
+      }
+
+      if (isHovered) {
+        roomColor = accent.withOpacity(0.20);
+      }
+
+      final fillPaint = Paint()
+        ..color = roomColor
+        ..style = PaintingStyle.fill;
+
+      _drawPolygon(canvas, size, room, fillPaint);
+
+      // Dividing room walls
+      final borderPaint = Paint()
+        ..color = isHovered 
+            ? accent 
+            : (isStairs ? Colors.orangeAccent.withOpacity(0.4) : accent.withOpacity(0.22))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isHovered ? 2.2 : 1.2;
+
+      _drawPolygon(canvas, size, room, borderPaint);
+
+      if (isHovered) {
+        final glowPath = _getPath(size, room);
+        canvas.drawPath(glowPath, Paint()
+          ..color = accent.withOpacity(0.12)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 8));
+      }
+    }
+
+    // Outer structural building wall outline
+    final outerWallPaint = Paint()
+      ..color = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.10)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0 / scale.clamp(0.5, 2.0);
-    
-    canvas.drawPath(path, borderPaint);
+      ..strokeWidth = 2.5;
 
-    // Subtle Glow
-    if (scale > 1.0) {
-      canvas.drawPath(path, Paint()
-        ..color = accent.withOpacity(0.05)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 10));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0.02 * size.width, 0.02 * size.height, 0.96 * size.width, 0.96 * size.height),
+        const Radius.circular(20),
+      ),
+      outerWallPaint,
+    );
+
+    // 5. Layer: Draw A* Navigation Path
+    if (activePath != null && activePath!.isNotEmpty) {
+      final pathPaint = Paint()
+        ..color = Colors.cyanAccent
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6.0
+        ..strokeCap = StrokeCap.round;
+
+      final path = Path();
+      bool first = true;
+
+      for (var room in activePath!) {
+        final centerPoint = MapEngineService.instance.getRoomCenter(room);
+        final drawX = centerPoint.dx * size.width;
+        final drawY = centerPoint.dy * size.height;
+
+        if (first) {
+          path.moveTo(drawX, drawY);
+          first = false;
+        } else {
+          path.lineTo(drawX, drawY);
+        }
+      }
+
+      if (!first) {
+        canvas.drawPath(path, pathPaint);
+
+        final pulsePaint = Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0;
+        canvas.drawPath(path, pulsePaint);
+      }
     }
   }
 
-  void _drawWalls(Canvas canvas, Size size) {
-    final wallPaint = Paint()
-      ..color = isDark ? Colors.white.withOpacity(0.2) : Colors.black.withOpacity(0.2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0 / scale.clamp(0.5, 2.0)
-      ..strokeCap = StrokeCap.round;
+  Path _getPath(Size size, CampusRoom room) {
+    final path = Path();
+    path.moveTo(room.polygonPoints.first.dx * size.width, room.polygonPoints.first.dy * size.height);
+    for (var point in room.polygonPoints.skip(1)) {
+      path.lineTo(point.dx * size.width, point.dy * size.height);
+    }
+    path.close();
+    return path;
+  }
 
-    for (var poly in floor.wallPolygons) {
-      if (poly.isEmpty) continue;
-      final path = Path();
-      path.moveTo(poly.first.dx * size.width, poly.first.dy * size.height);
-      for (var point in poly.skip(1)) {
-        path.lineTo(point.dx * size.width, point.dy * size.height);
+  void _drawPolygon(Canvas canvas, Size size, CampusRoom room, Paint paint) {
+    if (room.polygonPoints.isEmpty) return;
+    final path = _getPath(size, room);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _VectorMapPainter oldDelegate) =>
+      oldDelegate.hoveredRoomId != hoveredRoomId ||
+      oldDelegate.scale != scale ||
+      oldDelegate.isDark != isDark ||
+      oldDelegate.activePath != activePath;
+}
+
+class _HeatmapPainter extends CustomPainter {
+  final List<SimplePostModel> posts;
+  final List<CampusRoom> rooms;
+  final double scale;
+
+  _HeatmapPainter({
+    required this.posts,
+    required this.rooms,
+    required this.scale,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Map<String, int> roomHeatCounts = {};
+    final List<Offset> coordinateHeatPoints = [];
+
+    for (var post in posts) {
+      if (post.location.indoorX != null && post.location.indoorY != null) {
+        coordinateHeatPoints.add(Offset(post.location.indoorX!, post.location.indoorY!));
+      } else if (post.location.room != null) {
+        final roomNum = post.location.room!;
+        roomHeatCounts[roomNum] = (roomHeatCounts[roomNum] ?? 0) + 1;
       }
-      canvas.drawPath(path, wallPaint);
+    }
+
+    // Room heat overlays
+    for (var entry in roomHeatCounts.entries) {
+      final matchedRoom = rooms.firstWhere(
+        (r) => r.roomNumber.toLowerCase() == entry.key.toLowerCase(),
+        orElse: () => const CampusRoom(id: '', roomNumber: '', name: '', building: '', floor: 0, polygonPoints: [], type: RoomType.unknown),
+      );
+
+      if (matchedRoom.id.isNotEmpty && matchedRoom.polygonPoints.isNotEmpty) {
+        final intensity = (entry.value * 0.15).clamp(0.12, 0.45);
+        final heatPaint = Paint()
+          ..color = Colors.redAccent.withOpacity(intensity)
+          ..style = PaintingStyle.fill;
+
+        final path = Path();
+        path.moveTo(matchedRoom.polygonPoints.first.dx * size.width, matchedRoom.polygonPoints.first.dy * size.height);
+        for (var point in matchedRoom.polygonPoints.skip(1)) {
+          path.lineTo(point.dx * size.width, point.dy * size.height);
+        }
+        path.close();
+
+        canvas.drawPath(path, heatPaint);
+
+        canvas.drawPath(path, Paint()
+          ..color = Colors.redAccent.withOpacity(intensity * 0.4)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 12));
+      }
+    }
+
+    // Coordinate heat rings
+    for (var point in coordinateHeatPoints) {
+      final center = Offset(point.dx * size.width, point.dy * size.height);
+      final radius = 30.0;
+
+      final Paint ringPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.redAccent.withOpacity(0.35),
+            Colors.redAccent.withOpacity(0.12),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: radius))
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(center, radius, ringPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _VectorMapPainter oldDelegate) => 
-    oldDelegate.floor != floor || oldDelegate.scale != scale || oldDelegate.isDark != isDark;
+  bool shouldRepaint(covariant _HeatmapPainter oldDelegate) => true;
 }
 
 class _MiniPostPreview extends StatelessWidget {
@@ -388,7 +637,7 @@ class _MiniPostPreview extends StatelessWidget {
         color: AppColors.card(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border(context)),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -420,31 +669,26 @@ class _MiniPostPreview extends StatelessWidget {
 }
 
 class _IndoorPin extends StatelessWidget {
-  const _IndoorPin({required this.color, this.scale = 1.0});
+  const _IndoorPin({required this.color});
   final Color color;
-  final double scale;
 
   @override
   Widget build(BuildContext context) {
-    return Transform.scale(
-      scale: scale,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.location_on_rounded, color: color, size: 32)
-              .animate(onPlay: (c) => c.repeat(reverse: true))
-              .moveY(begin: 0, end: -4, duration: 800.ms, curve: Curves.easeInOut),
-          Container(
-            width: 10, height: 3,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.2), 
-              borderRadius: BorderRadius.circular(2),
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2, spreadRadius: 1)]
-            ),
-          ).animate(onPlay: (c) => c.repeat(reverse: true))
-              .scaleX(begin: 0.8, end: 1.2, duration: 800.ms),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.location_on_rounded, color: color, size: 28)
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .moveY(begin: 0, end: -4, duration: 800.ms, curve: Curves.easeInOut),
+        Container(
+          width: 8, height: 3,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.2), 
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ).animate(onPlay: (c) => c.repeat(reverse: true))
+            .scaleX(begin: 0.8, end: 1.2, duration: 800.ms),
+      ],
     );
   }
 }
@@ -459,16 +703,16 @@ class _UserLocationRadar extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         Container(
-          width: 50, height: 50,
+          width: 40, height: 40,
           decoration: BoxDecoration(color: accent.withOpacity(0.2), shape: BoxShape.circle),
         ).animate(onPlay: (c) => c.repeat()).scale(begin: const Offset(0, 0), end: const Offset(1, 1)).fadeOut(),
         Container(
-          width: 14, height: 14,
+          width: 10, height: 10,
           decoration: BoxDecoration(
             color: accent, 
             shape: BoxShape.circle, 
-            border: Border.all(color: Colors.white, width: 2.5), 
-            boxShadow: [BoxShadow(color: accent.withOpacity(0.5), blurRadius: 12, spreadRadius: 3)]
+            border: Border.all(color: Colors.white, width: 2), 
+            boxShadow: [BoxShadow(color: accent.withOpacity(0.4), blurRadius: 6, spreadRadius: 1)]
           ),
         ),
       ],

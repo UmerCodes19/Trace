@@ -1,0 +1,17 @@
+{
+  "buildingId": "liaquat",
+  "buildingName": "Liaquat Block",
+  "mapVersion": 1,
+  "floorCount": 8,
+  "roomPrefix": "E",
+  "dimensions": {
+    "width": 1000.0,
+    "height": 1400.0
+  },
+  "generationRules": {
+    "extrapolate": true,
+    "stairsMapping": [
+      { "stairId": "ST_1", "connects": [0, 1, 2, 3, 4, 5, 6, 7] }
+    ]
+  }
+}
