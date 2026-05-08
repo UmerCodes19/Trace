@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -55,7 +54,7 @@ class _PostCardState extends ConsumerState<PostCard> {
             value: 'edit',
             child: Row(
               children: [
-                Icon(Icons.edit_rounded, color: AppColors.jadePrimary, size: 18),
+                Icon(Icons.edit_rounded, color: Theme.of(context).colorScheme.primary, size: 18),
                 const SizedBox(width: 12),
                 Text('Edit Report', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary(context))),
               ],
@@ -192,6 +191,8 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     Widget card = Container(
       decoration: BoxDecoration(
         color: AppColors.card(context),
@@ -218,27 +219,26 @@ class _PostCardState extends ConsumerState<PostCard> {
                   CachedNetworkImage(
                     imageUrl: widget.post.imageUrls[0],
                     fit: BoxFit.cover,
-                    memCacheWidth: 400,
                     placeholder: (context, url) => Container(
-                      color: AppColors.jadePrimary.withOpacity(0.1),
+                      color: primaryColor.withOpacity(0.08),
                       child: const Center(
                         child: SizedBox(
-                          width: 20, height: 20,
+                          width: 18, height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
                     ),
                     errorWidget: (context, url, error) => Container(
-                      color: AppColors.jadePrimary.withOpacity(0.1),
+                      color: primaryColor.withOpacity(0.08),
                       child: const Icon(Icons.image_not_supported_outlined, size: 20),
                     ),
                   )
                 else
                   Container(
-                    color: AppColors.jadePrimary.withOpacity(0.1),
-                    child: const Icon(Icons.image_outlined, size: 30),
+                    color: primaryColor.withOpacity(0.08),
+                    child: const Icon(Icons.image_outlined, size: 28),
                   ),
-                
+
                 // Tag Overlay
                 Positioned(
                   top: 8,

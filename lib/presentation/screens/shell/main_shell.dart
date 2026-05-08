@@ -100,7 +100,7 @@ class _MorphingActivePillDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = AppColors.jadePrimary;
+    final accent = Theme.of(context).colorScheme.primary;
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final bottomMargin = bottomPadding > 0 ? bottomPadding + 14.0 : 26.0;
@@ -183,7 +183,7 @@ class _MorphingActivePillDock extends StatelessWidget {
             ),
           ),
 
-          // Option B — The Morphing Active Pill highlight shape
+          // Morphing Active Pill highlight shape (Dynamic Accent Color)
           AnimatedPositioned(
             duration: const Duration(milliseconds: 320),
             curve: Curves.easeOutCubic,
@@ -193,12 +193,10 @@ class _MorphingActivePillDock extends StatelessWidget {
             height: 48,
             child: Container(
               decoration: BoxDecoration(
-                color: isDark 
-                    ? AppColors.jadePrimary.withOpacity(0.18)
-                    : AppColors.jadePrimary.withOpacity(0.09),
+                color: accent.withOpacity(isDark ? 0.18 : 0.09),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: AppColors.jadePrimary.withOpacity(isDark ? 0.22 : 0.12),
+                  color: accent.withOpacity(isDark ? 0.22 : 0.12),
                   width: 1.0,
                 ),
               ),
@@ -227,15 +225,15 @@ class _MorphingActivePillDock extends StatelessWidget {
                       child: Container(
                         width: 44, height: 44,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.jadePrimary, AppColors.deepJade],
+                          gradient: LinearGradient(
+                            colors: [accent, accent.withOpacity(0.85)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.jadePrimary.withOpacity(0.35),
+                              color: accent.withOpacity(0.35),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),

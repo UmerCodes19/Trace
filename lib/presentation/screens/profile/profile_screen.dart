@@ -217,7 +217,7 @@ class _ProfileBody extends ConsumerWidget {
                       backgroundImage: user.photoURL != null && user.photoURL!.isNotEmpty
                           ? CachedNetworkImageProvider(user.photoURL!)
                           : null,
-                      backgroundColor: AppColors.jadePrimary,
+                      backgroundColor: accent,
                       child: user.photoURL == null || user.photoURL!.isEmpty
                           ? Text(user.name[0], style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white))
                           : null,
@@ -340,7 +340,7 @@ class _ProfileBody extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'STUDENT ID',
+                       'STUDENT ID',
                       style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 2),
                     ),
                     Icon(Icons.nfc, color: Colors.white.withOpacity(0.5)),

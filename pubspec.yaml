@@ -79,6 +79,11 @@ dev_dependencies:
   freezed: ^2.5.8
   freezed_annotation: ^2.4.4
   json_serializable: ^6.9.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  image_path: "assets/images/app_logo.png"
 
 flutter:
   uses-material-design: true
@@ -87,4 +92,4 @@ flutter:
     - assets/lottie/
     - .env
     - assets/maps/liaquat/
-
+    - assets/images/
