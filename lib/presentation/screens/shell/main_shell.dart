@@ -27,6 +27,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       const _TabItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home', path: '/home'),
       const _TabItem(icon: Icons.map_outlined, activeIcon: Icons.map_rounded, label: 'Map', path: '/map'),
       const _TabItem(icon: Icons.add_box_outlined, activeIcon: Icons.add_box_rounded, label: 'Create', path: '/create'),
+      const _TabItem(icon: Icons.play_circle_outline_rounded, activeIcon: Icons.play_circle_fill_rounded, label: 'Traces', path: '/reels'),
       const _TabItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Inbox', path: '/chats'),
       _TabItem(
         icon: isAdmin ? Icons.admin_panel_settings_outlined : Icons.person_outline_rounded,
@@ -145,7 +146,8 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
     void _handleDragUpdate(double localX, double deltaX) {
       setState(() {
         _manualDragX = localX;
-        _stretchScaleX = (1.0 + (deltaX.abs() * 0.15)).clamp(1.0, 1.45);
+        final targetScale = (1.0 + (deltaX.abs() * 0.12)).clamp(1.0, 1.40);
+        _stretchScaleX = (_stretchScaleX * 0.6) + (targetScale * 0.4);
       });
 
       int closestIndex = widget.currentIndex;
@@ -222,8 +224,8 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
 
             // Morphing Active Pill highlight shape with liquid glass stretching
             AnimatedPositioned(
-              duration: _manualDragX != null ? const Duration(milliseconds: 50) : const Duration(milliseconds: 300),
-              curve: _manualDragX != null ? Curves.linear : Curves.easeOutQuart,
+              duration: _manualDragX != null ? Duration.zero : const Duration(milliseconds: 320),
+              curve: _manualDragX != null ? Curves.linear : Curves.easeOutBack,
               left: 12 + highlightLeft,
               top: 8,
               width: highlightWidth,

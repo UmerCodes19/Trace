@@ -28,6 +28,7 @@ import '../../presentation/screens/profile/profile_screen.dart';
 import '../../presentation/screens/profile/qr_code_screen.dart';
 import '../../presentation/screens/profile/settings_screen.dart';
 import '../../presentation/screens/shell/main_shell.dart';
+import '../../presentation/screens/reels/campus_reels_screen.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 final _shellKey = GlobalKey<NavigatorState>();
@@ -78,6 +79,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/chats',
             pageBuilder: (ctx, state) => _tabFadePage(const ChatListScreen(), state),
+          ),
+          GoRoute(
+            path: '/reels',
+            pageBuilder: (ctx, state) => _tabFadePage(const CampusReelsScreen(), state),
           ),
           GoRoute(
             path: '/profile',

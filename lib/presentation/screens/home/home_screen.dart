@@ -13,6 +13,7 @@ import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../widgets/cards/post_card.dart';
+import '../../widgets/common/status_chip.dart';
 import '../../widgets/common/lottie_empty_state.dart';
 import '../../widgets/common/trace_logo.dart';
 import '../../widgets/common/skeleton.dart';
@@ -1129,20 +1130,19 @@ class _MyClaimsFeed extends ConsumerWidget {
                     .fadeIn(delay: (index * 30).ms)
                     .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
                 Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: claim['status'] == 'approved' 
-                          ? AppColors.foundSuccess
-                          : (claim['status'] == 'rejected' ? Colors.redAccent : Colors.orangeAccent),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      claim['status']?.toString().toUpperCase() ?? 'PENDING',
-                      style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
+                  top: 10,
+                  left: 10,
+                  child: Builder(
+                    builder: (context) {
+                      final status = claim['status']?.toString().toLowerCase();
+                      if (status == 'approved') {
+                        return StatusChip.approved(small: true);
+                      } else if (status == 'rejected') {
+                        return StatusChip.rejected(small: true);
+                      } else {
+                        return StatusChip.pending(small: true);
+                      }
+                    },
                   ),
                 ),
               ],

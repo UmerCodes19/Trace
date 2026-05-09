@@ -59,6 +59,17 @@ class SyncManager {
     _syncStatusController.add(true); // Notify UI that queue changed
   }
 
+  Future<bool> removePostFromQueue(String postId) async {
+    final initialLength = _pendingQueue.length;
+    _pendingQueue.removeWhere((p) => p['id'] == postId);
+    if (_pendingQueue.length != initialLength) {
+      await saveQueue();
+      _syncStatusController.add(true); // Notify UI that queue changed
+      return true;
+    }
+    return false;
+  }
+
   List<Map<String, dynamic>> getPendingPosts() => List.unmodifiable(_pendingQueue);
 
   Future<void> syncQueue() async {
@@ -74,6 +85,15 @@ class SyncManager {
     for (var post in _pendingQueue) {
       try {
         final uploadData = Map<String, dynamic>.from(post);
+        
+        // Clean up outdated 'videoUrl' key to bypass Supabase schema constraints
+        if (uploadData.containsKey('videoUrl')) {
+          final String? vidUrl = uploadData['videoUrl']?.toString();
+          if (vidUrl != null && vidUrl.isNotEmpty) {
+            uploadData['imageUrl'] = vidUrl; // Store video URL inside imageUrl column
+          }
+          uploadData.remove('videoUrl');
+        }
         
         // Upload queued local images to Cloudinary first
         if (uploadData['imageUrls'] != null) {

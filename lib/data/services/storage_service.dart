@@ -40,6 +40,25 @@ class StorageService {
     return await _uploadToCloudinary(file, 'posts/$userId');
   }
 
+  /// Upload a post video to Cloudinary.
+  Future<String> uploadPostVideo(File file, String userId) async {
+    try {
+      final String url = 'https://api.cloudinary.com/v1_1/$_cloudName/video/upload';
+      
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(file.path),
+        'upload_preset': _uploadPreset,
+        'folder': 'videos/$userId',
+      });
+
+      final response = await _dio.post(url, data: formData);
+      return response.data['secure_url'];
+    } catch (e) {
+      debugPrint('Cloudinary video upload error: $e');
+      rethrow;
+    }
+  }
+
   /// Upload user avatar.
   Future<String> uploadAvatar(File file, String userId) async {
     return await _uploadToCloudinary(file, 'avatars/$userId');

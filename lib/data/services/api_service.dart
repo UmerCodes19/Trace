@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../models/simple_post_model.dart';
 import './auth_service.dart';
+import './offline/sync_manager.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService();
@@ -22,7 +23,16 @@ final postsProvider = FutureProvider<List<SimplePostModel>>((ref) async {
   
   final api = ref.watch(apiServiceProvider);
   final data = await api.getPosts();
-  return data.map((p) => SimplePostModel.fromMap(p)).toList();
+  final List<SimplePostModel> onlinePosts = data.map((p) => SimplePostModel.fromMap(p)).toList();
+  
+  try {
+    final pendingRaw = SyncManager.instance.getPendingPosts();
+    final pendingPosts = pendingRaw.map((p) => SimplePostModel.fromMap(p)).toList();
+    return [...pendingPosts, ...onlinePosts];
+  } catch (e) {
+    debugPrint('Offline posts loading error: $e');
+    return onlinePosts;
+  }
 });
 
 final myClaimsProvider = FutureProvider<List<dynamic>>((ref) async {

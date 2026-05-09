@@ -1,4 +1,5 @@
 // lib/presentation/widgets/cards/post_card.dart
+import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,7 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/offline/sync_manager.dart';
 import '../common/status_chip.dart';
 
 class PostCard extends ConsumerStatefulWidget {
@@ -22,10 +24,27 @@ class PostCard extends ConsumerStatefulWidget {
   ConsumerState<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends ConsumerState<PostCard> {
+class _PostCardState extends ConsumerState<PostCard>
+    with SingleTickerProviderStateMixin {
   bool _isDeleting = false;
   bool _isResolving = false;
   Offset _tapPosition = Offset.zero;
+  AnimationController? _glowController;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5), // Continuous luxurious 5s rotation
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _glowController?.dispose();
+    super.dispose();
+  }
 
   void _showPostOptionsAtPosition(BuildContext context, Offset tapPosition) async {
     HapticFeedback.heavyImpact();
@@ -177,14 +196,21 @@ class _PostCardState extends ConsumerState<PostCard> {
     await Future.delayed(500.ms);
     
     try {
+      // 1. Always remove from the local pending queue first so it never "comes back"
+      await SyncManager.instance.removePostFromQueue(widget.post.id);
+      
+      // 2. Attempt to delete from the cloud server
       await ApiService().deletePost(widget.post.id);
+      
       if (mounted) {
         ref.invalidate(postsProvider);
+        showAppSnack(context, '✅ Post deleted successfully!');
       }
     } catch (e) {
+      // If server deletion fails (or was already offline/deleted), we still removed it locally!
       if (mounted) {
-        setState(() => _isDeleting = false);
-        showAppSnack(context, 'Failed to delete post: $e', isError: true);
+        ref.invalidate(postsProvider);
+        showAppSnack(context, '✅ Post removed locally!');
       }
     }
   }
@@ -194,14 +220,22 @@ class _PostCardState extends ConsumerState<PostCard> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final String postType = widget.post.type.toLowerCase();
+    Color baseColor;
+    if (postType == 'lost') {
+      baseColor = AppColors.lostAlert;
+    } else {
+      baseColor = AppColors.foundSuccess;
+    }
+
     Widget card = Container(
       decoration: BoxDecoration(
         color: AppColors.card(context),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.4) : Colors.black.withOpacity(0.08),
-            blurRadius: 16,
+            color: baseColor.withOpacity(isDark ? 0.16 : 0.05),
+            blurRadius: 18,
             offset: const Offset(0, 8),
           ),
         ],
@@ -258,7 +292,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           Positioned(
             top: 10,
             right: 10,
-            child: widget.post.type == 'lost' 
+            child: widget.post.type.toLowerCase() == 'lost' 
                 ? StatusChip.lost(small: true) 
                 : StatusChip.found(small: true),
           ),
@@ -315,6 +349,23 @@ class _PostCardState extends ConsumerState<PostCard> {
               ],
             ),
           ),
+
+          // 5. Flowing Glowing Gradient Border Custom Paint
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _glowController == null
+                  ? const SizedBox()
+                  : AnimatedBuilder(
+                      animation: _glowController!,
+                      builder: (context, child) => CustomPaint(
+                        painter: FlowingGradientBorderPainter(
+                          angle: _glowController!.value * 2 * math.pi,
+                          baseColor: baseColor,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
         ],
       ),
     );
@@ -336,5 +387,44 @@ class _PostCardState extends ConsumerState<PostCard> {
         child: card,
       ),
     );
+  }
+}
+
+class FlowingGradientBorderPainter extends CustomPainter {
+  final double angle;
+  final Color baseColor;
+
+  FlowingGradientBorderPainter({required this.angle, required this.baseColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = 18.0;
+    // Inset slightly so the border draws beautifully inside the card boundaries
+    final Rect rect = const Offset(1.0, 1.0) & Size(size.width - 2.0, size.height - 2.0);
+    final RRect rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+
+    final Paint borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..isAntiAlias = true;
+
+    borderPaint.shader = SweepGradient(
+      center: Alignment.center,
+      transform: GradientRotation(angle),
+      colors: [
+        baseColor.withOpacity(0.01),
+        baseColor.withOpacity(0.70),
+        baseColor.withOpacity(0.01),
+        baseColor.withOpacity(0.01),
+      ],
+      stops: const [0.0, 0.5, 0.9, 1.0],
+    ).createShader(rect);
+
+    canvas.drawRRect(rrect, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant FlowingGradientBorderPainter oldDelegate) {
+    return oldDelegate.angle != angle || oldDelegate.baseColor != baseColor;
   }
 }

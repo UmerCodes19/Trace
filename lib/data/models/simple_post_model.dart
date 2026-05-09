@@ -18,6 +18,7 @@ class SimplePostModel {
   final String posterAvatarUrl;
   final bool isCMSVerified;
   final String? secretDetailQuestion;
+  final String? videoUrl;
 
   SimplePostModel({
     required this.id,
@@ -37,6 +38,7 @@ class SimplePostModel {
     this.posterAvatarUrl = '',
     this.isCMSVerified = false,
     this.secretDetailQuestion,
+    this.videoUrl,
   });
 
   factory SimplePostModel.fromMap(Map<String, dynamic> map) {
@@ -53,12 +55,28 @@ class SimplePostModel {
       return [];
     }
 
+    final rawDesc = map['description'] as String? ?? '';
+    String cleanDesc = rawDesc;
+    String? extractedVideoUrl;
+    
+    if (rawDesc.contains('[video:')) {
+      final startIndex = rawDesc.indexOf('[video:');
+      final endIndex = rawDesc.indexOf(']', startIndex);
+      if (endIndex != -1) {
+        extractedVideoUrl = rawDesc.substring(startIndex + 7, endIndex).trim();
+        cleanDesc = rawDesc.substring(0, startIndex).trim();
+      }
+    }
+
+    final mainImageUrl = map['imageUrl']?.toString() ?? '';
+    final isVideoUrl = mainImageUrl.endsWith('.mp4') || mainImageUrl.contains('.mp4?');
+
     return SimplePostModel(
       id: map['id'] as String,
       userId: map['userId'] as String? ?? '',
       type: map['type'] as String? ?? 'lost',
       title: map['title'] as String? ?? '',
-      description: map['description'] as String? ?? '',
+      description: cleanDesc,
       imageUrls: _parseList(map['imageUrl']), // Supabase column is imageUrl
       location: SimplePostLocation(
         name: map['location_name'] as String? ?? '',
@@ -84,6 +102,15 @@ class SimplePostModel {
       posterAvatarUrl: map['posterAvatarUrl'] as String? ?? '',
       isCMSVerified: map['isCMSVerified'] as bool? ?? false,
       secretDetailQuestion: map['secretQuestion'] as String? ?? map['secret_detail_question'] as String?,
+      videoUrl: () {
+        final rawUrl = extractedVideoUrl ?? (isVideoUrl ? mainImageUrl : (map['videoUrl'] as String? ?? map['video_url'] as String?));
+        if (rawUrl == null) return null;
+        final trimmed = rawUrl.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          return trimmed;
+        }
+        return null;
+      }(),
     );
   }
 
@@ -104,6 +131,7 @@ class SimplePostModel {
     String? posterName,
     String? posterAvatarUrl,
     bool? isCMSVerified,
+    String? videoUrl,
   }) {
     return SimplePostModel(
       id: id ?? this.id,
@@ -122,17 +150,19 @@ class SimplePostModel {
       posterName: posterName ?? this.posterName,
       posterAvatarUrl: posterAvatarUrl ?? this.posterAvatarUrl,
       isCMSVerified: isCMSVerified ?? this.isCMSVerified,
+      videoUrl: videoUrl ?? this.videoUrl,
     );
   }
 
   Map<String, dynamic> toMap() {
+    final String finalDesc = videoUrl != null ? '$description\n[video:$videoUrl]' : description;
     return {
       'id': id,
       'userId': userId,
       'type': type,
       'title': title,
-      'description': description,
-      'imageUrl': imageUrls.isNotEmpty ? imageUrls[0] : null, // Store main image in single column
+      'description': finalDesc, // Store video URL inside description safely!
+      'imageUrl': imageUrls.isNotEmpty ? imageUrls[0] : null, // ALWAYS keep the actual uploaded photo!
       'location_name': location.name,
       'buildingName': location.building,
       'floor': location.floor,

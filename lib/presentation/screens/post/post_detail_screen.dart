@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -22,6 +23,7 @@ import '../../widgets/common/skeleton.dart';
 import '../../widgets/common/status_chip.dart';
 import '../../widgets/post/comments_section.dart';
 import '../../widgets/common/user_avatar.dart';
+import '../../widgets/common/app_button.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({super.key, required this.postId});
@@ -314,7 +316,7 @@ class _PostDetailBody extends ConsumerWidget {
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: post.imageUrls.isNotEmpty ? 400 : 0,
+              expandedHeight: (post.imageUrls.isNotEmpty || (post.videoUrl != null && post.videoUrl!.isNotEmpty)) ? 400 : 0,
               pinned: true,
               backgroundColor: AppColors.pageBg(context),
               elevation: 0,
@@ -429,33 +431,26 @@ class _PostDetailBody extends ConsumerWidget {
                   ),
                 ),
               ],
-              flexibleSpace: post.imageUrls.isNotEmpty
+              flexibleSpace: (post.imageUrls.isNotEmpty || (post.videoUrl != null && post.videoUrl!.isNotEmpty))
                   ? FlexibleSpaceBar(
                       background: Stack(
                         fit: StackFit.expand,
                         children: [
-                          GestureDetector(
-                            onTap: () => _openGallery(context, 0),
-                            child: Hero(
-                              tag: 'post_image_${post.imageUrls.first}',
-                              child: _PostImage(
-                                url: post.imageUrls.first,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                          Positioned.fill(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withOpacity(0.4),
-                                    Colors.transparent,
-                                    AppColors.pageBg(context),
-                                  ],
-                                  stops: const [0.0, 0.4, 1.0],
+                          _PostMediaCarousel(post: post),
+                          IgnorePointer(
+                            child: Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.black.withOpacity(0.4),
+                                      Colors.transparent,
+                                      AppColors.pageBg(context),
+                                    ],
+                                    stops: const [0.0, 0.4, 1.0],
+                                  ),
                                 ),
                               ),
                             ),
@@ -1115,7 +1110,9 @@ class _ClaimBottomBar extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         if (status == 'approved') ...[
-          GestureDetector(
+          GlassButton(
+            label: 'Chat with Finder',
+            icon: Icons.chat_bubble_outline_rounded,
             onTap: () async {
               AppHaptics.medium();
               final api = ref.read(apiServiceProvider);
@@ -1135,28 +1132,22 @@ class _ClaimBottomBar extends ConsumerWidget {
                 showAppSnack(context, 'Failed to open chat: $e', isError: true);
               }
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: AppColors.cardBg(context),
-                border: Border.all(color: AppColors.jadePrimary.withOpacity(0.4)),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Center(
-                child: Text(
-                  'Chat with Finder',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.jadePrimary,
-                  ),
-                ),
-              ),
-            ),
           ),
           const SizedBox(height: 12),
         ],
-        GestureDetector(
+        GradientButton(
+          width: double.infinity,
+          label: status == 'approved'
+              ? 'Scan Handover QR'
+              : status == 'pending'
+                  ? 'Claim Pending'
+                  : post.isLost ? 'I Found This' : 'This Is Mine',
+          gradientColors: [
+            status == 'approved' ? AppColors.foundSuccess : color,
+            status == 'approved' 
+                ? const Color(0xFF008C3E) 
+                : HSLColor.fromColor(color).withLightness((HSLColor.fromColor(color).lightness - 0.1).clamp(0.0, 1.0)).toColor(),
+          ],
           onTap: () {
             AppHaptics.medium();
             if (status == 'approved') {
@@ -1167,41 +1158,6 @@ class _ClaimBottomBar extends ConsumerWidget {
               context.push('/post/${post.id}/claim', extra: post);
             }
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  status == 'approved' ? AppColors.foundSuccess : color,
-                  status == 'approved' ? AppColors.jadePrimary : HSLColor.fromColor(color)
-                      .withHue((HSLColor.fromColor(color).hue + 20) % 360)
-                      .toColor(),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: (status == 'approved' ? AppColors.foundSuccess : color).withOpacity(0.35),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                status == 'approved'
-                    ? 'Scan Handover QR'
-                    : status == 'pending'
-                        ? 'Claim Pending'
-                        : post.isLost ? 'I Found This' : 'This Is Mine',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
         ),
       ],
     );
@@ -1401,20 +1357,251 @@ class _ViewClaimsBottomBar extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        GestureDetector(
+        GradientButton(
+          width: double.infinity,
+          label: 'View Claim Requests',
           onTap: () => context.push('/post/${post.id}/claims?title=${Uri.encodeComponent(post.title)}'),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AppColors.jadePrimary, Colors.teal.shade600]),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [BoxShadow(color: AppColors.jadePrimary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
-            ),
-            alignment: Alignment.center,
-            child: Text('View Claim Requests', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.white)),
-          ),
+          gradientColors: const [AppColors.jadePrimary, Color(0xFF00695C)],
         ),
       ],
     );
   }
 }
+
+class _PostMediaCarousel extends StatefulWidget {
+  final SimplePostModel post;
+  const _PostMediaCarousel({required this.post});
+
+  @override
+  State<_PostMediaCarousel> createState() => _PostMediaCarouselState();
+}
+
+class _PostMediaCarouselState extends State<_PostMediaCarousel> {
+  late final PageController _pageCtrl;
+  int _currIdx = 0;
+  final List<Map<String, String>> _media = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+    if (widget.post.videoUrl != null && widget.post.videoUrl!.isNotEmpty) {
+      _media.add({'type': 'video', 'url': widget.post.videoUrl!});
+    }
+    for (final url in widget.post.imageUrls) {
+      if (url.trim().isNotEmpty) {
+        _media.add({'type': 'image', 'url': url.trim()});
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _openGalleryView(int index) {
+    if (_media[index]['type'] == 'video') return;
+    
+    final imageUrls = _media
+        .where((m) => m['type'] == 'image')
+        .map((m) => m['url']!)
+        .toList();
+        
+    int fixedIdx = index;
+    if (_media.isNotEmpty && _media.first['type'] == 'video') {
+      fixedIdx = index - 1;
+    }
+    if (fixedIdx < 0) fixedIdx = 0;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _GalleryView(urls: imageUrls, initialIndex: fixedIdx),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_media.isEmpty) return const SizedBox.shrink();
+
+    return Stack(
+      children: [
+        PageView.builder(
+          controller: _pageCtrl,
+          itemCount: _media.length,
+          onPageChanged: (i) => setState(() => _currIdx = i),
+          itemBuilder: (context, i) {
+            final item = _media[i];
+            if (item['type'] == 'video') {
+              return _CarouselVideoPlayer(url: item['url']!);
+            }
+            return GestureDetector(
+              onTap: () => _openGalleryView(i),
+              child: Hero(
+                tag: 'post_image_${item['url']}',
+                child: _PostImage(
+                  url: item['url']!,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            );
+          },
+        ),
+        if (_media.length > 1)
+          Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_media.length, (i) {
+                final bool active = i == _currIdx;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 6,
+                  width: active ? 16 : 6,
+                  decoration: BoxDecoration(
+                    color: active ? Colors.white : Colors.white38,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 2),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CarouselVideoPlayer extends StatefulWidget {
+  final String url;
+  const _CarouselVideoPlayer({required this.url});
+
+  @override
+  State<_CarouselVideoPlayer> createState() => _CarouselVideoPlayerState();
+}
+
+class _CarouselVideoPlayerState extends State<_CarouselVideoPlayer> {
+  VideoPlayerController? _ctrl;
+  bool _init = false;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    try {
+      _ctrl = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      await _ctrl!.initialize();
+      await _ctrl!.setLooping(true);
+      if (mounted) {
+        setState(() {
+          _init = true;
+          _isPlaying = true;
+        });
+        _ctrl!.play();
+      }
+    } catch (e) {
+      debugPrint('Carousel Video Initialization Error: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_init || _ctrl == null) {
+      return Container(
+        color: Colors.black87,
+        child: const Center(
+          child: SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(color: Colors.white38, strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (_ctrl!.value.isPlaying) {
+            _ctrl!.pause();
+            _isPlaying = false;
+          } else {
+            _ctrl!.play();
+            _isPlaying = true;
+          }
+        });
+      },
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _ctrl!.value.size.width > 0 ? _ctrl!.value.size.width : 1080,
+                height: _ctrl!.value.size.height > 0 ? _ctrl!.value.size.height : 1920,
+                child: VideoPlayer(_ctrl!),
+              ),
+            ),
+          ),
+          if (!_isPlaying)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black45,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white24, width: 1),
+              ),
+              child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+            ),
+          Positioned(
+            top: 80,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.videocam_rounded, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'PREVIEW',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
