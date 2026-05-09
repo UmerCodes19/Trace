@@ -33,7 +33,6 @@ class SkeletonBox extends StatelessWidget {
   }
 }
 
-/// ─── Rich Post Card Skeleton ─────────────────────────────────────────────────
 class SkeletonPostCard extends StatelessWidget {
   const SkeletonPostCard({super.key});
 
@@ -45,135 +44,62 @@ class SkeletonPostCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.shimmerBaseColor(context),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
         ),
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Image area
-              Container(
-                height: 180,
+        child: Stack(
+          children: [
+            // Floating Status Badge Placeholder
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                width: 60,
+                height: 24,
                 decoration: BoxDecoration(
-                  color: AppColors.shimmerBaseColor(context),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(20)),
+                  color: AppColors.shimmerHighColor(context),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Badge + timestamp row
-                    Row(
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: AppColors.shimmerBaseColor(context),
-                            borderRadius: BorderRadius.circular(11),
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          width: 50,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: AppColors.shimmerBaseColor(context),
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                        ),
-                      ],
+            ),
+            // Floating Metadata Placeholder
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: AppColors.shimmerHighColor(context),
+                      borderRadius: BorderRadius.circular(7),
                     ),
-                    const SizedBox(height: 12),
-                    // Title
-                    Container(
-                      width: double.infinity,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: AppColors.shimmerBaseColor(context),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 120,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: AppColors.shimmerHighColor(context),
+                      borderRadius: BorderRadius.circular(5),
                     ),
-                    const SizedBox(height: 8),
-                    // Description line 1
-                    Container(
-                      width: double.infinity,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        color: AppColors.shimmerBaseColor(context),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 60,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.shimmerHighColor(context),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    const SizedBox(height: 4),
-                    // Description line 2
-                    Container(
-                      width: 180,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        color: AppColors.shimmerBaseColor(context),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Location chip
-                    Container(
-                      width: 120,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: AppColors.shimmerBaseColor(context),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    // Divider
-                    Container(
-                      width: double.infinity,
-                      height: 1,
-                      color: AppColors.shimmerBaseColor(context),
-                    ),
-                    const SizedBox(height: 12),
-                    // Footer
-                    Row(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: AppColors.shimmerBaseColor(context),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Container(
-                            width: 60,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: AppColors.shimmerBaseColor(context),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 50,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: AppColors.shimmerBaseColor(context),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

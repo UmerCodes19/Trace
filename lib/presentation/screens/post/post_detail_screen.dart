@@ -21,6 +21,7 @@ import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/skeleton.dart';
 import '../../widgets/common/status_chip.dart';
 import '../../widgets/post/comments_section.dart';
+import '../../widgets/common/user_avatar.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({super.key, required this.postId});
@@ -288,45 +289,102 @@ class _PostDetailBody extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
+      extendBodyBehindAppBar: true,
+      bottomNavigationBar: (!isOwner && post.isOpen)
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                child: _ClaimBottomBar(
+                  post: post,
+                  currentUid: currentUid ?? '',
+                  status: userClaimStatus,
+                  claimId: approvedClaimId,
+                ),
+              ),
+            )
+          : (isOwner && post.isOpen)
+              ? SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                    child: _ViewClaimsBottomBar(post: post),
+                  ),
+                )
+              : null,
       body: RepaintBoundary(
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: post.imageUrls.isNotEmpty ? 300 : 0,
+              expandedHeight: post.imageUrls.isNotEmpty ? 400 : 0,
               pinned: true,
               backgroundColor: AppColors.pageBg(context),
+              elevation: 0,
               leading: GestureDetector(
                 onTap: () => context.pop(),
                 child: Container(
                   margin: const EdgeInsets.all(8),
-                  child: GlassCard(
-                    borderRadius: 40,
-                    child: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 18,
-                        color: post.imageUrls.isNotEmpty
-                            ? Colors.white
-                            : AppColors.textPrimary(context),
-                      ),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.4),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
                     ),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
                   ),
                 ),
               ),
               actions: [
                 Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.4),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.share_rounded, color: Colors.white, size: 18),
+                      tooltip: 'Share Post',
+                      onPressed: () {
+                        final typeHeader = post.isLost ? '🔍 LOST ITEM REPORTED' : '✨ FOUND ITEM REPORTED';
+                        final shareText = '''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       $typeHeader
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 TITLE
+» ${post.title}
+
+📍 LOCATION
+» ${post.location.building} ${post.location.room != null ? '(Room: ${post.location.room})' : ''}
+
+📝 DETAILS
+» ${post.description}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔗 VERIFIED BLOCKCHAIN RECORD & CLAIM:
+» https://trace-self.vercel.app/post/${post.id}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+''';
+                        Share.share(shareText, subject: 'TRACE Lost & Found: ${post.title}');
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Container(
                   margin: const EdgeInsets.all(8),
-                  child: GlassCard(
-                    borderRadius: 40,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.4),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
                     child: PopupMenuButton<String>(
-                      icon: Icon(
-                        Icons.more_vert_rounded,
-                        color: post.imageUrls.isNotEmpty
-                            ? Colors.white
-                            : AppColors.textPrimary(context),
-                      ),
+                      icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                             value: 'report', child: Text('Report')),
@@ -386,20 +444,18 @@ class _PostDetailBody extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          const Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: 100,
+                          Positioned.fill(
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
                                   colors: [
+                                    Colors.black.withOpacity(0.4),
                                     Colors.transparent,
-                                    Colors.black38,
+                                    AppColors.pageBg(context),
                                   ],
+                                  stops: const [0.0, 0.4, 1.0],
                                 ),
                               ),
                             ),
@@ -411,7 +467,7 @@ class _PostDetailBody extends ConsumerWidget {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -441,9 +497,10 @@ class _PostDetailBody extends ConsumerWidget {
                       post.title,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 26,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary(context),
                         height: 1.2,
+                        letterSpacing: -0.5,
                       ),
                     ).animate().fadeIn(delay: 100.ms),
                     const SizedBox(height: 12),
@@ -452,10 +509,10 @@ class _PostDetailBody extends ConsumerWidget {
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         color: AppColors.textSecondary(context),
-                        height: 1.7,
+                        height: 1.6,
                       ),
                     ).animate().fadeIn(delay: 150.ms),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     _InfoCard(
                       icon: Icons.location_on_rounded,
                       iconColor: accent,
@@ -472,27 +529,42 @@ class _PostDetailBody extends ConsumerWidget {
                       content: AppDateUtils.friendlyDate(post.timestamp),
                     ),
                     if (post.aiTags.isNotEmpty) ...[
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
                       Text(
-                        '🤖 AI Detected Tags',
+                        'AI Detected Tags',
                         style: GoogleFonts.inter(
                           fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary(context),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
-                        runSpacing: 6,
+                        runSpacing: 8,
                         children: post.aiTags
-                            .map((tag) => Chip(label: Text(tag)))
+                            .map((tag) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.jadePrimary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: AppColors.jadePrimary.withOpacity(0.2)),
+                                  ),
+                                  child: Text(
+                                    tag,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.jadePrimary,
+                                    ),
+                                  ),
+                                ))
                             .toList(),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
                     Divider(color: AppColors.border(context)),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     
                     Row(
                       children: [
@@ -523,9 +595,9 @@ class _PostDetailBody extends ConsumerWidget {
                           label: 'Share',
                           color: accent,
                           onTap: () {
-                            final text = 'Lost & Found: ${post.title}\n'
-                                '${post.description}\n'
-                                'Location: ${post.location.building}\n'
+                            final text = 'Lost & Found: ${post.title}\\n'
+                                '${post.description}\\n'
+                                'Location: ${post.location.building}\\n'
                                 'Download the app to help: https://lostfound.campus.edu';
                             Share.share(text);
                           },
@@ -533,24 +605,16 @@ class _PostDetailBody extends ConsumerWidget {
                       ],
                     ),
                     
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     Divider(color: AppColors.border(context)),
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: accent.withOpacity(0.1),
-                          ),
-                          child: Icon(
-                            Icons.person_rounded,
-                            color: accent,
-                          ),
+                        UserAvatar(
+                          photoURL: post.posterAvatarUrl,
+                          radius: 24,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -559,15 +623,15 @@ class _PostDetailBody extends ConsumerWidget {
                                   ? 'Anonymous'
                                   : post.posterName,
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary(context),
                               ),
                             ),
                             Text(
                               '${post.viewCount} views',
                               style: GoogleFonts.inter(
-                                fontSize: 12,
+                                fontSize: 13,
                                 color: AppColors.textSecondary(context),
                               ),
                             ),
@@ -577,7 +641,7 @@ class _PostDetailBody extends ConsumerWidget {
                     ),
 
                     if (post.status == 'resolved') ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       GestureDetector(
                         onTap: () => _showBlockchainIntegrityDialog(context, ref),
                         child: Container(
@@ -596,7 +660,7 @@ class _PostDetailBody extends ConsumerWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Verified on Blockchain ✅',
+                                      'Verified on Blockchain',
                                       style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green),
                                     ),
                                     Text(
@@ -613,19 +677,9 @@ class _PostDetailBody extends ConsumerWidget {
                     ],
 
                     _PotentialMatchesSection(post: post),
-                    const SizedBox(height: 28),
-                    if (!isOwner && post.isOpen)
-                      _ClaimSection(
-                        post: post, 
-                        currentUid: currentUid ?? '',
-                        status: userClaimStatus,
-                        claimId: approvedClaimId,
-                      ),
-                    if (isOwner && post.isOpen)
-                      _ViewClaimsSection(post: post),
                     const SizedBox(height: 32),
                     CommentsSection(postId: post.id),
-                    const SizedBox(height: 100),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -642,6 +696,193 @@ class _PostDetailBody extends ConsumerWidget {
       MaterialPageRoute(
         builder: (_) =>
             _GalleryView(urls: post.imageUrls, initialIndex: initialIndex),
+      ),
+    );
+  }
+}
+
+void _showClaimBottomSheet(BuildContext context, SimplePostModel post) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _ClaimBottomSheet(post: post),
+  );
+}
+
+class _ClaimBottomSheet extends ConsumerStatefulWidget {
+  const _ClaimBottomSheet({required this.post});
+  final SimplePostModel post;
+
+  @override
+  ConsumerState<_ClaimBottomSheet> createState() => _ClaimBottomSheetState();
+}
+
+class _ClaimBottomSheetState extends ConsumerState<_ClaimBottomSheet> {
+  final _proofCtrl = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _proofCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitClaim() async {
+    if (_proofCtrl.text.trim().isEmpty) {
+      showAppSnack(context, 'Please provide proof of ownership', isError: true);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.requestClaim(
+        postId: widget.post.id,
+        proofText: _proofCtrl.text.trim(),
+      );
+
+      ref.invalidate(myClaimsProvider);
+      AppHaptics.success();
+      if (mounted) {
+        Navigator.pop(context); // close bottom sheet
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Request Submitted'),
+            content: const Text(
+                'Your claim request has been sent to the finder. They will review your proof and approve it if it matches.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext); // close dialog
+                },
+                child: const Text('Got it'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnack(context, 'Failed to submit claim: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.post.isLost ? AppColors.lostAlert : AppColors.foundSuccess;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.pageBg(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: AppColors.textHint(context).withOpacity(0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: color.withOpacity(0.2)),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.verified_user_outlined, color: color, size: 40),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Ownership Verification',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'The finder has set a security gatekeeper. To claim this item, please answer the question or provide a unique detail that only the owner would know.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary(context), height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (widget.post.secretDetailQuestion != null) ...[
+              Text(
+                'QUESTION FROM FINDER:',
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: color, letterSpacing: 1),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.post.secretDetailQuestion!,
+                style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 24),
+            ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'YOUR PROOF / ANSWER:',
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary(context), letterSpacing: 1),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _proofCtrl,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: 'Describe the item details, serial numbers, unique stickers...',
+                fillColor: AppColors.surface(context),
+                filled: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submitClaim,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+                child: _isSubmitting
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Submit Proof & Request Claim', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -709,7 +950,7 @@ class _PotentialMatchesSection extends ConsumerWidget {
                 const Icon(Icons.auto_awesome_rounded, color: AppColors.jadePrimary, size: 18),
                 const SizedBox(width: 8),
                 Text(
-                  '🤖 Potential Matches Found',
+                  'Potential Matches Found',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -780,25 +1021,35 @@ class _PotentialMatchesSection extends ConsumerWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => context.push('/post/${m.post.id}'),
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(0, 32),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              child: InkWell(
+                                onTap: () => context.push('/post/${m.post.id}'),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  height: 32,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: AppColors.border(context)),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text('View', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary(context))),
                                 ),
-                                child: const Text('View Match', style: TextStyle(fontSize: 11)),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: ElevatedButton(
-                                onPressed: () => context.push('/post/${m.post.id}/claim', extra: m.post),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.jadePrimary,
-                                  minimumSize: const Size(0, 32),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              child: InkWell(
+                                onTap: () => context.push('/post/${m.post.id}/claim', extra: m.post),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  height: 32,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.jadePrimary,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [BoxShadow(color: AppColors.jadePrimary.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
+                                  ),
+                                  child: Text('Claim', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
                                 ),
-                                child: const Text('Claim', style: TextStyle(fontSize: 11)),
                               ),
                             ),
                           ],
@@ -822,8 +1073,8 @@ class _MatchResult {
   _MatchResult({required this.post, required this.percentage});
 }
 
-class _ClaimSection extends ConsumerWidget {
-  const _ClaimSection({
+class _ClaimBottomBar extends ConsumerWidget {
+  const _ClaimBottomBar({
     required this.post, 
     required this.currentUid, 
     this.status,
@@ -839,6 +1090,7 @@ class _ClaimSection extends ConsumerWidget {
     final color = post.isLost ? AppColors.lostAlert : AppColors.foundSuccess;
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GlassCard(
@@ -848,12 +1100,12 @@ class _ClaimSection extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               status == 'approved'
-                  ? '✅ Your claim is approved! Meet the finder and scan their QR code to complete the recovery.'
+                  ? 'Your claim is approved. Meet the finder and scan their QR code to complete the recovery.'
                   : status == 'pending'
-                      ? '⏳ Your claim is being reviewed by the finder. We\'ll notify you once they respond.'
+                      ? 'Your claim is being reviewed by the finder. We\'ll notify you once they respond.'
                       : post.isLost
-                          ? '🔍 If you found this item, tap below to contact the owner securely.'
-                          : '✋ If this is your item, tap below to claim it.',
+                          ? 'If you found this item, tap below to contact the owner securely.'
+                          : 'If this is your item, tap below to claim it.',
               style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AppColors.textSecondary(context),
@@ -892,7 +1144,7 @@ class _ClaimSection extends ConsumerWidget {
               ),
               child: Center(
                 child: Text(
-                  '💬 Chat with Finder',
+                  'Chat with Finder',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -938,10 +1190,10 @@ class _ClaimSection extends ConsumerWidget {
             child: Center(
               child: Text(
                 status == 'approved'
-                    ? '📸 Scan Handover QR'
+                    ? 'Scan Handover QR'
                     : status == 'pending'
-                        ? '⏳ Claim Pending'
-                        : post.isLost ? '💬 I Found This' : '💬 This Is Mine',
+                        ? 'Claim Pending'
+                        : post.isLost ? 'I Found This' : 'This Is Mine',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -1112,13 +1364,14 @@ class _PostImage extends StatelessWidget {
   }
 }
 
-class _ViewClaimsSection extends StatelessWidget {
-  const _ViewClaimsSection({required this.post});
+class _ViewClaimsBottomBar extends StatelessWidget {
+  const _ViewClaimsBottomBar({required this.post});
   final SimplePostModel post;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GlassCard(
@@ -1148,14 +1401,18 @@ class _ViewClaimsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ElevatedButton(
-          onPressed: () => context.push('/post/${post.id}/claims?title=${Uri.encodeComponent(post.title)}'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.jadePrimary,
+        GestureDetector(
+          onTap: () => context.push('/post/${post.id}/claims?title=${Uri.encodeComponent(post.title)}'),
+          child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [AppColors.jadePrimary, Colors.teal.shade600]),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [BoxShadow(color: AppColors.jadePrimary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+            ),
+            alignment: Alignment.center,
+            child: Text('View Claim Requests', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.white)),
           ),
-          child: const Text('View Claim Requests', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );

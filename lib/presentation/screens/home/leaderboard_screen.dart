@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/models/simple_user_model.dart';
+import '../../widgets/common/user_avatar.dart';
 
 final leaderboardProvider = FutureProvider<List<SimpleUserModel>>((ref) async {
   final authService = ref.watch(authServiceProvider);
@@ -182,35 +183,7 @@ class LeaderboardScreen extends ConsumerWidget {
   }
 
   Widget _buildUserAvatar(SimpleUserModel user, {double size = 44}) {
-    if (user.photoURL != null && user.photoURL!.isNotEmpty) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          image: DecorationImage(
-            image: NetworkImage(user.photoURL!),
-            fit: BoxFit.cover,
-          ),
-        ),
-      );
-    }
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: AppColors.jadePrimary.withOpacity(0.1),
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: user.name.isNotEmpty 
-            ? Text(
-                user.name[0].toUpperCase(),
-                style: GoogleFonts.plusJakartaSans(fontSize: size * 0.45, fontWeight: FontWeight.bold, color: AppColors.jadePrimary),
-              )
-            : Icon(Icons.person_rounded, size: size * 0.5, color: AppColors.jadePrimary),
-      ),
-    );
+    return UserAvatar(photoURL: user.photoURL, radius: size / 2);
   }
 
   Widget _buildPodiumColumn(BuildContext context, SimpleUserModel user, int rank, Color medalColor, double colHeight) {

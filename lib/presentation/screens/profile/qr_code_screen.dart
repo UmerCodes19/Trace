@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_user_model.dart';
@@ -112,7 +113,7 @@ class QrCodeScreen extends ConsumerWidget {
                 const SizedBox(height: 48),
                 OutlinedButton.icon(
                   onPressed: () {
-                    // Share logic would go here
+                    Share.share('https://trace-self.vercel.app/profile/${user.uid}');
                   },
                   icon: const Icon(Icons.share_rounded),
                   label: const Text('Share QR Code'),

@@ -5,33 +5,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-// 🛑 ADD YOUR GEMINI API KEY HERE
-final _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-
+// 🛑 Multi-Key Rotation Pool for free production scaling
 final aiServiceProvider = Provider<AIService>((ref) {
-  return AIService(_geminiApiKey);
+  final List<String> keys = [
+    dotenv.env['GEMINI_API_KEY_1'] ?? dotenv.env['GEMINI_API_KEY'] ?? '',
+    dotenv.env['GEMINI_API_KEY_2'] ?? '',
+    dotenv.env['GEMINI_API_KEY_3'] ?? '',
+    dotenv.env['GEMINI_API_KEY_4'] ?? '',
+    dotenv.env['GEMINI_API_KEY_5'] ?? '',
+  ].where((key) => key.isNotEmpty && key != 'YOUR_API_KEY_HERE').toList();
+
+  return AIService(keys.isEmpty ? [''] : keys);
 });
 
 class AIService {
-  final String _apiKey;
+  final List<String> _apiKeys;
+  int _currentKeyIndex = 0;
   
   // List of models to try in order (Primary -> Fallback)
   final List<String> _modelsToTry = [
-  'models/gemini-2.5-flash',
-  'models/gemini-2.0-flash',
-  'models/gemini-2.0-flash-lite',
-  'models/gemini-2.5-pro',
-];
+    'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-pro-latest',
+  ];
 
-  AIService(this._apiKey);
+  AIService(this._apiKeys);
+
+  String _getNextKey() {
+    if (_apiKeys.isEmpty) return '';
+    final key = _apiKeys[_currentKeyIndex];
+    debugPrint('🔄 Rotating Gemini API Key: Using Key Index $_currentKeyIndex of ${_apiKeys.length}');
+    _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.length;
+    return key;
+  }
 
   /// Scans the image and returns a map with 'title', 'description', and 'tags'
   Future<Map<String, dynamic>?> analyzeItemImage(File imageFile) async {
-    if (_apiKey.isEmpty || _apiKey == 'YOUR_API_KEY_HERE') {
-      debugPrint('❌ GEMINI API KEY NOT SET!');
-      return null;
-    }
-
     final bytes = await imageFile.readAsBytes();
     final ext = imageFile.path.split('.').last.toLowerCase();
     final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
@@ -54,45 +64,52 @@ Return a JSON object strictly following this structure:
       ])
     ];
 
-    // Try each model until one succeeds
-    for (String modelName in _modelsToTry) {
-      try {
-        debugPrint('🤖 Attempting AI analysis with model: $modelName');
-        
-        final model = GenerativeModel(
-          model: modelName,
-          apiKey: _apiKey,
-          generationConfig: GenerationConfig(
-            responseMimeType: 'application/json',
-            temperature: 0.4,
-          ),
-        );
-
-        final response = await model.generateContent(content);
-        final text = response.text;
-        
-        if (text != null && text.isNotEmpty) {
-          debugPrint('✅ AI Analysis Successful with $modelName');
-          return jsonDecode(text) as Map<String, dynamic>;
-        }
-      } catch (e) {
-        debugPrint('⚠️ Model $modelName failed or overloaded: $e');
-        // Continue to next model in list
+    // Try each key in the pool, and try each model
+    for (int attempt = 0; attempt < _apiKeys.length; attempt++) {
+      final key = _getNextKey();
+      if (key.isEmpty || key == 'YOUR_API_KEY_HERE') {
+        debugPrint('❌ GEMINI API KEY NOT SET OR EMPTY!');
         continue;
+      }
+
+      for (String modelName in _modelsToTry) {
+        try {
+          final cleanModelName = modelName.replaceFirst('models/', '');
+          debugPrint('🤖 Attempting AI analysis with model: $cleanModelName');
+          
+          final model = GenerativeModel(
+            model: cleanModelName,
+            apiKey: key,
+            generationConfig: GenerationConfig(
+              responseMimeType: 'application/json',
+              temperature: 0.4,
+            ),
+          );
+
+          final response = await model.generateContent(content);
+          final text = response.text;
+          
+          if (text != null && text.isNotEmpty) {
+            debugPrint('✅ AI Analysis Successful with $modelName');
+            return jsonDecode(text) as Map<String, dynamic>;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Model $modelName failed on key index $_currentKeyIndex: $e');
+          if (e.toString().contains('429') || e.toString().contains('quota') || e.toString().contains('limit')) {
+            debugPrint('⚠️ Rate limit hit on key index $_currentKeyIndex. Retrying with next key in pool...');
+            break; // Break model loop to switch key instantly
+          }
+          continue; // Try next fallback model with same key
+        }
       }
     }
 
-    debugPrint('❌ All AI models failed or are currently unavailable.');
+    debugPrint('❌ All AI models and API keys failed or are currently unavailable.');
     return null;
   }
 
   /// Parses raw voice transcript and returns structured post fields (title, description, tags, type, buildingName, floor, location_room)
   Future<Map<String, dynamic>?> parseVoiceTranscript(String transcript) async {
-    if (_apiKey.isEmpty || _apiKey == 'YOUR_API_KEY_HERE') {
-      debugPrint('❌ GEMINI API KEY NOT SET!');
-      return null;
-    }
-
     final prompt = '''
 You are an AI assistant for the TRACE lost and found app at Bahria University.
 Analyze this voice report transcript and extract structured information.
@@ -112,32 +129,44 @@ Return a JSON object strictly following this structure (keep values null if they
 
     final content = [Content.text(prompt)];
 
-    for (String modelName in _modelsToTry) {
-      try {
-        debugPrint('🤖 Attempting Voice Parsing with model: $modelName');
-        final model = GenerativeModel(
-          model: modelName,
-          apiKey: _apiKey,
-          generationConfig: GenerationConfig(
-            responseMimeType: 'application/json',
-            temperature: 0.3,
-          ),
-        );
-
-        final response = await model.generateContent(content);
-        final text = response.text;
-        
-        if (text != null && text.isNotEmpty) {
-          debugPrint('✅ Voice Parsing Successful with $modelName');
-          return jsonDecode(text) as Map<String, dynamic>;
-        }
-      } catch (e) {
-        debugPrint('⚠️ Model $modelName failed or overloaded: $e');
+    for (int attempt = 0; attempt < _apiKeys.length; attempt++) {
+      final key = _getNextKey();
+      if (key.isEmpty || key == 'YOUR_API_KEY_HERE') {
         continue;
+      }
+
+      for (String modelName in _modelsToTry) {
+        try {
+          final cleanModelName = modelName.replaceFirst('models/', '');
+          debugPrint('🤖 Attempting Voice Parsing with model: $cleanModelName');
+          final model = GenerativeModel(
+            model: cleanModelName,
+            apiKey: key,
+            generationConfig: GenerationConfig(
+              responseMimeType: 'application/json',
+              temperature: 0.3,
+            ),
+          );
+
+          final response = await model.generateContent(content);
+          final text = response.text;
+          
+          if (text != null && text.isNotEmpty) {
+            debugPrint('✅ Voice Parsing Successful with $modelName');
+            return jsonDecode(text) as Map<String, dynamic>;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Model $modelName failed on key index $_currentKeyIndex: $e');
+          if (e.toString().contains('429') || e.toString().contains('quota') || e.toString().contains('limit')) {
+            debugPrint('⚠️ Rate limit hit on key index $_currentKeyIndex. Retrying with next key in pool...');
+            break; // Break model loop to switch key instantly
+          }
+          continue;
+        }
       }
     }
 
-    debugPrint('⚠️ All AI models failed or rate-limited. Falling back to local smart parser...');
+    debugPrint('⚠️ All AI models/keys failed. Falling back to local smart parser...');
     return _parseVoiceTranscriptLocally(transcript);
   }
 

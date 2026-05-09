@@ -22,6 +22,7 @@ import '../../presentation/screens/post/claim_request_screen.dart';
 import '../../presentation/screens/post/claim_review_list_screen.dart';
 import '../../presentation/screens/post/handover_qr_screen.dart';
 import '../../presentation/screens/post/handover_scanner_screen.dart';
+import '../../presentation/screens/profile/avatar_builder_screen.dart';
 import '../../presentation/screens/profile/edit_profile_screen.dart';
 import '../../presentation/screens/profile/profile_screen.dart';
 import '../../presentation/screens/profile/qr_code_screen.dart';
@@ -64,31 +65,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/home',
-            pageBuilder: (ctx, state) => _slidePage(const HomeScreen(), state),
+            pageBuilder: (ctx, state) => _tabFadePage(const HomeScreen(), state),
           ),
           GoRoute(
             path: '/map',
-            pageBuilder: (ctx, state) => _slidePage(const MapScreen(), state),
+            pageBuilder: (ctx, state) => _tabFadePage(const MapScreen(), state),
           ),
           GoRoute(
             path: '/create',
-            pageBuilder: (ctx, state) =>
-                _slidePage(const CreatePostScreen(), state),
+            pageBuilder: (ctx, state) => _tabFadePage(const CreatePostScreen(), state),
           ),
           GoRoute(
             path: '/chats',
-            pageBuilder: (ctx, state) =>
-                _slidePage(const ChatListScreen(), state),
+            pageBuilder: (ctx, state) => _tabFadePage(const ChatListScreen(), state),
           ),
           GoRoute(
             path: '/profile',
-            pageBuilder: (ctx, state) =>
-                _slidePage(const ProfileScreen(), state),
+            pageBuilder: (ctx, state) => _tabFadePage(const ProfileScreen(), state),
           ),
           GoRoute(
             path: '/admin',
-            pageBuilder: (ctx, state) =>
-                _slidePage(const AdminDashboardScreen(), state),
+            pageBuilder: (ctx, state) => _tabFadePage(const AdminDashboardScreen(), state),
           ),
         ],
       ),
@@ -177,9 +174,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
-        path: '/notifications',
+        path: '/profile/avatar-builder',
         parentNavigatorKey: _rootKey,
-        builder: (context, state) => const NotificationListScreen(),
+        builder: (context, state) => const AvatarBuilderScreen(),
       ),
     ],
     redirect: (ctx, state) => null,
@@ -241,5 +238,19 @@ CustomTransitionPage _fadePage(Widget child, GoRouterState state) {
       );
     },
     transitionDuration: const Duration(milliseconds: 600),
+  );
+}
+
+CustomTransitionPage _tabFadePage(Widget child, GoRouterState state) {
+  return CustomTransitionPage(
+    key: state.pageKey,
+    child: child,
+    transitionsBuilder: (ctx, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: animation.drive(CurveTween(curve: Curves.easeOut)),
+        child: child,
+      );
+    },
+    transitionDuration: const Duration(milliseconds: 150),
   );
 }

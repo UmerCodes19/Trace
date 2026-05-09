@@ -192,115 +192,127 @@ class _PostCardState extends ConsumerState<PostCard> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget card = Container(
       decoration: BoxDecoration(
         color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: isDark ? Colors.black.withOpacity(0.4) : Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          // Image Section
-          Expanded(
-            flex: 3,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (widget.post.imageUrls.isNotEmpty)
-                  CachedNetworkImage(
-                    imageUrl: widget.post.imageUrls[0],
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: primaryColor.withOpacity(0.08),
-                      child: const Center(
-                        child: SizedBox(
-                          width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: primaryColor.withOpacity(0.08),
-                      child: const Icon(Icons.image_not_supported_outlined, size: 20),
-                    ),
-                  )
-                else
-                  Container(
-                    color: primaryColor.withOpacity(0.08),
-                    child: const Icon(Icons.image_outlined, size: 28),
+          // 1. Edge-to-Edge Image
+          if (widget.post.imageUrls.isNotEmpty)
+            CachedNetworkImage(
+              imageUrl: widget.post.imageUrls[0],
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: primaryColor.withOpacity(0.08),
+                child: const Center(
+                  child: SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-
-                // Tag Overlay
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: widget.post.type == 'lost' 
-                      ? StatusChip.lost(small: true) 
-                      : StatusChip.found(small: true),
                 ),
-              ],
+              ),
+              errorWidget: (context, url, error) => Container(
+                color: primaryColor.withOpacity(0.08),
+                child: const Icon(Icons.image_not_supported_outlined, size: 24),
+              ),
+            )
+          else
+            Container(
+              color: primaryColor.withOpacity(0.08),
+              child: const Icon(Icons.image_outlined, size: 32),
+            ),
+
+          // 2. Premium Gradient Overlay (for text readability)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.05),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.35),
+                    Colors.black.withOpacity(0.85),
+                  ],
+                  stops: const [0.0, 0.4, 0.7, 1.0],
+                ),
+              ),
             ),
           ),
 
-          // Content Section
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.post.title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5, 
-                          fontWeight: FontWeight.w700, 
-                          color: AppColors.textPrimary(context), 
-                          height: 1.1
+          // 3. Floating Status Badge (Top Right)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: widget.post.type == 'lost' 
+                ? StatusChip.lost(small: true) 
+                : StatusChip.found(small: true),
+          ),
+
+          // 4. Floating Metadata (Bottom Left)
+          Positioned(
+            bottom: 12,
+            left: 12,
+            right: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.post.title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14, 
+                    fontWeight: FontWeight.w800, 
+                    color: Colors.white, 
+                    height: 1.1,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_rounded, size: 12, color: Colors.white70),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        widget.post.location.building,
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5, 
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w500,
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on_rounded, size: 10, color: AppColors.textSecondary(context)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              widget.post.location.building,
-                              style: GoogleFonts.inter(fontSize: 9.5, color: AppColors.textSecondary(context)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Text(
-                    AppDateUtils.timeAgo(widget.post.timestamp),
-                    style: GoogleFonts.inter(
-                      fontSize: 9, 
-                      fontWeight: FontWeight.w500, 
-                      color: AppColors.textSecondary(context).withOpacity(0.7)
                     ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  AppDateUtils.timeAgo(widget.post.timestamp),
+                  style: GoogleFonts.inter(
+                    fontSize: 9, 
+                    fontWeight: FontWeight.w600, 
+                    color: Colors.white54,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],

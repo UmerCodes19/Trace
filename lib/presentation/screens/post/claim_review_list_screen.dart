@@ -8,6 +8,7 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
+import '../../widgets/common/user_avatar.dart';
 
 class ClaimReviewListScreen extends ConsumerStatefulWidget {
   const ClaimReviewListScreen({super.key, required this.postId, required this.postTitle});
@@ -110,9 +111,9 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.jadePrimary.withOpacity(0.1),
-                          child: Text(user['name']?[0] ?? '?'),
+                        UserAvatar(
+                          photoURL: user['photoURL'],
+                          radius: 20,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -250,9 +251,9 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    CircleAvatar(
-                                      backgroundColor: AppColors.jadePrimary.withOpacity(0.1),
-                                      child: Text(user['name']?[0] ?? '?'),
+                                    UserAvatar(
+                                      photoURL: user['photoURL'],
+                                      radius: 20,
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(

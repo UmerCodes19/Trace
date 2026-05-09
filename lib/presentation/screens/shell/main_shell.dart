@@ -24,10 +24,10 @@ class _MainShellState extends ConsumerState<MainShell> {
     final user = ref.read(authServiceProvider).currentUser;
     final isAdmin = user?.isAdmin ?? false;
     return [
-      const _TabItem(icon: Icons.grid_view_rounded, activeIcon: Icons.grid_view_rounded, label: 'Feed', path: '/home'),
+      const _TabItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home', path: '/home'),
       const _TabItem(icon: Icons.map_outlined, activeIcon: Icons.map_rounded, label: 'Map', path: '/map'),
-      const _TabItem(icon: Icons.add_rounded, activeIcon: Icons.add_rounded, label: 'Post', path: '/create'),
-      const _TabItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Chats', path: '/chats'),
+      const _TabItem(icon: Icons.add_box_outlined, activeIcon: Icons.add_box_rounded, label: 'Create', path: '/create'),
+      const _TabItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Inbox', path: '/chats'),
       _TabItem(
         icon: isAdmin ? Icons.admin_panel_settings_outlined : Icons.person_outline_rounded,
         activeIcon: isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
@@ -86,7 +86,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   }
 }
 
-class _MorphingActivePillDock extends StatelessWidget {
+class _MorphingActivePillDock extends StatefulWidget {
   const _MorphingActivePillDock({
     required this.currentIndex,
     required this.tabs,
@@ -98,6 +98,14 @@ class _MorphingActivePillDock extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   @override
+  State<_MorphingActivePillDock> createState() => _MorphingActivePillDockState();
+}
+
+class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
+  double? _manualDragX;
+  double _stretchScaleX = 1.0;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = Theme.of(context).colorScheme.primary;
@@ -106,189 +114,196 @@ class _MorphingActivePillDock extends StatelessWidget {
     final bottomMargin = bottomPadding > 0 ? bottomPadding + 14.0 : 26.0;
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final dockWidth = screenWidth - 48;
+    final dockWidth = screenWidth - 48; // 24 padding on each side
     
-    // Exact center-locked layout math for Morphing Active Pill
-    final baseTabWidth = (dockWidth - 24) / tabs.length;
-    final activeWidth = baseTabWidth * 1.42;
+    // Dynamic Flex Math
+    final activeWidth = (dockWidth - 24) * 0.40; // Active gets 40% of inner space
+    final inactiveWidth = ((dockWidth - 24) - activeWidth) / (widget.tabs.length - 1);
 
-    // Available width per half (left and right of center button)
-    final halfWidth = (dockWidth - 24 - baseTabWidth) / 2;
-    final tabWidths = List<double>.filled(tabs.length, 0.0);
-
-    // Left half (tabs 0, 1):
-    if (currentIndex == 0 || currentIndex == 1) {
-      tabWidths[currentIndex] = activeWidth;
-      final otherIndex = currentIndex == 0 ? 1 : 0;
-      tabWidths[otherIndex] = halfWidth - activeWidth;
-    } else {
-      tabWidths[0] = halfWidth / 2;
-      tabWidths[1] = halfWidth / 2;
+    final tabWidths = List<double>.filled(widget.tabs.length, 0.0);
+    for (int i = 0; i < widget.tabs.length; i++) {
+      tabWidths[i] = (widget.currentIndex == i) ? activeWidth : inactiveWidth;
     }
-
-    // Right half (tabs 3, 4):
-    if (currentIndex == 3 || currentIndex == 4) {
-      tabWidths[currentIndex] = activeWidth;
-      final otherIndex = currentIndex == 3 ? 4 : 3;
-      tabWidths[otherIndex] = halfWidth - activeWidth;
-    } else {
-      tabWidths[3] = halfWidth / 2;
-      tabWidths[4] = halfWidth / 2;
-    }
-
-    // Lock center button exactly to the base width
-    tabWidths[2] = baseTabWidth;
 
     double currentLeft = 0;
     final tabPositions = <double>[];
-    for (int i = 0; i < tabs.length; i++) {
+    for (int i = 0; i < widget.tabs.length; i++) {
       tabPositions.add(currentLeft);
       currentLeft += tabWidths[i];
     }
 
+    // Determine position left for active highlight pill
+    double highlightLeft;
+    double highlightWidth = tabWidths[widget.currentIndex];
+
+    if (_manualDragX != null) {
+      highlightLeft = (_manualDragX! - 12 - (highlightWidth / 2)).clamp(0.0, dockWidth - 24 - highlightWidth);
+    } else {
+      highlightLeft = tabPositions[widget.currentIndex];
+    }
+
+    void _handleDragUpdate(double localX, double deltaX) {
+      setState(() {
+        _manualDragX = localX;
+        _stretchScaleX = (1.0 + (deltaX.abs() * 0.15)).clamp(1.0, 1.45);
+      });
+
+      int closestIndex = widget.currentIndex;
+      double minDistance = double.infinity;
+      for (int i = 0; i < widget.tabs.length; i++) {
+        final center = tabPositions[i] + tabWidths[i] / 2;
+        final distance = (center - (localX - 12)).abs();
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestIndex = i;
+        }
+      }
+
+      if (closestIndex != widget.currentIndex) {
+        HapticFeedback.lightImpact();
+        widget.onTap(closestIndex);
+      }
+    }
+
     return Container(
       margin: EdgeInsets.fromLTRB(24, 0, 24, bottomMargin),
-      height: 62,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Translucent pure glass structure
-          ClipRRect(
-            borderRadius: BorderRadius.circular(31),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark 
-                      ? const Color(0xEE0A1312)
-                      : const Color(0xF4FFFFFF),
-                  borderRadius: BorderRadius.circular(31),
-                  border: Border.all(
+      height: 64,
+      child: GestureDetector(
+        onHorizontalDragStart: (details) {
+          setState(() {
+            _manualDragX = details.localPosition.dx;
+            _stretchScaleX = 1.05;
+          });
+          HapticFeedback.selectionClick();
+        },
+        onHorizontalDragUpdate: (details) {
+          _handleDragUpdate(details.localPosition.dx, details.primaryDelta ?? 0.0);
+        },
+        onHorizontalDragEnd: (details) {
+          setState(() {
+            _manualDragX = null;
+            _stretchScaleX = 1.0;
+          });
+          HapticFeedback.mediumImpact();
+        },
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Translucent pure glass structure
+            ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: Container(
+                  decoration: BoxDecoration(
                     color: isDark 
-                        ? Colors.white.withOpacity(0.08) 
-                        : Colors.black.withOpacity(0.045),
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
+                        ? const Color(0xE60A0A0A) // Deep Onyx
+                        : const Color(0xF2FFFFFF), // Pure Alabaster
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
                       color: isDark 
-                          ? Colors.black.withOpacity(0.4) 
-                          : Colors.black.withOpacity(0.07),
-                      blurRadius: 26,
-                      offset: const Offset(0, 8),
+                          ? Colors.white.withOpacity(0.08) 
+                          : Colors.black.withOpacity(0.05),
+                      width: 1.0,
                     ),
-                  ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark 
+                            ? Colors.black.withOpacity(0.5) 
+                            : Colors.black.withOpacity(0.08),
+                        blurRadius: 30,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Morphing Active Pill highlight shape (Dynamic Accent Color)
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-            left: 12 + tabPositions[currentIndex],
-            top: 7,
-            width: tabWidths[currentIndex],
-            height: 48,
-            child: Container(
-              decoration: BoxDecoration(
-                color: accent.withOpacity(isDark ? 0.18 : 0.09),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: accent.withOpacity(isDark ? 0.22 : 0.12),
-                  width: 1.0,
+            // Morphing Active Pill highlight shape with liquid glass stretching
+            AnimatedPositioned(
+              duration: _manualDragX != null ? const Duration(milliseconds: 50) : const Duration(milliseconds: 300),
+              curve: _manualDragX != null ? Curves.linear : Curves.easeOutQuart,
+              left: 12 + highlightLeft,
+              top: 8,
+              width: highlightWidth,
+              height: 48,
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()..scale(_stretchScaleX, 1.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(isDark ? 0.15 : 0.1),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: accent.withOpacity(isDark ? 0.25 : 0.2),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withOpacity(0.08),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Tab Content
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: List.generate(tabs.length, (index) {
-                final isSelected = currentIndex == index;
-                final tab = tabs[index];
-                
-                // Special rendering for center 'Post' button
-                if (index == 2) {
+            // Tab Content
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: List.generate(widget.tabs.length, (index) {
+                  final isSelected = widget.currentIndex == index;
+                  final tab = widget.tabs[index];
+                  
                   return GestureDetector(
-                    onTap: () => onTap(index),
+                    onTap: () => widget.onTap(index),
                     behavior: HitTestBehavior.opaque,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeOutCubic,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutQuart,
                       width: tabWidths[index],
-                      height: 62,
+                      height: 64,
                       alignment: Alignment.center,
-                      child: Container(
-                        width: 44, height: 44,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [accent, accent.withOpacity(0.85)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isSelected ? tab.activeIcon : tab.icon,
+                            color: isSelected ? accent : AppColors.textSecondary(context).withOpacity(0.7),
+                            size: 22,
                           ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
-                      ),
-                    ),
-                  );
-                }
-
-                return GestureDetector(
-                  onTap: () => onTap(index),
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 320),
-                    curve: Curves.easeOutCubic,
-                    width: tabWidths[index],
-                    height: 62,
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isSelected ? tab.activeIcon : tab.icon,
-                          color: isSelected ? accent : AppColors.textSecondary(context).withOpacity(0.72),
-                          size: 21,
-                        ),
-                        if (isSelected) ...[
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 250),
-                              opacity: isSelected ? 1.0 : 0.0,
-                              child: Text(
-                                tab.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.clip,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: accent,
+                          if (isSelected) ...[
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: isSelected ? 1.0 : 0.0,
+                                child: Text(
+                                  tab.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.clip,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: accent,
+                                    letterSpacing: -0.2,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

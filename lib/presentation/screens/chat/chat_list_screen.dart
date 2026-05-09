@@ -15,6 +15,7 @@ import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/lottie_empty_state.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/skeleton.dart';
+import '../../widgets/common/user_avatar.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
@@ -161,18 +162,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                 padding: const EdgeInsets.all(14),
                                 child: Row(
                                   children: [
-                                    Container(
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: accent.withOpacity(0.1),
-                                      ),
-                                      child: Icon(
-                                        Icons.chat_bubble_outline_rounded,
-                                        color: accent,
-                                        size: 20,
-                                      ),
+                                    UserAvatar(
+                                      photoURL: chat.otherUserAvatar,
+                                      radius: 22,
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(

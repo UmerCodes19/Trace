@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_colors.dart';
@@ -84,59 +85,60 @@ class _StatusChipState extends State<StatusChip>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark
-        ? widget.color.withOpacity(0.15)
-        : widget.color.withOpacity(0.1);
-
     final fontSize = widget.small ? 10.0 : 11.0;
-    final hPad = widget.small ? 8.0 : 10.0;
-    final vPad = widget.small ? 3.0 : 4.0;
+    final hPad = widget.small ? 10.0 : 12.0;
+    final vPad = widget.small ? 4.0 : 6.0;
     final dotSize = widget.small ? 5.0 : 6.0;
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: widget.color.withOpacity(isDark ? 0.2 : 0.15),
-          width: 0.8,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.showDot) ...[
-            AnimatedBuilder(
-              animation: _pulse,
-              builder: (context, child) => Container(
-                width: dotSize,
-                height: dotSize,
-                decoration: BoxDecoration(
-                  color: widget.color.withOpacity(_pulse.value),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.color.withOpacity(0.3 * _pulse.value),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(width: widget.small ? 4 : 5),
-          ],
-          Text(
-            widget.label,
-            style: GoogleFonts.inter(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w600,
-              color: widget.color,
-              letterSpacing: 0.3,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3), // Sleek dark glass
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: widget.color.withOpacity(0.6), // Thin vibrant border
+              width: 0.5,
             ),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.showDot) ...[
+                AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (context, child) => Container(
+                    width: dotSize,
+                    height: dotSize,
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.8 + (0.2 * _pulse.value)),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.color.withOpacity(0.5 * _pulse.value),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(width: widget.small ? 5 : 6),
+              ],
+              Text(
+                widget.label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white, // Crisp white text
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

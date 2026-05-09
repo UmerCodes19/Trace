@@ -12,6 +12,7 @@ import '../../../data/services/auth_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/skeleton.dart';
+import '../../widgets/common/user_avatar.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final String? viewUid;
@@ -157,11 +158,11 @@ class _ProfileBody extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _buildStudentCard(user, isDarkMode, accent, localSettings),
                 const SizedBox(height: 16),
-                _buildIdentityCard(user, isDarkMode, accent, localSettings),
+                _buildIdentityCard(context, user, isDarkMode, accent, localSettings),
                 const SizedBox(height: 32),
                 _buildSectionTitle('Contact Details', isDarkMode),
                 const SizedBox(height: 16),
-                _buildContactCard(user, isDarkMode, accent, localSettings),
+                _buildContactCard(context, user, isDarkMode, accent, localSettings),
                 const SizedBox(height: 120),
               ],
             ),
@@ -207,20 +208,46 @@ class _ProfileBody extends ConsumerWidget {
                 Hero(
                   tag: 'profile_pic_${user.uid}',
                   child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isDarkMode ? AppColors.navyDarkest : Colors.white,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        )
+                      ]
                     ),
-                    child: CircleAvatar(
-                      radius: 40,
-                      backgroundImage: user.photoURL != null && user.photoURL!.isNotEmpty
-                          ? CachedNetworkImageProvider(user.photoURL!)
-                          : null,
-                      backgroundColor: accent,
-                      child: user.photoURL == null || user.photoURL!.isEmpty
-                          ? Text(user.name[0], style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white))
-                          : null,
+                    child: Stack(
+                      children: [
+                        UserAvatar(
+                          photoURL: user.photoURL,
+                          radius: 40,
+                        ),
+                        if (!isPublicView)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: () => context.push('/profile/avatar-builder'),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: isDarkMode ? AppColors.navyDarkest : Colors.white, width: 2),
+                                ),
+                                child: const Icon(
+                                  Icons.face_retouching_natural_rounded,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -395,9 +422,15 @@ class _ProfileBody extends ConsumerWidget {
     ).animate().fadeIn().scale(delay: 200.ms);
   }
 
-  Widget _buildIdentityCard(SimpleUserModel user, bool isDarkMode, Color accent, LocalSettingsService localSettings) {
-    return GlassCard(
+  Widget _buildIdentityCard(BuildContext context, SimpleUserModel user, bool isDarkMode, Color accent, LocalSettingsService localSettings) {
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border(context)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Column(
         children: [
           _buildInfoRow(
@@ -420,9 +453,15 @@ class _ProfileBody extends ConsumerWidget {
     );
   }
 
-  Widget _buildContactCard(SimpleUserModel user, bool isDarkMode, Color accent, LocalSettingsService localSettings) {
-    return GlassCard(
+  Widget _buildContactCard(BuildContext context, SimpleUserModel user, bool isDarkMode, Color accent, LocalSettingsService localSettings) {
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border(context)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Column(
         children: [
           _buildInfoRow(Icons.phone_android_rounded, 'Mobile No.', user.contactNumber ?? 'Not Provided', isDarkMode),

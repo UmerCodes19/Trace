@@ -16,6 +16,7 @@ import '../../../data/services/api_service.dart';
 import '../../../data/services/storage_service.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/skeleton.dart';
+import '../../widgets/common/user_avatar.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.chatId});
@@ -33,6 +34,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isLoading = true;
   Timer? _refreshTimer;
   String? _chatTitle;
+  String? _otherUserAvatar;
+  String? _otherUserName;
 
   @override
   void initState() {
@@ -56,6 +59,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (chat != null && mounted) {
       setState(() {
         _chatTitle = chat['postTitle'] ?? 'Chat';
+        _otherUserName = chat['otherUserName'];
+        _otherUserAvatar = chat['otherUserAvatar'];
       });
     }
   }
@@ -235,22 +240,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           onPressed: () => context.pop(),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              _chatTitle ?? 'Chat',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary(context),
-              ),
-            ),
-            Text(
-              '${_messages.length} messages',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppColors.textSecondary(context),
+            if (_otherUserAvatar != null) ...[
+              UserAvatar(photoURL: _otherUserAvatar, radius: 16),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _otherUserName ?? _chatTitle ?? 'Chat',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  Text(
+                    '${_messages.length} messages · ${_chatTitle ?? ""}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      color: AppColors.textSecondary(context),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

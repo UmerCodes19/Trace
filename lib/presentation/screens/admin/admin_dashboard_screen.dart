@@ -10,6 +10,7 @@ import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/pressable_scale.dart';
+import '../../widgets/common/user_avatar.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -176,9 +177,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
           padding: const EdgeInsets.only(bottom: 12),
           child: GlassCard(
             child: ListTile(
-            leading: CircleAvatar(
-              backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null,
-              child: user.photoURL == null ? const Icon(Icons.person) : null,
+            leading: UserAvatar(
+              photoURL: user.photoURL,
+              radius: 20,
             ),
             title: Text(user.name),
             subtitle: Text(user.email),

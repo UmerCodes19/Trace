@@ -8,6 +8,7 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/comment_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
+import '../common/user_avatar.dart';
 
 class CommentsSection extends ConsumerStatefulWidget {
   const CommentsSection({super.key, required this.postId});
@@ -174,68 +175,79 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
 
   Widget _buildInputArea() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border(context)),
-      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_replyToId != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4.0),
+              padding: const EdgeInsets.only(bottom: 8.0, left: 16),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'Replying to $_replyToName',
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppColors.jadePrimary,
+                      fontSize: 12,
+                      color: AppColors.textSecondary(context),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => setState(() {
                       _replyToId = null;
                       _replyToName = null;
                     }),
-                    child: const Icon(Icons.close_rounded, size: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(color: AppColors.surface(context), shape: BoxShape.circle),
+                      child: const Icon(Icons.close_rounded, size: 12),
+                    ),
                   ),
                 ],
               ),
             ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentController,
-                  style: GoogleFonts.inter(fontSize: 13.5),
-                  decoration: const InputDecoration(
-                    hintText: 'Share your thoughts or ask a question...',
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    isDense: true,
+          Container(
+            padding: const EdgeInsets.only(left: 16, right: 6, top: 4, bottom: 4),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.border(context).withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: AppColors.textPrimary(context)),
+                    decoration: InputDecoration(
+                      hintText: 'Add a comment...',
+                      hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint(context)),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    maxLines: 4,
+                    minLines: 1,
+                    textCapitalization: TextCapitalization.sentences,
                   ),
-                  maxLines: null,
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _submitComment,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: AppColors.jadePrimary,
-                    shape: BoxShape.circle,
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _submitComment,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.textPrimary(context),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.arrow_upward_rounded, color: AppColors.pageBg(context), size: 20),
                   ),
-                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 16),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -264,14 +276,9 @@ class _CommentTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
+              UserAvatar(
+                photoURL: comment.userAvatarUrl,
                 radius: 16,
-                backgroundImage: comment.userAvatarUrl.isNotEmpty
-                    ? NetworkImage(comment.userAvatarUrl)
-                    : null,
-                child: comment.userAvatarUrl.isEmpty
-                    ? const Icon(Icons.person_rounded, size: 16)
-                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -332,14 +339,9 @@ class _CommentTile extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
+                        photoURL: reply.userAvatarUrl,
                         radius: 12,
-                        backgroundImage: reply.userAvatarUrl.isNotEmpty
-                            ? NetworkImage(reply.userAvatarUrl)
-                            : null,
-                        child: reply.userAvatarUrl.isEmpty
-                            ? const Icon(Icons.person_rounded, size: 12)
-                            : null,
                       ),
                       const SizedBox(width: 10),
                       Expanded(

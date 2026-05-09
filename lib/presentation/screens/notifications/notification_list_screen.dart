@@ -8,8 +8,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
 
-class NotificationListScreen extends ConsumerWidget {
-  const NotificationListScreen({super.key});
+class NotificationDrawer extends ConsumerWidget {
+  const NotificationDrawer({super.key});
 
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return 'unknown';
@@ -53,31 +53,38 @@ class NotificationListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notificationsAsync = ref.watch(notificationsProvider);
 
-    return Scaffold(
+    return Drawer(
       backgroundColor: AppColors.pageBg(context),
-      appBar: AppBar(
-        title: Text(
-          'Notifications',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: AppColors.textPrimary(context),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.done_all_rounded),
-            tooltip: 'Mark all as read',
-            onPressed: () async {
-              final user = ref.read(authServiceProvider).currentUser;
-              if (user != null) {
-                await ref.read(apiServiceProvider).markAllNotificationsRead(user.uid);
-                ref.refresh(notificationsProvider);
-              }
-            },
-          ),
-        ],
-      ),
-      body: notificationsAsync.when(
+      width: MediaQuery.of(context).size.width * 0.85,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(left: Radius.circular(32))),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Notifications',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.done_all_rounded),
+                    tooltip: 'Mark all as read',
+                    onPressed: () async {
+                      final user = ref.read(authServiceProvider).currentUser;
+                      if (user != null) {
+                        await ref.read(apiServiceProvider).markAllNotificationsRead(user.uid);
+                        ref.refresh(notificationsProvider);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: notificationsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (notifications) {
@@ -91,13 +98,34 @@ class NotificationListScreen extends ConsumerWidget {
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final n = notifications[index] as Map<String, dynamic>;
-                return GestureDetector(
-                  onTap: () => _onNotificationTap(context, ref, n),
-                  child: _NotificationCard(
-                    notification: {
-                      ...n,
-                      'time': _formatTimestamp(n['timestamp']),
-                    },
+                return Dismissible(
+                  key: Key(n['id'].toString()),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (direction) async {
+                    try {
+                      await ref.read(apiServiceProvider).markNotificationRead(n['id']);
+                      ref.invalidate(notificationsProvider);
+                    } catch (e) {}
+                  },
+                  background: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.lostAlert.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.lostAlert.withOpacity(0.3)),
+                    ),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 24),
+                    child: const Icon(Icons.clear_all_rounded, color: AppColors.lostAlert),
+                  ),
+                  child: GestureDetector(
+                    onTap: () => _onNotificationTap(context, ref, n),
+                    child: _NotificationCard(
+                      notification: {
+                        ...n,
+                        'time': _formatTimestamp(n['timestamp']),
+                      },
+                    ),
                   ),
                 ).animate()
                   .fadeIn(delay: (index * 50).ms)
@@ -106,6 +134,10 @@ class NotificationListScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -149,26 +181,34 @@ class _NotificationCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isRead 
-            ? AppColors.card(context).withOpacity(0.5)
-            : AppColors.card(context),
-        borderRadius: BorderRadius.circular(16),
+        color: isRead ? AppColors.surface(context) : AppColors.card(context),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isRead 
-              ? Colors.transparent 
-              : AppColors.jadePrimary.withOpacity(0.1),
+          color: isRead ? Colors.transparent : color.withOpacity(0.3),
+          width: 1.5,
         ),
+        boxShadow: isRead ? [] : [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              gradient: LinearGradient(
+                colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -182,8 +222,8 @@ class _NotificationCard extends StatelessWidget {
                       child: Text(
                         notification['title'] ?? 'Notification',
                         style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontWeight: isRead ? FontWeight.w600 : FontWeight.bold,
+                          fontSize: 15,
                           color: AppColors.textPrimary(context),
                         ),
                         maxLines: 1,
@@ -195,17 +235,18 @@ class _NotificationCard extends StatelessWidget {
                       notification['time'],
                       style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: AppColors.textSecondary(context).withOpacity(0.6),
+                        fontWeight: FontWeight.w500,
+                        color: isRead ? AppColors.textSecondary(context).withOpacity(0.6) : color,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   notification['body'] ?? '',
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: AppColors.textSecondary(context),
+                    color: AppColors.textSecondary(context).withOpacity(isRead ? 0.7 : 0.9),
                     height: 1.4,
                   ),
                 ),
@@ -214,12 +255,13 @@ class _NotificationCard extends StatelessWidget {
           ),
           if (!isRead)
             Container(
-              margin: const EdgeInsets.only(left: 8, top: 4),
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.jadePrimary,
+              margin: const EdgeInsets.only(left: 12, top: 6),
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: color,
                 shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 4)],
               ),
             ),
         ],
