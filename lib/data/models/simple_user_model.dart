@@ -52,9 +52,9 @@ class SimpleUserModel {
 
   factory SimpleUserModel.fromMap(Map<String, dynamic> map) {
     return SimpleUserModel(
-      uid: map['uid'] as String,
-      name: map['name'] as String,
-      email: map['email'] as String,
+      uid: (map['uid'] as String?) ?? '',
+      name: (map['name'] as String?) ?? 'Unknown User',
+      email: (map['email'] as String?) ?? '',
       department: map['department'] as String?,
       contactNumber: map['contactNumber'] as String?,
       photoURL: map['photoURL'] as String?,

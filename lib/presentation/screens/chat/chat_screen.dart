@@ -225,6 +225,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final uid = ref.read(authServiceProvider).currentUser?.uid ?? '';
+    final myAvatar = ref.watch(authServiceProvider).currentUser?.photoURL;
     final accent = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
@@ -358,6 +359,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 msg: msg,
                                 isMine: isMine,
                                 onRetry: () => _retryMessage(msg),
+                                avatarUrl: isMine ? myAvatar : _otherUserAvatar,
                               ),
                             ],
                           );
@@ -447,10 +449,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.msg, required this.isMine, this.onRetry});
+  const _MessageBubble({
+    required this.msg, 
+    required this.isMine, 
+    this.onRetry,
+    this.avatarUrl,
+  });
   final SimpleMessageModel msg;
   final bool isMine;
   final VoidCallback? onRetry;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -460,9 +468,20 @@ class _MessageBubble extends StatelessWidget {
     final myBubbleColor = accent;
     final otherBubbleColor = AppColors.cardBg(context);
 
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end, // Align avatar at bottom
+        children: [
+          if (!isMine) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: 6, bottom: 2),
+              child: UserAvatar(photoURL: avatarUrl, radius: 10),
+            ),
+          ],
+          Flexible(
+            child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
@@ -559,6 +578,15 @@ class _MessageBubble extends StatelessWidget {
             ],
           ),
         ),
+          ),
+          ),
+          if (isMine) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 6, bottom: 2),
+              child: UserAvatar(photoURL: avatarUrl, radius: 10),
+            ),
+          ],
+        ],
       ),
     );
   }

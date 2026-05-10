@@ -61,6 +61,14 @@ void main() async {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
+  // GLOBAL FAIL-SAFE: Prevent the UI from ever showing yellow/black tapes or red crash screens globally.
+  // This catches unforeseen layout crashes and replaces them with a silent container so users never see visual breakage.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    debugPrint('🔥 [SILENCED UI ERROR] -> ${details.exception}');
+    // Safely render nothing instead of breaking the visuals for the user
+    return const SizedBox.shrink(); 
+  };
+
   runApp(
     ProviderScope(
       overrides: [

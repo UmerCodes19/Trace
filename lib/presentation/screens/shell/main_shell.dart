@@ -1,5 +1,6 @@
 // lib/presentation/screens/shell/main_shell.dart
 import 'dart:ui';
+import '../../../core/utils/tutorial_keys.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -260,7 +261,18 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
                   final isSelected = widget.currentIndex == index;
                   final tab = widget.tabs[index];
                   
+                  final List<GlobalKey?> navKeys = [
+                    TutorialKeys.navHomeKey,
+                    TutorialKeys.navMapKey,
+                    TutorialKeys.navCreateKey,
+                    TutorialKeys.navReelsKey,
+                    TutorialKeys.navInboxKey,
+                    TutorialKeys.navProfileKey,
+                  ];
+                  final Key? itemKey = index < navKeys.length ? navKeys[index] : null;
+
                   return GestureDetector(
+                    key: itemKey,
                     onTap: () => widget.onTap(index),
                     behavior: HitTestBehavior.opaque,
                     child: AnimatedContainer(
@@ -269,18 +281,19 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
                       width: tabWidths[index],
                       height: 64,
                       alignment: Alignment.center,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            isSelected ? tab.activeIcon : tab.icon,
-                            color: isSelected ? accent : AppColors.textSecondary(context).withOpacity(0.7),
-                            size: 22,
-                          ),
-                          if (isSelected) ...[
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: AnimatedOpacity(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isSelected ? tab.activeIcon : tab.icon,
+                              color: isSelected ? accent : AppColors.textSecondary(context).withOpacity(0.7),
+                              size: 22,
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 6),
+                              AnimatedOpacity(
                                 duration: const Duration(milliseconds: 200),
                                 opacity: isSelected ? 1.0 : 0.0,
                                 child: Text(
@@ -295,9 +308,9 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   );

@@ -7,14 +7,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/api_service.dart';
 import '../../../data/models/simple_user_model.dart';
 import '../../widgets/common/user_avatar.dart';
 
 final leaderboardProvider = FutureProvider<List<SimpleUserModel>>((ref) async {
-  final authService = ref.watch(authServiceProvider);
-  final users = await authService.getAllUsers();
-  users.sort((a, b) => b.karmaPoints.compareTo(a.karmaPoints));
-  return users;
+  final api = ref.watch(apiServiceProvider);
+  final data = await api.getLeaderboard();
+  return data.map((u) => SimpleUserModel.fromMap(u as Map<String, dynamic>)).toList();
 });
 
 class LeaderboardScreen extends ConsumerWidget {

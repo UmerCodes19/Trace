@@ -13,6 +13,10 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../data/models/map/campus_gis_models.dart';
+import '../../../core/utils/tutorial_keys.dart';
+import '../../../core/utils/app_guide_orchestrator.dart';
+import '../../../core/services/tutorial_service.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../../../data/services/map/map_engine_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -52,6 +56,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _loadPosts();
     _startPositioning();
   }
+
+
 
   void _startPositioning() {
     IndoorPositioningService.instance.startPositioning();
@@ -476,6 +482,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
       body: Stack(
+        key: TutorialKeys.mapCanvasKey,
         children: [
           // ── Map Layer ──────────────────────────────────────────────
           _isIndoorMode 
@@ -601,18 +608,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 children: [
                   Row(
                     children: [
-                      _GlassButton(
-                        onPressed: () => setState(() => _isIndoorMode = !_isIndoorMode),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(_isIndoorMode ? Icons.apartment_rounded : Icons.public_rounded, size: 18, color: accent),
-                            const SizedBox(width: 8),
-                            Text(
-                              _isIndoorMode ? 'INDOOR: ${_activeBuilding.name}' : 'CAMPUS VIEW',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                            ),
-                          ],
+                      Container(
+                        key: TutorialKeys.mapToggleKey,
+                        child: _GlassButton(
+                          onPressed: () => setState(() => _isIndoorMode = !_isIndoorMode),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_isIndoorMode ? Icons.apartment_rounded : Icons.public_rounded, size: 18, color: accent),
+                              const SizedBox(width: 8),
+                              Text(
+                                _isIndoorMode ? 'INDOOR: ${_activeBuilding.name}' : 'CAMPUS VIEW',
+                                style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const Spacer(),
@@ -696,6 +706,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildFilters() {
     return Container(
+      key: TutorialKeys.mapFilterKey,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.card(context).withOpacity(0.85),

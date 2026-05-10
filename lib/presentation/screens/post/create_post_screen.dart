@@ -46,6 +46,11 @@ import '../../../data/services/offline/sync_manager.dart';
 
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+import '../../../core/utils/tutorial_keys.dart';
+import '../../../core/utils/app_guide_orchestrator.dart';
+import '../../../core/services/tutorial_service.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 
 
@@ -83,6 +88,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _roomCtrl = TextEditingController();
 
   final _secretQuestionCtrl = TextEditingController();
+  final _manualTagCtrl = TextEditingController();
 
   int _floor = 0;
 
@@ -209,10 +215,49 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         });
 
       }
-
+      _checkCreateTour();
     });
-
   }
+
+  Future<void> _checkCreateTour() async {
+    if (!mounted) return;
+    final state = ref.read(activeTourStateProvider);
+    if (state != ActiveTourState.create) return;
+
+    // Wait for screen stability
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) _launchCreateTour();
+  }
+
+  void _launchCreateTour() {
+    final service = ref.read(tutorialServiceProvider);
+    final targets = <TargetFocus>[
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.createPostPhotosKey,
+        title: 'Add Photos',
+        description: 'Tap here to upload or take clear photos of the item.',
+        stepLabel: 'Photos',
+        align: ContentAlign.bottom,
+        radius: 20,
+      ),
+    ];
+
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    final router = GoRouter.of(context);
+
+    AppGuideOrchestrator.showTutorial(
+      context: context,
+      featureKey: 'create_tour',
+      targets: targets,
+      tutorialService: service,
+      onFinish: () {
+        notifier.state = ActiveTourState.reels;
+        router.go('/reels');
+      },
+    );
+  }
+
+
 
 
 
@@ -576,6 +621,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     _roomCtrl.dispose();
 
     _secretQuestionCtrl.dispose();
+    _manualTagCtrl.dispose();
 
     super.dispose();
 
@@ -607,17 +653,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
         setState(() {
           _video = file;
-          if (!_descCtrl.text.toLowerCase().contains('#video')) {
-            if (_descCtrl.text.isEmpty) {
-              _descCtrl.text = '#video';
-            } else {
-              _descCtrl.text = '${_descCtrl.text}\n#video';
-            }
-          }
         });
 
         if (mounted) {
-          showAppSnack(context, 'Video selected successfully! (#video hashtag auto-added)');
+          showAppSnack(context, 'Video selected successfully!');
         }
       }
     } catch (e) {
@@ -1853,29 +1892,73 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           style: GoogleFonts.inter(fontSize: 15, color: AppColors.textSecondary(context)),
         ),
         const SizedBox(height: 32),
-        _ImagePicker(
-          images: _images,
-          existingUrls: _existingImageUrls,
-          onPickGallery: () => _pickImages(ImageSource.gallery),
-          onPickCamera: () => _pickImages(ImageSource.camera),
-          onRemove: _removeImage,
-          onRemoveExisting: (i) {
-            if (mounted) setState(() => _existingImageUrls.removeAt(i));
-          },
-          video: _video,
-          onPickVideo: () => _pickVideo(ImageSource.gallery),
-          onRemoveVideo: () {
-            if (mounted) setState(() => _video = null);
-          },
+        Container(
+          key: TutorialKeys.createPostPhotosKey,
+          child: _ImagePicker(
+            images: _images,
+            existingUrls: _existingImageUrls,
+            onPickGallery: () => _pickImages(ImageSource.gallery),
+            onPickCamera: () => _pickImages(ImageSource.camera),
+            onRemove: _removeImage,
+            onRemoveExisting: (i) {
+              if (mounted) setState(() => _existingImageUrls.removeAt(i));
+            },
+            video: _video,
+            onPickVideo: () => _pickVideo(ImageSource.gallery),
+            onRemoveVideo: () {
+              if (mounted) setState(() => _video = null);
+            },
+          ),
         ),
+        const SizedBox(height: 32),
         if (_analyzingImages || _aiTags.isNotEmpty) ...[
-          const SizedBox(height: 32),
           _AiTagsSection(
             tags: _aiTags,
             isLoading: _analyzingImages,
             onRemove: _removeTag,
           ),
+          const SizedBox(height: 20),
         ],
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _manualTagCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Add manual tag (e.g. #wallet)',
+                  hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textHint(context)),
+                  filled: true,
+                  fillColor: AppColors.surface(context),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+                onSubmitted: (val) {
+                  final text = val.trim().replaceAll('#', '');
+                  if (text.isNotEmpty && !_aiTags.contains(text)) {
+                    setState(() => _aiTags.add(text));
+                    _manualTagCtrl.clear();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: () {
+                final text = _manualTagCtrl.text.trim().replaceAll('#', '');
+                if (text.isNotEmpty && !_aiTags.contains(text)) {
+                  setState(() => _aiTags.add(text));
+                  _manualTagCtrl.clear();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.jadePrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ],
+        ),
       ],
     ).animate().fadeIn().slideX(begin: 0.05, end: 0);
   }
@@ -1984,6 +2067,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         GestureDetector(
           onTap: _selectDateTime,
           child: Container(
+            key: TutorialKeys.createPostMapKey,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
             child: Row(
@@ -2822,7 +2906,7 @@ class _ImagePicker extends StatelessWidget {
 
         children: [
 
-          if (video == null && images.length + existingUrls.length < 4) ...[
+          if (images.length + existingUrls.length < 4) ...[
 
             _AddButton(
 
@@ -2848,21 +2932,21 @@ class _ImagePicker extends StatelessWidget {
 
             const SizedBox(width: 10),
 
-            if (onPickVideo != null) ...[
+          ],
 
-              _AddButton(
+          if (video == null && onPickVideo != null) ...[
 
-                icon: Icons.video_call_outlined,
+            _AddButton(
 
-                label: 'Video',
+              icon: Icons.video_call_outlined,
 
-                onTap: onPickVideo!,
+              label: 'Video',
 
-              ),
+              onTap: onPickVideo!,
 
-              const SizedBox(width: 10),
+            ),
 
-            ],
+            const SizedBox(width: 10),
 
           ],
 

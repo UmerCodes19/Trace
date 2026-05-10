@@ -185,12 +185,16 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Replying to $_replyToName',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppColors.textSecondary(context),
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      'Replying to $_replyToName',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.textSecondary(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -287,12 +291,16 @@ class _CommentTile extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          comment.userName,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary(context),
+                        Flexible(
+                          child: Text(
+                            comment.userName,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary(context),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -350,12 +358,16 @@ class _CommentTile extends StatelessWidget {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  reply.userName,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary(context),
+                                Flexible(
+                                  child: Text(
+                                    reply.userName,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary(context),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(width: 6),

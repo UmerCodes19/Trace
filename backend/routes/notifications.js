@@ -58,4 +58,38 @@ router.post('/user/:uid/read-all', verifyToken, async (req, res) => {
   }
 });
 
+// Clear all notifications
+router.delete('/user/:uid/clear', verifyToken, async (req, res) => {
+  try {
+    if (req.user.uid !== req.params.uid) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('userId', req.params.uid);
+
+    if (error) throw error;
+    res.json({ message: 'All notifications cleared' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete notification
+router.delete('/:id', verifyToken, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) throw error;
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

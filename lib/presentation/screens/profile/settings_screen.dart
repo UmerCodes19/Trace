@@ -11,6 +11,7 @@ import '../../../data/models/simple_user_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
+import '../../../core/services/tutorial_service.dart';
 import '../../widgets/common/glass_card.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -183,6 +184,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                     isDarkMode: isDarkMode,
                     accent: accent,
+                  ),
+
+                  const SizedBox(height: 32),
+                  _buildSectionHeader('Help & Learning', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildSettingTile(
+                    icon: Icons.help_outline_rounded,
+                    title: 'Replay App Tour',
+                    subtitle: 'Walk through main features again',
+                    onTap: () async {
+                      await ref.read(tutorialServiceProvider).resetAllTutorials();
+                      if (mounted) {
+                        showAppSnack(context, 'Tour reset! Loading home...');
+                        context.go('/home');
+                      }
+                    },
+                    isDarkMode: isDarkMode,
                   ),
 
                   const SizedBox(height: 48),

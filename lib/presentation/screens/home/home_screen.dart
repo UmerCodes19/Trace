@@ -19,6 +19,13 @@ import '../../widgets/common/trace_logo.dart';
 import '../../widgets/common/skeleton.dart';
 import '../../widgets/search/visual_search_sheet.dart';
 
+// Trace Guide Imports
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import '../../../core/utils/tutorial_keys.dart';
+import '../../../core/utils/app_guide_orchestrator.dart';
+import '../../../core/services/tutorial_service.dart';
+import '../../widgets/common/welcome_cinematic.dart';
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -46,6 +53,85 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    
+    // Trigger check after frame mounts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowIntroTour();
+    });
+  }
+
+  Future<void> _checkAndShowIntroTour() async {
+    final service = ref.read(tutorialServiceProvider);
+    final completed = await service.isFeatureTourCompleted('intro_tour');
+    if (completed || !mounted) return;
+
+    // Trigger Cinematic Welcome
+    if (mounted) {
+      WelcomeCinematic.show(
+        context,
+        onStartTour: () {
+          ref.read(activeTourStateProvider.notifier).state = ActiveTourState.home;
+          _launchGrandTour();
+        },
+        onDismiss: () {
+          service.markFeatureTourCompleted('intro_tour');
+          ref.read(activeTourStateProvider.notifier).state = ActiveTourState.none;
+        },
+      );
+    }
+  }
+
+  void _launchGrandTour() {
+    final service = ref.read(tutorialServiceProvider);
+
+    final targets = <TargetFocus>[
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.navHomeKey,
+        title: 'Home',
+        description: 'Your feed showing all latest lost and found items.',
+        stepLabel: 'Feed',
+        align: ContentAlign.top,
+        shape: ShapeLightFocus.Circle,
+      ),
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.feedSearchKey,
+        title: 'Search',
+        description: 'Type what you are looking for here.',
+        stepLabel: 'Find',
+        align: ContentAlign.bottom,
+        shape: ShapeLightFocus.RRect,
+      ),
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.feedFilterKey,
+        title: 'Filter',
+        description: 'Filter items by building or date.',
+        stepLabel: 'Sort',
+        align: ContentAlign.bottom,
+      ),
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.navMapKey,
+        title: 'Map',
+        description: 'View item locations across the campus.',
+        stepLabel: 'Map',
+        align: ContentAlign.top,
+        shape: ShapeLightFocus.Circle,
+      ),
+    ];
+
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    final router = GoRouter.of(context);
+
+    AppGuideOrchestrator.showTutorial(
+      context: context,
+      featureKey: 'intro_tour',
+      targets: targets,
+      tutorialService: service,
+      onFinish: () {
+        // Bypass spatial engine and vector directly into creation studio
+        notifier.state = ActiveTourState.create;
+        router.go('/create');
+      },
+    );
   }
 
   @override
@@ -67,9 +153,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),      builder: (context) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
           expand: false,
           builder: (context, scrollController) {
             return StatefulBuilder(
@@ -128,15 +214,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Refine Search Filters',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 18, 
-                                fontWeight: FontWeight.bold, 
-                                color: AppColors.textPrimary(context),
-                                letterSpacing: -0.5,
+                            Expanded(
+                              child: Text(
+                                'Refine Search Filters',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18, 
+                                  fontWeight: FontWeight.bold, 
+                                  color: AppColors.textPrimary(context),
+                                  letterSpacing: -0.5,
+                                ),
                               ),
                             ),
+                            const SizedBox(width: 12),
                             GestureDetector(
                               onTap: () {
                                 setSheetState(() {
@@ -300,6 +389,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       endDrawer: const NotificationDrawer(),
       backgroundColor: AppColors.pageBg(context),
       body: SafeArea(
+        bottom: false,
         child: NestedScrollView(
           headerSliverBuilder: (context, _) => [
             SliverToBoxAdapter(
@@ -349,7 +439,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                                   shape: BoxShape.circle,
                                   border: Border.all(color: AppColors.border(context), width: 1),
                                 ),
-                                child: Icon(Icons.emoji_events_rounded, color: Colors.amber.shade500, size: 22),
+                                child: Icon(
+                                  Icons.workspace_premium_rounded, 
+                                  color: Colors.amber.shade600, 
+                                  size: 23
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -449,6 +543,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
         // 1. Unified Search Pill
         Expanded(
           child: Container(
+            key: TutorialKeys.feedSearchKey,
             height: 52,
             decoration: BoxDecoration(
               color: AppColors.card(context),
@@ -514,6 +609,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
         GestureDetector(
           onTap: _showBuildingFilterSheet,
           child: Container(
+            key: TutorialKeys.feedFilterKey,
             height: 52,
             width: 52,
             decoration: BoxDecoration(
@@ -1123,30 +1219,14 @@ class _MyClaimsFeed extends ConsumerWidget {
             if (postMap == null) return const SizedBox.shrink();
             final postModel = SimplePostModel.fromMap(postMap);
 
-            return Stack(
-              children: [
-                PostCard(post: postModel)
-                    .animate()
-                    .fadeIn(delay: (index * 30).ms)
-                    .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Builder(
-                    builder: (context) {
-                      final status = claim['status']?.toString().toLowerCase();
-                      if (status == 'approved') {
-                        return StatusChip.approved(small: true);
-                      } else if (status == 'rejected') {
-                        return StatusChip.rejected(small: true);
-                      } else {
-                        return StatusChip.pending(small: true);
-                      }
-                    },
-                  ),
-                ),
-              ],
-            );
+            final status = claim['status']?.toString();
+            return PostCard(
+              post: postModel,
+              statusOverride: status,
+            )
+                .animate()
+                .fadeIn(delay: (index * 30).ms)
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart);
           },
         ),
       ),

@@ -227,9 +227,10 @@ class _VisualSearchSheetState extends ConsumerState<VisualSearchSheet> with Sing
           ],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Pull Handle
             Center(
@@ -718,6 +719,7 @@ class _VisualSearchSheetState extends ConsumerState<VisualSearchSheet> with Sing
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

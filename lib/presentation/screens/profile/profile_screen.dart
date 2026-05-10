@@ -4,6 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import '../../../core/utils/app_guide_orchestrator.dart';
+import '../../../core/utils/tutorial_keys.dart';
+import '../../../core/services/tutorial_service.dart';
+import '../../../core/utils/app_utils.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_user_model.dart';
@@ -14,17 +19,67 @@ import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/skeleton.dart';
 import '../../widgets/common/user_avatar.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   final String? viewUid;
   const ProfileScreen({super.key, this.viewUid});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = viewUid != null 
-        ? ref.watch(apiServiceProvider).getUser(viewUid!).then((map) => map != null ? SimpleUserModel.fromMap(map) : null)
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkProfileTour());
+  }
+
+  Future<void> _checkProfileTour() async {
+    if (!mounted) return;
+    final state = ref.read(activeTourStateProvider);
+    if (state != ActiveTourState.profile) return;
+
+    // Minor layout delay to ensure components settle
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (mounted) _launchProfileTour();
+  }
+
+  void _launchProfileTour() {
+    final service = ref.read(tutorialServiceProvider);
+    final targets = <TargetFocus>[
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.profileSectionKey,
+        title: 'Your Identity',
+        description: 'Manage your stats, setup account options, and verify your profile here.',
+        stepLabel: 'Profile',
+        align: ContentAlign.top,
+        radius: 24,
+      ),
+    ];
+
+    final notifier = ref.read(activeTourStateProvider.notifier);
+
+    AppGuideOrchestrator.showTutorial(
+      context: context,
+      featureKey: 'profile_tour',
+      targets: targets,
+      tutorialService: service,
+      onFinish: () {
+        notifier.state = ActiveTourState.none;
+        if (mounted) {
+          showAppSnack(context, '🎉 Congratulations! You have mastered the app!');
+        }
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userAsync = widget.viewUid != null 
+        ? ref.watch(apiServiceProvider).getUser(widget.viewUid!).then((map) => map != null ? SimpleUserModel.fromMap(map) : null)
         : ref.watch(authServiceProvider).getCurrentUser();
     final isDarkMode = ref.watch(themeProvider);
-    final isPublicView = viewUid != null;
+    final isPublicView = widget.viewUid != null;
 
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.navyDarkest : Colors.grey[50],
@@ -156,7 +211,10 @@ class _ProfileBody extends ConsumerWidget {
                 const SizedBox(height: 32),
                 _buildSectionTitle('Student Identity', isDarkMode),
                 const SizedBox(height: 16),
-                _buildStudentCard(user, isDarkMode, accent, localSettings),
+                Container(
+                  key: TutorialKeys.profileSectionKey,
+                  child: _buildStudentCard(user, isDarkMode, accent, localSettings),
+                ),
                 const SizedBox(height: 16),
                 _buildIdentityCard(context, user, isDarkMode, accent, localSettings),
                 const SizedBox(height: 32),
@@ -395,22 +453,35 @@ class _ProfileBody extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('PROGRAM', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                        Text(user.department ?? '---', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('PROGRAM', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                          Text(
+                            user.department ?? '---', 
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text('REGISTRATION', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                        Text(
-                          (user.registrationNo?.isNotEmpty == true) ? user.registrationNo! : localSettings.registrationNo ?? '---',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text('REGISTRATION', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                          Text(
+                            (user.registrationNo?.isNotEmpty == true) ? user.registrationNo! : localSettings.registrationNo ?? '---',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

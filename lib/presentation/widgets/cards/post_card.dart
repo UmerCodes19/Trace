@@ -1,4 +1,5 @@
 // lib/presentation/widgets/cards/post_card.dart
+import 'dart:ui';
 import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -17,8 +18,9 @@ import '../../../data/services/offline/sync_manager.dart';
 import '../common/status_chip.dart';
 
 class PostCard extends ConsumerStatefulWidget {
-  const PostCard({super.key, required this.post});
+  const PostCard({super.key, required this.post, this.statusOverride});
   final SimplePostModel post;
+  final String? statusOverride;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -79,16 +81,17 @@ class _PostCardState extends ConsumerState<PostCard>
               ],
             ),
           ),
-          PopupMenuItem<String>(
-            value: 'resolve',
-            child: Row(
-              children: [
-                Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 18),
-                const SizedBox(width: 12),
-                Text('Mark as Resolved', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary(context))),
-              ],
+          if (widget.post.status.toLowerCase() != 'resolved')
+            PopupMenuItem<String>(
+              value: 'resolve',
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 18),
+                  const SizedBox(width: 12),
+                  Text('Mark as Resolved', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary(context))),
+                ],
+              ),
             ),
-          ),
           const PopupMenuDivider(),
           PopupMenuItem<String>(
             value: 'delete',
@@ -144,19 +147,22 @@ class _PostCardState extends ConsumerState<PostCard>
   }
 
   void _resolvePost() async {
-    setState(() => _isResolving = true);
+    if (mounted) setState(() => _isResolving = true);
+    HapticFeedback.heavyImpact();
+    
     try {
       await ApiService().updatePost(widget.post.id, {'status': 'resolved'});
       if (mounted) {
         ref.invalidate(postsProvider);
-      }
-      if (mounted) {
         showAppSnack(context, '🎉 Awesome! Post marked as resolved.');
       }
     } catch (e) {
-      if (mounted) showAppSnack(context, 'Error: $e', isError: true);
+      if (mounted) {
+        showAppSnack(context, 'Error: $e', isError: true);
+        setState(() => _isResolving = false); // Only revert on error
+      }
     } finally {
-      if (mounted) setState(() => _isResolving = false);
+       // We keep _isResolving true to visually preserve overlay until state rebuilds!
     }
   }
 
@@ -194,6 +200,9 @@ class _PostCardState extends ConsumerState<PostCard>
     
     // Play the fading / tearing apart animation before actual deletion
     await Future.delayed(500.ms);
+
+    // Optimistically remove from list instantly collapsing grid BEFORE network call finishes!
+    ref.read(removedPostIdsProvider.notifier).update((s) => {...s, widget.post.id});
     
     try {
       // 1. Always remove from the local pending queue first so it never "comes back"
@@ -207,7 +216,8 @@ class _PostCardState extends ConsumerState<PostCard>
         showAppSnack(context, '✅ Post deleted successfully!');
       }
     } catch (e) {
-      // If server deletion fails (or was already offline/deleted), we still removed it locally!
+      // If server deletion fails, we already removed locally and optimized, 
+      // but let's just notify successful removal anyway!
       if (mounted) {
         ref.invalidate(postsProvider);
         showAppSnack(context, '✅ Post removed locally!');
@@ -221,11 +231,26 @@ class _PostCardState extends ConsumerState<PostCard>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final String postType = widget.post.type.toLowerCase();
+    final String? statusOverride = widget.statusOverride?.toLowerCase();
+    
     Color baseColor;
-    if (postType == 'lost') {
-      baseColor = AppColors.lostAlert;
+    if (statusOverride != null) {
+      if (statusOverride == 'approved') {
+        baseColor = const Color(0xFF00E676);
+      } else if (statusOverride == 'rejected') {
+        baseColor = const Color(0xFFFF1744);
+      } else if (statusOverride == 'pending') {
+        baseColor = const Color(0xFFFFB300);
+      } else {
+        // Fallback to default logic
+        baseColor = postType == 'lost' ? AppColors.lostAlert : AppColors.foundSuccess;
+      }
     } else {
-      baseColor = AppColors.foundSuccess;
+      if (postType == 'lost') {
+        baseColor = AppColors.lostAlert;
+      } else {
+        baseColor = AppColors.foundSuccess;
+      }
     }
 
     Widget card = Container(
@@ -292,9 +317,16 @@ class _PostCardState extends ConsumerState<PostCard>
           Positioned(
             top: 10,
             right: 10,
-            child: widget.post.type.toLowerCase() == 'lost' 
-                ? StatusChip.lost(small: true) 
-                : StatusChip.found(small: true),
+            child: () {
+              if (statusOverride != null) {
+                if (statusOverride == 'approved') return StatusChip.approved(small: true);
+                if (statusOverride == 'rejected') return StatusChip.rejected(small: true);
+                if (statusOverride == 'pending') return StatusChip.pending(small: true);
+              }
+              return widget.post.type.toLowerCase() == 'lost' 
+                  ? StatusChip.lost(small: true) 
+                  : StatusChip.found(small: true);
+            }(),
           ),
 
           // 4. Floating Metadata (Bottom Left)
@@ -366,6 +398,59 @@ class _PostCardState extends ConsumerState<PostCard>
                     ),
             ),
           ),
+
+          // 6. Persistent & Aesthetic "RESOLVED" Dynamic Frosted Overlay
+          if (widget.post.status.toLowerCase() == 'resolved' || _isResolving)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 1.8, sigmaY: 1.8), // Sophisticated high-end frosting
+                  child: Container(
+                    color: const Color(0xFF00C853).withOpacity(isDark ? 0.08 : 0.04), // Ultra-subtle success glaze
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: AppColors.card(context).withOpacity(0.88), // Perfectly adaptive to dark/light
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFF00C853).withOpacity(0.25),
+                            width: 0.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
+                              blurRadius: 12,
+                              spreadRadius: -2,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified_rounded, color: Color(0xFF00C853), size: 15),
+                            const SizedBox(width: 5),
+                            Text(
+                              "RESOLVED", 
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800, 
+                                color: AppColors.textPrimary(context).withOpacity(0.9), 
+                                fontSize: 9.5, 
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate()
+                       .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1), duration: 350.ms, curve: Curves.easeOutBack)
+                       .fadeIn(duration: 150.ms),
+                    ),
+                  ),
+                ),
+              ).animate().fadeIn(duration: 300.ms),
+            ),
         ],
       ),
     );
@@ -378,6 +463,8 @@ class _PostCardState extends ConsumerState<PostCard>
           .blur(begin: const Offset(0, 0), end: const Offset(12, 12))
           .scaleXY(begin: 1.0, end: 0.8, duration: 400.ms);
     }
+
+
 
     return RepaintBoundary(
       child: GestureDetector(

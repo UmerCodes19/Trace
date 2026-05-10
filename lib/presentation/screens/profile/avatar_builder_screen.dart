@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,94 +6,134 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/avatar_presets.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../core/utils/avatar_harmony.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/profile/flutter_avatar.dart';
+import '../../widgets/profile/animated_flutter_avatar.dart';
 
 class AvatarBuilderScreen extends ConsumerStatefulWidget {
   const AvatarBuilderScreen({super.key});
-
   @override
   ConsumerState<AvatarBuilderScreen> createState() => _AvatarBuilderScreenState();
 }
 
-class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> {
-  int _hair = 1;
-  int _eyes = 0;
-  int _mouth = 0;
-  int _acc = 0;
-  int _facialHair = 0;
-  int _details = 0;
-  String _bgColor = '#FF6B6B';
-  String _skinColor = '#FFDBB5';
-  String _hairColor = '#2D3748';
-  String _outfitColor = '#4A5568';
+class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with TickerProviderStateMixin {
+  // Core identity traits
+  int _hair = 1, _eyes = 0, _mouth = 0, _acc = 0, _facialHair = 0, _details = 0;
+  int _eyebrows = 0, _noseStyle = 0, _outfit = 0, _earring = 0, _bgStyle = 0;
+  int _vibe = 0; // New Vibe tracking for Phase 3
+  String _bgColor = '#FF6B6B', _skinColor = '#FFDBB5', _hairColor = '#2D3748', _outfitColor = '#4A5568';
   bool _isSaving = false;
 
+  // Cinematic effects
+  late AnimationController _pedestalController;
+  int _revealToken = 0; // Triggers pop/morph on identity reveal
+
+  // Paint studio
   bool _isPaintingMode = false;
   List<PaintStroke> _customStrokes = [];
   List<Offset> _currentStrokePoints = [];
   String _brushColor = '#E53E3E';
   double _brushWidth = 4.0;
-
   final List<String> _brushColors = ['#E53E3E', '#FF9500', '#FFCC00', '#4CD964', '#007AFF', '#5856D6', '#FFFFFF', '#000000'];
 
-  final List<String> _bgColors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#A18CD1', '#FAD0C4', '#4FACFE', '#00F2FE', '#FF758C', '#2E2E2E'];
-  final List<String> _skinColors = ['#FFDBB5', '#E0A96D', '#8D5524', '#F9C9B1', '#C68642', '#3C2F2F', '#FFF0E0', '#5c3826'];
-  final List<String> _hairColors = ['#2D3748', '#1A202C', '#D69E2E', '#E53E3E', '#3182CE', '#38A169', '#E2E8F0', '#9F7AEA', '#ED64A6'];
-  final List<String> _outfitColors = ['#4A5568', '#E53E3E', '#3182CE', '#38A169', '#805AD5', '#D69E2E', '#F7FAFC', '#2B6CB0', '#C53030'];
+  // Tab controller
+  late TabController _tabController;
+  int _activeTab = 0;
+
+  // Palette index
+  int _paletteIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 6, vsync: this); // 6 Tabs now (Presets, Vibes, Gen, Skin, Paint...)
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() => _activeTab = _tabController.index);
+    });
+    
+    _pedestalController = AnimationController(
+      vsync: this, duration: const Duration(seconds: 6),
+    )..repeat();
+
     _loadExistingAvatar();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _pedestalController.dispose();
+    super.dispose();
   }
 
   void _loadExistingAvatar() async {
     final user = await ref.read(authServiceProvider).getCurrentUser();
     if (user != null && user.photoURL != null && user.photoURL!.startsWith('{')) {
-      final config = AvatarConfig.fromJson(user.photoURL!);
+      final c = AvatarConfig.fromJson(user.photoURL!);
       setState(() {
-        _hair = config.hair;
-        _eyes = config.eyes;
-        _mouth = config.mouth;
-        _acc = config.acc;
-        _facialHair = config.facialHair;
-        _details = config.details;
-        _bgColor = config.bgColor;
-        _skinColor = config.skinColor;
-        _hairColor = config.hairColor;
-        _outfitColor = config.outfitColor;
-        _customStrokes = config.customStrokes;
+        _hair = c.hair; _eyes = c.eyes; _mouth = c.mouth; _acc = c.acc;
+        _facialHair = c.facialHair; _details = c.details; _eyebrows = c.eyebrows;
+        _noseStyle = c.noseStyle; _outfit = c.outfit; _earring = c.earring;
+        _bgStyle = c.bgStyle; _bgColor = c.bgColor; _skinColor = c.skinColor;
+        _hairColor = c.hairColor; _outfitColor = c.outfitColor;
+        _customStrokes = c.customStrokes;
+        _vibe = c.vibe;
       });
     }
+  }
+
+  AvatarConfig get _currentConfig => AvatarConfig(
+    hair: _hair, eyes: _eyes, mouth: _mouth, acc: _acc,
+    facialHair: _facialHair, details: _details, eyebrows: _eyebrows,
+    noseStyle: _noseStyle, outfit: _outfit, earring: _earring,
+    bgStyle: _bgStyle, bgColor: _bgColor, skinColor: _skinColor,
+    hairColor: _hairColor, outfitColor: _outfitColor, customStrokes: _customStrokes,
+    vibe: _vibe,
+  );
+
+  void _applyPreset(StarterIdentity preset) {
+    HapticFeedback.mediumImpact();
+    final c = preset.config;
+    setState(() {
+      _hair = c['hair'] ?? _hair; _eyes = c['eyes'] ?? _eyes;
+      _mouth = c['mouth'] ?? _mouth; _acc = c['acc'] ?? _acc;
+      _facialHair = c['facialHair'] ?? _facialHair; _details = c['details'] ?? _details;
+      _eyebrows = c['eyebrows'] ?? _eyebrows; _noseStyle = c['noseStyle'] ?? _noseStyle;
+      _outfit = c['outfit'] ?? _outfit; _bgStyle = c['bgStyle'] ?? _bgStyle;
+      _bgColor = c['bgColor'] ?? _bgColor; _skinColor = c['skinColor'] ?? _skinColor;
+      _hairColor = c['hairColor'] ?? _hairColor; _outfitColor = c['outfitColor'] ?? _outfitColor;
+      _vibe = c['vibe'] ?? _vibe;
+      _revealToken++; // trigger cinematic transition
+    });
+  }
+
+  void _randomize() {
+    HapticFeedback.lightImpact();
+    final newConfig = AvatarHarmony.generateHarmonious(Random());
+    setState(() {
+      _hair = newConfig['hair']; _eyes = newConfig['eyes'];
+      _mouth = newConfig['mouth']; _acc = newConfig['acc'];
+      _facialHair = newConfig['facialHair']; _details = newConfig['details'];
+      _eyebrows = newConfig['eyebrows']; _noseStyle = newConfig['noseStyle'];
+      _outfit = newConfig['outfit']; _bgStyle = newConfig['bgStyle'];
+      _bgColor = newConfig['bgColor']; _skinColor = newConfig['skinColor'];
+      _hairColor = newConfig['hairColor']; _outfitColor = newConfig['outfitColor'];
+      _revealToken++; // Enable satisfying elastic bounce on randomize
+    });
   }
 
   void _saveAvatar() async {
     setState(() => _isSaving = true);
     final user = ref.read(authServiceProvider).currentUser;
     if (user != null) {
-      final config = AvatarConfig(
-        hair: _hair,
-        eyes: _eyes,
-        mouth: _mouth,
-        acc: _acc,
-        facialHair: _facialHair,
-        details: _details,
-        bgColor: _bgColor,
-        skinColor: _skinColor,
-        hairColor: _hairColor,
-        outfitColor: _outfitColor,
-        customStrokes: _customStrokes,
-      );
-
-      final jsonStr = config.toJson();
+      final jsonStr = _currentConfig.toJson();
       final updatedUser = user.copyWith(photoURL: jsonStr);
       await ref.read(authServiceProvider).updateUserProfile(user.uid, updatedUser.toMap());
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Avatar Saved Successfully! ✨')),
+          const SnackBar(content: Text('Identity locked! ✨')),
         );
         context.pop();
       }
@@ -105,362 +146,198 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = Theme.of(context).colorScheme.primary;
 
-    final config = AvatarConfig(
-      hair: _hair,
-      eyes: _eyes,
-      mouth: _mouth,
-      acc: _acc,
-      facialHair: _facialHair,
-      details: _details,
-      bgColor: _bgColor,
-      skinColor: _skinColor,
-      hairColor: _hairColor,
-      outfitColor: _outfitColor,
-      customStrokes: _customStrokes,
-    );
-
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
       appBar: AppBar(
-        title: Text('Campus Identity Lab', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: Text('Identity Lab', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: Colors.transparent, elevation: 0,
         foregroundColor: AppColors.textPrimary(context),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.casino_rounded, color: accent, size: 22),
+            tooltip: 'Randomize',
+            onPressed: _randomize,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // Interactive Preview
-            Expanded(
-              flex: 5,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Center(
-                    child: Hero(
-                      tag: 'avatar_creator_canvas',
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
-                              blurRadius: 36,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            FlutterAvatar(config: config, size: 190),
-                            if (_isPaintingMode)
-                              Positioned.fill(
-                                child: ClipOval(
-                                  child: GestureDetector(
-                                    onPanStart: (details) {
-                                      final localPos = details.localPosition;
-                                      setState(() {
-                                        _currentStrokePoints = [Offset(localPos.dx / 190.0, localPos.dy / 190.0)];
-                                        _customStrokes = List.from(_customStrokes)
-                                          ..add(PaintStroke(
-                                            points: _currentStrokePoints,
-                                            color: _brushColor,
-                                            width: _brushWidth,
-                                          ));
-                                      });
-                                    },
-                                    onPanUpdate: (details) {
-                                      final localPos = details.localPosition;
-                                      if (localPos.dx >= 0 && localPos.dx <= 190 && localPos.dy >= 0 && localPos.dy <= 190) {
-                                        setState(() {
-                                          _currentStrokePoints.add(Offset(localPos.dx / 190.0, localPos.dy / 190.0));
-                                          _customStrokes[_customStrokes.length - 1] = PaintStroke(
-                                            points: List.from(_currentStrokePoints),
-                                            color: _brushColor,
-                                            width: _brushWidth,
-                                          );
-                                        });
-                                      }
-                                    },
-                                    onPanEnd: (details) {
-                                      _currentStrokePoints = [];
-                                    },
-                                    child: Container(
-                                      color: Colors.transparent,
-                                      width: 190,
-                                      height: 190,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Painting Mode Toolbar
-                  if (!_isPaintingMode) ...[
-                    GestureDetector(
-                      onTap: () => setState(() => _isPaintingMode = true),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: accent.withOpacity(0.2), width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.brush_rounded, color: accent, size: 16),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Enter Paint Studio',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: accent,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBg(context),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: AppColors.border(context).withOpacity(0.3)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 12,
+            // Live Avatar Preview
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: Hero(
+                  tag: 'avatar_creator_canvas',
+                  child: SizedBox(
+                    height: 200, width: 200,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Cinematic Pedestal
+                        Positioned(
+                          bottom: 10,
+                          child: AnimatedBuilder(
+                            animation: _pedestalController,
+                            builder: (context, _) {
+                              return CustomPaint(
+                                painter: PedestalPainter(_pedestalController.value, accent),
+                                size: const Size(180, 60),
+                              );
+                            },
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          // Brush colors selection
-                          Expanded(
-                            child: SizedBox(
-                              height: 28,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: _brushColors.length,
-                                itemBuilder: (context, idx) {
-                                  final hex = _brushColors[idx];
-                                  final color = Color(int.parse('FF' + hex.replaceFirst('#', ''), radix: 16));
-                                  final isSelected = hex == _brushColor;
-                                  return GestureDetector(
-                                    onTap: () => setState(() => _brushColor = hex),
-                                    child: Container(
-                                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                                      width: 24,
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        color: color,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: isSelected ? AppColors.textPrimary(context) : Colors.white24,
-                                          width: isSelected ? 2.5 : 1.0,
-                                        ),
+                        ),
+                        // Identity Morph Reveal Switcher
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, anim) => ScaleTransition(
+                            scale: CurvedAnimation(parent: anim, curve: Curves.elasticOut),
+                            child: FadeTransition(opacity: anim, child: child),
+                          ),
+                          child: Container(
+                            key: ValueKey('reveal_$_revealToken'),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.1), blurRadius: 28, offset: const Offset(0, 8)),
+                              ],
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                AnimatedFlutterAvatar(config: _currentConfig, size: 160),
+                                if (_isPaintingMode)
+                                  Positioned.fill(
+                                    child: ClipOval(
+                                      child: GestureDetector(
+                                        onPanStart: (d) {
+                                          final p = d.localPosition;
+                                          setState(() {
+                                            _currentStrokePoints = [Offset(p.dx / 160, p.dy / 160)];
+                                            _customStrokes = List.from(_customStrokes)
+                                              ..add(PaintStroke(points: _currentStrokePoints, color: _brushColor, width: _brushWidth));
+                                          });
+                                        },
+                                        onPanUpdate: (d) {
+                                          final p = d.localPosition;
+                                          if (p.dx >= 0 && p.dx <= 160 && p.dy >= 0 && p.dy <= 160) {
+                                            setState(() {
+                                              _currentStrokePoints.add(Offset(p.dx / 160, p.dy / 160));
+                                              _customStrokes[_customStrokes.length - 1] = PaintStroke(
+                                                points: List.from(_currentStrokePoints), color: _brushColor, width: _brushWidth,
+                                              );
+                                            });
+                                          }
+                                        },
+                                        onPanEnd: (_) => _currentStrokePoints = [],
+                                        child: Container(color: Colors.transparent, width: 160, height: 160),
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Undo last stroke
-                          IconButton(
-                            icon: Icon(Icons.undo_rounded, color: AppColors.textPrimary(context), size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () {
-                              if (_customStrokes.isNotEmpty) {
-                                setState(() => _customStrokes.removeLast());
-                                HapticFeedback.lightImpact();
-                              }
-                            },
-                          ),
-                          const SizedBox(width: 10),
-                          // Clear all strokes
-                          IconButton(
-                            icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 19),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () {
-                              if (_customStrokes.isNotEmpty) {
-                                setState(() => _customStrokes.clear());
-                                HapticFeedback.mediumImpact();
-                              }
-                            },
-                          ),
-                          const SizedBox(width: 12),
-                          // Exit paint mode
-                          GestureDetector(
-                            onTap: () => setState(() => _isPaintingMode = false),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.green.withOpacity(0.2)),
-                              ),
-                              child: Text(
-                                'Exit',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Paint Studio Toggle
+            if (!_isPaintingMode)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _isPaintingMode = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: accent.withOpacity(0.15)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.brush_rounded, color: accent, size: 14),
+                        const SizedBox(width: 5),
+                        Text('Paint Studio', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 11.5, color: accent)),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              _buildPaintToolbar(),
+
+            // Tab Bar
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textSecondary(context),
+                labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 10.5),
+                unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 10.5),
+                indicator: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(12)),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                splashBorderRadius: BorderRadius.circular(12),
+                padding: const EdgeInsets.all(4),
+                tabs: const [
+                  Tab(text: 'Vibes', height: 32),
+                  Tab(text: 'Presets', height: 32),
+                  Tab(text: 'Face', height: 32),
+                  Tab(text: 'Hair', height: 32),
+                  Tab(text: 'Outfit', height: 32),
+                  Tab(text: 'Colors', height: 32),
                 ],
               ),
             ),
 
-            // Deep Control Panel
+            const SizedBox(height: 8),
+
+            // Tab Content
             Expanded(
-              flex: 6,
-              child: GlassCard(
-                borderRadius: 32,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                child: ListView(
-                  physics: const BouncingScrollPhysics(),
-                  children: [
-                    // Hair Styles
-                    _buildSectionTitle('Hairstyles'),
-                    const SizedBox(height: 10),
-                    _buildSelectionRow(
-                      count: 12,
-                      labels: ['Bald', 'Classic', 'Spiky', 'Curly', 'Cap', 'Afro', 'Bun', 'Long', 'Undercut', 'Braids', 'Band', 'Topknot'],
-                      selected: _hair,
-                      onSelected: (i) => setState(() => _hair = i),
-                    ),
-                    const SizedBox(height: 20),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildVibeTab(),
+                  _buildPresetsTab(),
+                  _buildFaceTab(),
+                  _buildIdentityTab(), // rename logic: identity usually meant hair
+                  _buildStyleTab(),
+                  _buildColorsTab(),
+                ],
+              ),
+            ),
 
-                    // Expressions (Eyes)
-                    _buildSectionTitle('Eyes & Looks'),
-                    const SizedBox(height: 10),
-                    _buildSelectionRow(
-                      count: 6,
-                      labels: ['Normal', 'Wink', 'Happy', 'Star', 'Anime', 'Squint'],
-                      selected: _eyes,
-                      onSelected: (i) => setState(() => _eyes = i),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Expressions (Mouth)
-                    _buildSectionTitle('Mouth & Vibe'),
-                    const SizedBox(height: 10),
-                    _buildSelectionRow(
-                      count: 6,
-                      labels: ['Smile', 'Surprised', 'Serious', 'Smirk', 'Laughing', 'Frown'],
-                      selected: _mouth,
-                      onSelected: (i) => setState(() => _mouth = i),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Facial Hair (Beard)
-                    _buildSectionTitle('Facial Hair'),
-                    const SizedBox(height: 10),
-                    _buildSelectionRow(
-                      count: 5,
-                      labels: ['Clean', 'Goatee', 'Full Beard', 'Stubble', 'Moustache'],
-                      selected: _facialHair,
-                      onSelected: (i) => setState(() => _facialHair = i),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Accessories
-                    _buildSectionTitle('Accessories'),
-                    const SizedBox(height: 10),
-                    _buildSelectionRow(
-                      count: 6,
-                      labels: ['None', 'Glasses', 'Shades', 'Eyepatch', 'Headset', 'Scar'],
-                      selected: _acc,
-                      onSelected: (i) => setState(() => _acc = i),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Cheek details (Blush/freckles)
-                    _buildSectionTitle('Special Details'),
-                    const SizedBox(height: 10),
-                    _buildSelectionRow(
-                      count: 3,
-                      labels: ['None', 'Rosy Cheeks', 'Freckles'],
-                      selected: _details,
-                      onSelected: (i) => setState(() => _details = i),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Color Trays
-                    _buildSectionTitle('Skin Complexion'),
-                    const SizedBox(height: 10),
-                    _buildColorRow(_skinColors, _skinColor, (c) => setState(() => _skinColor = c)),
-                    const SizedBox(height: 20),
-
-                    _buildSectionTitle('Hair Dye Color'),
-                    const SizedBox(height: 10),
-                    _buildColorRow(_hairColors, _hairColor, (c) => setState(() => _hairColor = c)),
-                    const SizedBox(height: 20),
-
-                    _buildSectionTitle('Outfit Fashion Color'),
-                    const SizedBox(height: 10),
-                    _buildColorRow(_outfitColors, _outfitColor, (c) => setState(() => _outfitColor = c)),
-                    const SizedBox(height: 20),
-
-                    _buildSectionTitle('ID Card Background'),
-                    const SizedBox(height: 10),
-                    _buildColorRow(_bgColors, _bgColor, (c) => setState(() => _bgColor = c)),
-                    const SizedBox(height: 32),
-
-                    // Save Button
-                    GestureDetector(
-                      onTap: _isSaving ? null : _saveAvatar,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [accent, accent.withOpacity(0.85)]),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.3),
-                              blurRadius: 18,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: _isSaving
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : Text(
-                                'Lock Digital Identity',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+            // Save Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: GestureDetector(
+                onTap: _isSaving ? null : _saveAvatar,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [accent, accent.withOpacity(0.85)]),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: accent.withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 4))],
+                  ),
+                  alignment: Alignment.center,
+                  child: _isSaving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text('Lock Identity', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
                 ),
               ),
             ),
@@ -470,83 +347,231 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.plusJakartaSans(
-        fontWeight: FontWeight.w700,
-        fontSize: 14,
-        color: AppColors.textPrimary(context),
+  // ─── Tab Builders ───────────────────────────────────────────────────────────
+
+  Widget _buildVibeTab() {
+    final vibeNames = ['Balanced', 'Calm', 'Chaotic', 'Dreamcore', 'Night Owl', 'Techwear'];
+    final vibeDescs = [
+      'Neutral cadence & smooth idle motion.',
+      'Slower pacing, deep gentle breathing loop.',
+      'Higher intensity with alert fast blinking.',
+      'Slow vertical physics & soft easing cycles.',
+      'Smooth idle cadence with double-blink spikes.',
+      'Robotic linear physics & exact timing loops.'
+    ];
+
+    return _tabContent([
+      _section('Select Psychological Vibe', _chipRow('vibe', 6, vibeNames, _vibe, (i) {
+        setState(() {
+          _vibe = i;
+          // Removed _revealToken++ to ensure animation continuity while tuning
+        });
+      })),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border(context).withOpacity(0.5)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  vibeDescs[_vibe],
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.textSecondary(context), fontStyle: FontStyle.italic),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-    );
+    ]);
   }
 
-  Widget _buildSelectionRow({
-    required int count,
-    required List<String> labels,
-    required int selected,
-    required ValueChanged<int> onSelected,
-  }) {
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: count,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final isSelected = selected == i;
-          return GestureDetector(
-            onTap: () => onSelected(i),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isSelected ? Theme.of(context).colorScheme.primary : AppColors.surface(context),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected ? Colors.transparent : AppColors.border(context).withOpacity(0.5),
+  Widget _buildIdentityTab() {
+    return _tabContent([
+      _section('Hairstyle', _chipRow('hair', 24, [
+        'Bald','Classic','Spiky','Curly','Cap','Afro','Bun','Long','Undercut','Braids','Band','Topknot',
+        'Curtain','Buzz','Wolf','Box Braids','Shag','Pixie','Bob','Mohawk','Cornrows','Space Buns','Locs','Side Shave',
+      ], _hair, (i) => setState(() => _hair = i))),
+      _section('Facial Hair', _chipRow('facialHair', 5, ['Clean','Goatee','Full Beard','Stubble','Moustache'], _facialHair, (i) => setState(() => _facialHair = i))),
+      _section('Eyebrows', _chipRow('eyebrows', 7, ['Default','Arched','Straight','Thick','Thin','Angry','Worried'], _eyebrows, (i) => setState(() => _eyebrows = i))),
+    ]);
+  }
+
+  Widget _buildFaceTab() {
+    return _tabContent([
+      _section('Eyes', _chipRow('eyes', 11, ['Normal','Wink','Happy','Star','Anime','Squint','Sleepy','Fox','Doe','Hetero','Crescent'], _eyes, (i) => setState(() => _eyes = i))),
+      _section('Mouth', _chipRow('mouth', 10, ['Smile','Surprised','Serious','Smirk','Laughing','Frown','Cat','Grin','Tongue','Whisper'], _mouth, (i) => setState(() => _mouth = i))),
+      _section('Details', _chipRow('details', 3, ['None','Rosy Cheeks','Freckles'], _details, (i) => setState(() => _details = i))),
+    ]);
+  }
+
+  Widget _buildStyleTab() {
+    return _tabContent([
+      _section('Outfit', _chipRow('outfit', 7, ['Tee','Hoodie','Jacket','Turtleneck','Tank','Shirt','Sweater'], _outfit, (i) => setState(() => _outfit = i))),
+      _section('Accessories', _chipRow('acc', 11, ['None','Glasses','Shades','Eyepatch','Headset','Scar','Mask','Bandaid','Chain','AirPods','Nose Ring'], _acc, (i) => setState(() => _acc = i))),
+      _section('Earrings', _chipRow('earring', 4, ['None','Stud','Hoop','Drop'], _earring, (i) => setState(() => _earring = i))),
+      _section('Background', _chipRow('bgStyle', 4, ['Solid','Radial','Split','Glow'], _bgStyle, (i) => setState(() => _bgStyle = i))),
+    ]);
+  }
+
+  Widget _buildColorsTab() {
+    final palette = kCuratedPalettes[_paletteIndex];
+    return _tabContent([
+      // Palette selector
+      _section('Color Palette', SizedBox(
+        height: 36,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: kCuratedPalettes.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final p = kCuratedPalettes[i];
+            final sel = i == _paletteIndex;
+            return GestureDetector(
+              onTap: () => setState(() => _paletteIndex = i),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: sel ? Theme.of(context).colorScheme.primary : AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: sel ? Colors.transparent : AppColors.border(context).withOpacity(0.4)),
                 ),
+                child: Text(p.name, style: GoogleFonts.plusJakartaSans(
+                  fontWeight: sel ? FontWeight.bold : FontWeight.w600, fontSize: 12,
+                  color: sel ? Colors.white : AppColors.textPrimary(context),
+                )),
               ),
-              child: Text(
-                labels[i],
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  fontSize: 13,
-                  color: isSelected ? Colors.white : AppColors.textPrimary(context),
-                ),
-              ),
+            );
+          },
+        ),
+      )),
+      _section('Skin', _colorRow(palette.skin, _skinColor, (c) => setState(() => _skinColor = c))),
+      _section('Hair Color', _colorRow(palette.hair, _hairColor, (c) => setState(() => _hairColor = c))),
+      _section('Outfit Color', _colorRow(palette.outfit, _outfitColor, (c) => setState(() => _outfitColor = c))),
+      _section('Background', _colorRow(palette.bg, _bgColor, (c) => setState(() => _bgColor = c))),
+    ]);
+  }
+
+  Widget _buildPresetsTab() {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.85,
+      ),
+      itemCount: kStarterIdentities.length,
+      itemBuilder: (context, i) {
+        final preset = kStarterIdentities[i];
+        final previewConfig = AvatarConfig(
+          hair: preset.config['hair'] ?? 1, eyes: preset.config['eyes'] ?? 0,
+          mouth: preset.config['mouth'] ?? 0, acc: preset.config['acc'] ?? 0,
+          facialHair: preset.config['facialHair'] ?? 0, details: preset.config['details'] ?? 0,
+          eyebrows: preset.config['eyebrows'] ?? 0, noseStyle: preset.config['noseStyle'] ?? 0,
+          outfit: preset.config['outfit'] ?? 0, bgColor: preset.config['bgColor'] ?? '#FF6B6B',
+          skinColor: preset.config['skinColor'] ?? '#FFDBB5', hairColor: preset.config['hairColor'] ?? '#2D3748',
+          outfitColor: preset.config['outfitColor'] ?? '#4A5568', bgStyle: preset.config['bgStyle'] ?? 0,
+        );
+        return GestureDetector(
+          onTap: () => _applyPreset(preset),
+          child: GlassCard(
+            borderRadius: 20, elevation: 2,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedFlutterAvatar(config: previewConfig, size: 72),
+                const SizedBox(height: 10),
+                Text(preset.emoji, style: const TextStyle(fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(preset.name, style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.textPrimary(context),
+                ), textAlign: TextAlign.center),
+                const SizedBox(height: 2),
+                Text(preset.tagline, style: GoogleFonts.inter(
+                  fontSize: 9.5, color: AppColors.textSecondary(context), fontWeight: FontWeight.w500,
+                ), textAlign: TextAlign.center),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildColorRow(List<String> colors, String selectedColor, ValueChanged<String> onSelected) {
+  // ─── Shared Widgets ─────────────────────────────────────────────────────────
+
+  Widget _tabContent(List<Widget> children) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      physics: const BouncingScrollPhysics(),
+      children: children,
+    );
+  }
+
+  Widget _section(String title, Widget child) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary(context))),
+        const SizedBox(height: 8),
+        child,
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
+  Widget _chipRow(String traitName, int count, List<String> labels, int selected, ValueChanged<int> onSelected) {
     return SizedBox(
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: colors.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemCount: count,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
         itemBuilder: (context, i) {
-          final hex = colors[i];
-          final isSelected = hex.toLowerCase() == selectedColor.toLowerCase();
-          final Color color = Color(int.parse('FF' + hex.replaceFirst('#', ''), radix: 16));
+          final sel = selected == i;
+          
+          final harmony = AvatarHarmony.checkTraitChange(
+            traitName: traitName, traitValue: i,
+            hair: traitName == 'hair' ? i : _hair,
+            acc: traitName == 'acc' ? i : _acc,
+            outfit: traitName == 'outfit' ? i : _outfit,
+            facialHair: traitName == 'facialHair' ? i : _facialHair,
+          );
+          
+          final bool isBlocked = harmony == HarmonyLevel.blocked;
+          final bool isWarned = harmony == HarmonyLevel.mild;
 
           return GestureDetector(
-            onTap: () => onSelected(hex),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? AppColors.textPrimary(context) : Colors.white24,
-                  width: isSelected ? 3 : 1.5,
+            onTap: isBlocked ? () { HapticFeedback.heavyImpact(); } : () { HapticFeedback.selectionClick(); onSelected(i); },
+            child: Opacity(
+              opacity: isBlocked ? 0.3 : (isWarned && !sel ? 0.6 : 1.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: sel ? Theme.of(context).colorScheme.primary : AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isWarned && !sel ? Colors.orange.withOpacity(0.5) : (sel ? Colors.transparent : AppColors.border(context).withOpacity(0.4)),
+                  ),
                 ),
-                boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 8)] : [],
+                child: Text(
+                  labels[i],
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: sel ? FontWeight.bold : FontWeight.w600, fontSize: 12,
+                    color: sel ? Colors.white : (isWarned && !sel ? Colors.orange : AppColors.textPrimary(context)),
+                    decoration: isBlocked ? TextDecoration.lineThrough : null,
+                  ),
+                ),
               ),
             ),
           );
@@ -554,4 +579,131 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> {
       ),
     );
   }
+
+  Widget _colorRow(List<String> colors, String selectedColor, ValueChanged<String> onSelected) {
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: colors.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final hex = colors[i];
+          final sel = hex.toLowerCase() == selectedColor.toLowerCase();
+          final color = Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
+          return GestureDetector(
+            onTap: () { HapticFeedback.selectionClick(); onSelected(hex); },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 34, height: 34,
+              decoration: BoxDecoration(
+                color: color, shape: BoxShape.circle,
+                border: Border.all(color: sel ? AppColors.textPrimary(context) : Colors.white24, width: sel ? 3 : 1.5),
+                boxShadow: sel ? [BoxShadow(color: color.withOpacity(0.45), blurRadius: 10)] : [],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPaintToolbar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border(context).withOpacity(0.3)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 26,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _brushColors.length,
+                  itemBuilder: (context, idx) {
+                    final hex = _brushColors[idx];
+                    final color = Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
+                    final sel = hex == _brushColor;
+                    return GestureDetector(
+                      onTap: () => setState(() => _brushColor = hex),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: 22, height: 22,
+                        decoration: BoxDecoration(
+                          color: color, shape: BoxShape.circle,
+                          border: Border.all(color: sel ? AppColors.textPrimary(context) : Colors.white24, width: sel ? 2.5 : 1),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            IconButton(icon: Icon(Icons.undo_rounded, size: 16, color: AppColors.textPrimary(context)), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () {
+              if (_customStrokes.isNotEmpty) { setState(() => _customStrokes.removeLast()); HapticFeedback.lightImpact(); }
+            }),
+            const SizedBox(width: 6),
+            IconButton(icon: const Icon(Icons.delete_sweep_rounded, size: 17, color: Colors.redAccent), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () {
+              if (_customStrokes.isNotEmpty) { setState(() => _customStrokes.clear()); HapticFeedback.mediumImpact(); }
+            }),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => setState(() => _isPaintingMode = false),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withOpacity(0.2))),
+                child: Text('Done', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.green)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PedestalPainter extends CustomPainter {
+  final double rotation;
+  final Color baseColor;
+  PedestalPainter(this.rotation, this.baseColor);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()..isAntiAlias = true;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Inner glowing disc shadow
+    final shadowRect = Rect.fromCenter(center: Offset(cx, cy + 4), width: size.width * 0.9, height: size.height * 0.4);
+    paint.shader = RadialGradient(
+      colors: [baseColor.withOpacity(0.4), baseColor.withOpacity(0.0)],
+      stops: const [0.0, 1.0],
+    ).createShader(shadowRect);
+    canvas.drawOval(shadowRect, paint);
+
+    // Main glowing edge rim ring
+    paint.shader = null;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2.5;
+    final rimRect = Rect.fromCenter(center: Offset(cx, cy), width: size.width * 0.85, height: size.height * 0.35);
+    
+    final SweepGradient rimGrad = SweepGradient(
+      colors: [Colors.white.withOpacity(0.0), baseColor.withOpacity(0.7), Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.0)],
+      stops: const [0.0, 0.4, 0.6, 1.0],
+      transform: GradientRotation(rotation * 2 * pi),
+    );
+    paint.shader = rimGrad.createShader(rimRect);
+    canvas.drawOval(rimRect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant PedestalPainter oldDelegate) => oldDelegate.rotation != rotation || oldDelegate.baseColor != baseColor;
 }

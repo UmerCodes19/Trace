@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -14,6 +15,12 @@ import '../../../data/services/offline/sync_manager.dart';
 import '../profile/avatar_builder_screen.dart'; // To reuse UserAvatar or similar if available
 import '../../widgets/profile/flutter_avatar.dart'; // Direct access to UserAvatar / AvatarConfig
 import '../../widgets/common/user_avatar.dart';
+import '../../../data/services/local_settings_service.dart';
+import '../../widgets/common/skeleton.dart';
+import '../../../core/utils/tutorial_keys.dart';
+import '../../../core/utils/app_guide_orchestrator.dart';
+import '../../../core/services/tutorial_service.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class CampusReelsScreen extends ConsumerStatefulWidget {
   const CampusReelsScreen({super.key});
@@ -41,6 +48,55 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
     super.initState();
     _pageController = PageController();
     _loadReelPosts();
+    // Activate precise safety polling loop on view mounting
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkReelsTour());
+  }
+
+
+
+  Future<void> _checkReelsTour() async {
+    if (!mounted) return;
+    final state = ref.read(activeTourStateProvider);
+    if (state != ActiveTourState.reels) return;
+
+    int retryCount = 0;
+    while (_isLoading && mounted && retryCount < 30) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      retryCount++;
+    }
+
+    if (mounted && !_isLoading) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted) _launchReelsTour();
+    }
+  }
+
+  void _launchReelsTour() {
+    final service = ref.read(tutorialServiceProvider);
+    final targets = <TargetFocus>[
+      AppGuideOrchestrator.buildTarget(
+        key: TutorialKeys.reelsContentKey,
+        title: 'Video Feed',
+        description: 'Swipe up to watch lost and found campus videos.',
+        stepLabel: 'Reels',
+        align: ContentAlign.bottom,
+        radius: 20,
+      ),
+    ];
+
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    final router = GoRouter.of(context);
+
+    AppGuideOrchestrator.showTutorial(
+      context: context,
+      featureKey: 'reels_tour',
+      targets: targets,
+      tutorialService: service,
+      onFinish: () {
+        notifier.state = ActiveTourState.inbox;
+        router.go('/chats');
+      },
+    );
   }
 
   Future<void> _loadReelPosts() async {
@@ -77,6 +133,7 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
           _reelPosts = finalReels;
           _isLoading = false;
         });
+        WidgetsBinding.instance.addPostFrameCallback((_) => _checkReelsTour());
       }
     } catch (e) {
       if (mounted) {
@@ -95,123 +152,44 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF08080A),
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.2,
-              colors: [
-                Color(0xFF14151F),
-                Color(0xFF08080A),
-              ],
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Ambient ambient glow rings
-              Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.teal.withOpacity(0.05), width: 1),
-                ),
-              ).animate(onPlay: (c) => c.repeat())
-               .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.5, 1.5), duration: 2.seconds, curve: Curves.easeOut)
-               .fadeOut(duration: 2.seconds),
-               
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    height: 80,
-                    width: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.02),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.jadePrimary.withOpacity(0.1),
-                          blurRadius: 40,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(colors: [AppColors.jadePrimary, Colors.teal]),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
-                      ),
-                    ),
-                  )
-                  .animate(onPlay: (c) => c.repeat(reverse: true))
-                  .scale(begin: const Offset(0.94, 0.94), end: const Offset(1.06, 1.06), duration: 1200.ms, curve: Curves.easeInOutQuad)
-                  .shimmer(duration: 2400.ms, color: Colors.white24),
-                  
-                  const SizedBox(height: 28),
-                  Text(
-                    'SYNCHRONIZING TRACES',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 4.5,
-                    ),
-                  ).animate(onPlay: (c) => c.repeat()).shimmer(delay: 1500.ms, duration: 2000.ms),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final isDarkMode = ref.watch(themeProvider);
 
-    if (_reelPosts.isEmpty) {
+    if (!_isLoading && _reelPosts.isEmpty) {
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: isDarkMode ? Colors.black : Colors.white,
         body: Center(
-          child: Column(
+          child: Container(
+            key: TutorialKeys.reelsContentKey,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.video_library_outlined, size: 64, color: Colors.white24),
+              Icon(Icons.video_library_outlined, size: 64, color: isDarkMode ? Colors.white24 : Colors.black26),
               const SizedBox(height: 16),
               Text(
                 'No Traces Yet',
                 style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white,
+                  color: isDarkMode ? Colors.white : Colors.black,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Create a post with #video in the description\nto start the loop!',
+                'Create a post with a video to start the loop!',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  color: Colors.white54,
+                  color: isDarkMode ? Colors.white54 : Colors.black54,
                   fontSize: 13,
                 ),
               ),
             ],
           ).animate().fadeIn(),
-        ),
+        ),),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDarkMode ? Colors.black : Colors.white,
       body: Stack(
         children: [
           // Infinite vertical page view for reels
@@ -219,18 +197,24 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
             scrollDirection: Axis.vertical,
             controller: _pageController,
             onPageChanged: (index) {
-              HapticFeedback.selectionClick();
-              setState(() {
-                _currentIndex = index;
-              });
+              if (!_isLoading) {
+                HapticFeedback.selectionClick();
+                setState(() {
+                  _currentIndex = index;
+                });
+              }
             },
-            itemCount: _reelPosts.length,
+            itemCount: _isLoading ? 2 : _reelPosts.length,
             itemBuilder: (context, index) {
+              if (_isLoading) {
+                return const ReelSkeletonItem();
+              }
               final post = _reelPosts[index];
               final bool isActive = index == _currentIndex;
               return ReelPlayerItem(
                 post: post,
                 isActive: isActive,
+                isDarkMode: isDarkMode,
               );
             },
           ),
@@ -253,6 +237,7 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
                   ),
                 ),
                 Container(
+                  key: TutorialKeys.reelsContentKey,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.12),
@@ -286,11 +271,13 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
 class ReelPlayerItem extends StatefulWidget {
   final SimplePostModel post;
   final bool isActive;
+  final bool isDarkMode;
 
   const ReelPlayerItem({
     super.key,
     required this.post,
     required this.isActive,
+    required this.isDarkMode,
   });
 
   @override
@@ -387,6 +374,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
   void _showCommentsSheet() {
     HapticFeedback.mediumImpact();
     final TextEditingController textController = TextEditingController();
+    final isDark = widget.isDarkMode;
 
     showModalBottomSheet(
       context: context,
@@ -402,9 +390,9 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                 child: Container(
                   height: MediaQuery.of(context).size.height * 0.7,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: isDark ? Colors.black.withOpacity(0.8) : Colors.white.withOpacity(0.95),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-                    border: Border.all(color: Colors.white.withOpacity(0.08), width: 0.5),
+                    border: Border.all(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08), width: 0.5),
                   ),
                   child: Column(
                     children: [
@@ -414,7 +402,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                         width: 45,
                         height: 5,
                         decoration: BoxDecoration(
-                          color: Colors.white24,
+                          color: isDark ? Colors.white24 : Colors.black26,
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -430,7 +418,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                                 Text(
                                   'Traces Chat',
                                   style: GoogleFonts.plusJakartaSans(
-                                    color: Colors.white,
+                                    color: isDark ? Colors.white : Colors.black87,
                                     fontSize: 18,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -439,7 +427,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                                 Text(
                                   '${_comments.length} active notes',
                                   style: GoogleFonts.inter(
-                                    color: Colors.white54,
+                                    color: isDark ? Colors.white54 : Colors.black54,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -450,16 +438,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: Colors.white10,
+                                  color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close, color: Colors.white, size: 18),
+                                child: Icon(Icons.close, color: isDark ? Colors.white : Colors.black, size: 18),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const Divider(color: Colors.white10, height: 1),
+                      Divider(color: isDark ? Colors.white10 : Colors.black12, height: 1),
 
                       // Scrollable feedback loop
                       Expanded(
@@ -468,11 +456,11 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.chat_bubble_outline_rounded, color: Colors.white24, size: 40),
+                                  Icon(Icons.chat_bubble_outline_rounded, color: isDark ? Colors.white24 : Colors.black26, size: 40),
                                   const SizedBox(height: 12),
                                   Text(
                                     'No comments yet.',
-                                    style: GoogleFonts.inter(color: Colors.white38),
+                                    style: GoogleFonts.inter(color: isDark ? Colors.white38 : Colors.black38),
                                   ),
                                 ],
                               ),
@@ -506,7 +494,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                                             Text(
                                               'Campus Insider',
                                               style: GoogleFonts.plusJakartaSans(
-                                                color: Colors.white,
+                                                color: isDark ? Colors.white : Colors.black87,
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w700,
                                               ),
@@ -515,7 +503,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                                             Container(
                                               padding: const EdgeInsets.all(12),
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.05),
+                                                color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
                                                 borderRadius: const BorderRadius.only(
                                                   topRight: Radius.circular(16),
                                                   bottomLeft: Radius.circular(16),
@@ -525,7 +513,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                                               child: Text(
                                                 _comments[idx],
                                                 style: GoogleFonts.inter(
-                                                  color: Colors.white.withOpacity(0.9),
+                                                  color: isDark ? Colors.white.withOpacity(0.9) : Colors.black87,
                                                   fontSize: 14,
                                                   height: 1.4,
                                                 ),
@@ -552,23 +540,23 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                             top: 16,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.4),
-                            border: const Border(top: BorderSide(color: Colors.white10, width: 1)),
+                            color: isDark ? Colors.black.withOpacity(0.4) : Colors.grey.shade50,
+                            border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05), width: 1)),
                           ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
+                                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
                                     borderRadius: BorderRadius.circular(25),
                                   ),
                                   child: TextField(
                                     controller: textController,
-                                    style: GoogleFonts.inter(color: Colors.white),
+                                    style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black87),
                                     decoration: InputDecoration(
                                       hintText: 'Leave a dynamic trace note...',
-                                      hintStyle: GoogleFonts.inter(color: Colors.white30, fontSize: 13),
+                                      hintStyle: GoogleFonts.inter(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13),
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                       border: InputBorder.none,
                                     ),
@@ -711,12 +699,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                       radius: 18,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      widget.post.posterName.isNotEmpty ? widget.post.posterName : 'Campus User',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                    Flexible(
+                      child: Text(
+                        widget.post.posterName.isNotEmpty ? widget.post.posterName : 'Campus User',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -766,12 +758,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                   children: [
                     const Icon(Icons.location_on_rounded, size: 14, color: Colors.amberAccent),
                     const SizedBox(width: 4),
-                    Text(
-                      widget.post.location.building,
-                      style: GoogleFonts.inter(
-                        color: Colors.amberAccent,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Text(
+                        widget.post.location.building,
+                        style: GoogleFonts.inter(
+                          color: Colors.amberAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -882,3 +878,52 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
     );
   }
 }
+
+
+class ReelSkeletonItem extends StatelessWidget {
+  const ReelSkeletonItem({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SkeletonBox(height: double.infinity, width: double.infinity),
+        Positioned(
+          left: 16,
+          bottom: 160,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  SkeletonBox(height: 40, width: 40, radius: 20),
+                  const SizedBox(width: 12),
+                  SkeletonBox(height: 20, width: 120),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SkeletonBox(height: 18, width: 200),
+              const SizedBox(height: 8),
+              SkeletonBox(height: 14, width: 140),
+            ],
+          ),
+        ),
+        Positioned(
+          right: 16,
+          bottom: 160,
+          child: Column(
+            children: [
+              SkeletonBox(height: 48, width: 48, radius: 24),
+              const SizedBox(height: 24),
+              SkeletonBox(height: 48, width: 48, radius: 24),
+              const SizedBox(height: 24),
+              SkeletonBox(height: 48, width: 48, radius: 24),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+

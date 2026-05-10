@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
 
+// Get public leaderboard
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('uid, name, email, photoURL, karmaPoints, itemsReturned')
+      .order('karmaPoints', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get user profile
 router.get('/:uid', async (req, res) => {
   try {

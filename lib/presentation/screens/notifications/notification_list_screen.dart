@@ -8,24 +8,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
 
-class NotificationDrawer extends ConsumerWidget {
+class NotificationDrawer extends ConsumerStatefulWidget {
   const NotificationDrawer({super.key});
 
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp == null) return 'unknown';
-    final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp as int);
-    final Duration diff = DateTime.now().difference(dt);
-    
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return DateFormat('MMM d').format(dt);
-  }
-
-  void _onNotificationTap(BuildContext context, WidgetRef ref, Map<String, dynamic> n) async {
+  static void _onNotificationTap(BuildContext context, WidgetRef ref, Map<String, dynamic> n) async {
     final api = ref.read(apiServiceProvider);
     
-    // Mark as read in background
     try {
       await api.markNotificationRead(n['id']);
       ref.invalidate(notificationsProvider);
@@ -50,7 +38,25 @@ class NotificationDrawer extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationDrawer> createState() => _NotificationDrawerState();
+}
+
+class _NotificationDrawerState extends ConsumerState<NotificationDrawer> {
+  bool _isClearingOptimistically = false;
+
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'unknown';
+    final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp as int);
+    final Duration diff = DateTime.now().difference(dt);
+    
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return DateFormat('MMM d').format(dt);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final notificationsAsync = ref.watch(notificationsProvider);
 
     return Drawer(
@@ -69,72 +75,72 @@ class NotificationDrawer extends ConsumerWidget {
                     'Notifications',
                     style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context)),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.done_all_rounded),
-                    tooltip: 'Mark all as read',
-                    onPressed: () async {
-                      final user = ref.read(authServiceProvider).currentUser;
-                      if (user != null) {
-                        await ref.read(apiServiceProvider).markAllNotificationsRead(user.uid);
-                        ref.refresh(notificationsProvider);
-                      }
-                    },
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.done_all_rounded),
+                        tooltip: 'Mark all as read',
+                        onPressed: () async {
+                          final user = ref.read(authServiceProvider).currentUser;
+                          if (user != null) {
+                            await ref.read(apiServiceProvider).markAllNotificationsRead(user.uid);
+                            ref.invalidate(notificationsProvider);
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.lostAlert),
+                        tooltip: 'Clear all',
+                        onPressed: () async {
+                          final bool? confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Clear All?'),
+                              content: const Text('Do you want to delete all notifications permanently?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true), 
+                                  child: const Text('Clear', style: TextStyle(color: AppColors.lostAlert))
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            final user = ref.read(authServiceProvider).currentUser;
+                            if (user != null) {
+                              // STEP 1: Instant visual feedback
+                              setState(() {
+                                _isClearingOptimistically = true;
+                              });
+                              
+                              // STEP 2: Execute back-end silent processing
+                              try {
+                                await ref.read(apiServiceProvider).clearAllNotifications(user.uid);
+                                ref.invalidate(notificationsProvider);
+                              } catch (e) {
+                                debugPrint('Clear fail silently handled.');
+                              }
+                            }
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: notificationsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-        data: (notifications) {
-          if (notifications.isEmpty) return _EmptyState();
-
-          return RefreshIndicator(
-            onRefresh: () async => ref.refresh(notificationsProvider),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: notifications.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final n = notifications[index] as Map<String, dynamic>;
-                return Dismissible(
-                  key: Key(n['id'].toString()),
-                  direction: DismissDirection.endToStart,
-                  onDismissed: (direction) async {
-                    try {
-                      await ref.read(apiServiceProvider).markNotificationRead(n['id']);
-                      ref.invalidate(notificationsProvider);
-                    } catch (e) {}
-                  },
-                  background: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.lostAlert.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.lostAlert.withOpacity(0.3)),
-                    ),
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 24),
-                    child: const Icon(Icons.clear_all_rounded, color: AppColors.lostAlert),
-                  ),
-                  child: GestureDetector(
-                    onTap: () => _onNotificationTap(context, ref, n),
-                    child: _NotificationCard(
-                      notification: {
-                        ...n,
-                        'time': _formatTimestamp(n['timestamp']),
+              child: _isClearingOptimistically 
+                  ? _EmptyState() // Immediately override and show empty
+                  : notificationsAsync.when(
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (err, stack) => Center(child: Text('Error: $err')),
+                      data: (notifications) {
+                        if (notifications.isEmpty) return _EmptyState();
+                        return _NotificationList(initialNotifications: notifications.map((e) => e as Map<String, dynamic>).toList());
                       },
                     ),
-                  ),
-                ).animate()
-                  .fadeIn(delay: (index * 50).ms)
-                  .slideX(begin: 0.1, end: 0);
-              },
-            ),
-          );
-        },
-      ),
             ),
           ],
         ),
@@ -299,3 +305,96 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+
+class _NotificationList extends ConsumerStatefulWidget {
+  final List<Map<String, dynamic>> initialNotifications;
+  const _NotificationList({required this.initialNotifications});
+
+  @override
+  ConsumerState<_NotificationList> createState() => _NotificationListState();
+}
+
+class _NotificationListState extends ConsumerState<_NotificationList> {
+  late List<Map<String, dynamic>> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List.from(widget.initialNotifications);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NotificationList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialNotifications.length != oldWidget.initialNotifications.length) {
+      setState(() {
+        _items = List.from(widget.initialNotifications);
+      });
+    }
+  }
+
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'unknown';
+    final DateTime dt = DateTime.fromMillisecondsSinceEpoch(timestamp as int);
+    final Duration diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return 'm ago';
+    if (diff.inHours < 24) return 'h ago';
+    return DateFormat('MMM d').format(dt);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_items.isEmpty) return _EmptyState();
+
+    return RefreshIndicator(
+      onRefresh: () async => ref.refresh(notificationsProvider),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(20),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final n = _items[index];
+          return Dismissible(
+            key: Key(n['id'].toString()),
+            direction: DismissDirection.endToStart,
+            onDismissed: (direction) async {
+              final id = n['id'];
+              setState(() {
+                _items.removeAt(index);
+              });
+              try {
+                await ref.read(apiServiceProvider).deleteNotification(id);
+                // Invalidate provider to make sure app-wide badges stay synced
+                ref.invalidate(notificationsProvider);
+              } catch (e) {
+                debugPrint('Failed to delete notification: ');
+              }
+            },
+            background: Container(
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.lostAlert.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.lostAlert.withOpacity(0.3)),
+              ),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24),
+              child: const Icon(Icons.delete_outline_rounded, color: AppColors.lostAlert),
+            ),
+            child: GestureDetector(
+              onTap: () => NotificationDrawer._onNotificationTap(context, ref, n),
+              child: _NotificationCard(
+                notification: {
+                  ...n,
+                  'time': _formatTimestamp(n['timestamp']),
+                },
+              ),
+            ),
+          ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.1, end: 0);
+        },
+      ),
+    );
+  }
+}
+
