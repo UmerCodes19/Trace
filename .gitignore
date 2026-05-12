@@ -57,3 +57,5 @@ app.*.map.json
 **/.env
 **/.env.local
 **/.env.*
+# Documentation folder
+docs/

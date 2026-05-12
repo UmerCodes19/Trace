@@ -1,17 +1,21 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/avatar_presets.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../core/utils/avatar_harmony.dart';
 import '../../widgets/common/glass_card.dart';
-import '../../widgets/profile/flutter_avatar.dart';
-import '../../widgets/profile/animated_flutter_avatar.dart';
+import '../../avatar_engine/models/avatar_config.dart';
+import '../../avatar_engine/ui/interactive_avatar.dart';
+import '../../avatar_engine/audio/music_sync_engine.dart';
+import '../../avatar_engine/audio/music_state.dart';
 
 class AvatarBuilderScreen extends ConsumerStatefulWidget {
   const AvatarBuilderScreen({super.key});
@@ -45,6 +49,9 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
 
   // Palette index
   int _paletteIndex = 0;
+  
+  // Music Deck Local State
+  bool _isMusicExpanded = false;
 
   @override
   void initState() {
@@ -63,6 +70,10 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
 
   @override
   void dispose() {
+    try {
+      ref.read(musicSyncProvider.notifier).stop();
+    } catch (_) { /* Safe release if disposed earlier */ }
+    
     _tabController.dispose();
     _pedestalController.dispose();
     super.dispose();
@@ -161,7 +172,9 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
           const SizedBox(width: 4),
         ],
       ),
-      body: SafeArea(
+      body: Stack(
+        children: [
+          SafeArea(
         child: Column(
           children: [
             // Live Avatar Preview
@@ -176,18 +189,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
                       alignment: Alignment.center,
                       children: [
                         // Cinematic Pedestal
-                        Positioned(
-                          bottom: 10,
-                          child: AnimatedBuilder(
-                            animation: _pedestalController,
-                            builder: (context, _) {
-                              return CustomPaint(
-                                painter: PedestalPainter(_pedestalController.value, accent),
-                                size: const Size(180, 60),
-                              );
-                            },
-                          ),
-                        ),
+                        // Pedestal removed by user request
                         // Identity Morph Reveal Switcher
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 400),
@@ -207,7 +209,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                AnimatedFlutterAvatar(config: _currentConfig, size: 160),
+                                InteractiveAvatarView(config: _currentConfig, size: 160),
                                 if (_isPaintingMode)
                                   Positioned.fill(
                                     child: ClipOval(
@@ -247,28 +249,99 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
               ),
             ),
 
-            // Paint Studio Toggle
+            // Avatar Actions Row (Paint Studio + Music Sync)
             if (!_isPaintingMode)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() => _isPaintingMode = true),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: accent.withOpacity(0.15)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () => setState(() => _isPaintingMode = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: accent.withValues(alpha: 0.15)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.brush_rounded, color: accent, size: 14),
+                            const SizedBox(width: 5),
+                            Text('Paint Studio', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 11.5, color: accent)),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.brush_rounded, color: accent, size: 14),
-                        const SizedBox(width: 5),
-                        Text('Paint Studio', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 11.5, color: accent)),
-                      ],
+                    const SizedBox(width: 12),
+                    // --- DYNAMIC MUSIC SYNC INJECTION WITH TOGGLE ---
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final music = ref.watch(musicSyncProvider);
+                        final isMusicPlaying = music.isPlaying;
+                        final isMusicActive = music.fileName != null;
+                        final notifier = ref.read(musicSyncProvider.notifier);
+
+                        return GestureDetector(
+                          onTap: () async {
+                            if (isMusicActive) {
+                              notifier.stop();
+                              return;
+                            }
+                            try {
+                              final res = await FilePicker.pickFiles(type: FileType.audio);
+                              if (res != null && res.files.single.path != null) {
+                                notifier.playFile(res.files.single.path!);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('🎵 Vibe Sync Activated!', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                                    backgroundColor: Colors.deepPurpleAccent,
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            } catch (_) {}
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: isMusicActive 
+                                  ? [Colors.redAccent, Colors.orangeAccent]
+                                  : [Colors.deepPurpleAccent, Colors.purple.shade400]
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (isMusicActive ? Colors.redAccent : Colors.purple).withValues(alpha: 0.3), 
+                                  blurRadius: 8, 
+                                  offset: const Offset(0, 3)
+                                )
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isMusicActive ? Icons.stop_circle_rounded : Icons.music_note_rounded, 
+                                  color: Colors.white, size: 14
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  isMusicActive ? 'Stop Vibe' : 'Drop a Beat', 
+                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 11.5, color: Colors.white)
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
                     ),
-                  ),
+                  ],
                 ),
               )
             else
@@ -344,8 +417,11 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
           ],
         ),
       ),
-    );
-  }
+      _buildMusicStatsDeck(),
+    ],
+  ),
+);
+}
 
   // ─── Tab Builders ───────────────────────────────────────────────────────────
 
@@ -487,7 +563,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedFlutterAvatar(config: previewConfig, size: 72),
+                InteractiveAvatarView(config: previewConfig, size: 72, interactive: false),
                 const SizedBox(height: 10),
                 Text(preset.emoji, style: const TextStyle(fontSize: 16)),
                 const SizedBox(height: 4),
@@ -666,6 +742,173 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
           ],
         ),
       ),
+    );
+  }
+  Widget _buildMusicStatsDeck() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final music = ref.watch(musicSyncProvider);
+        final notifier = ref.read(musicSyncProvider.notifier);
+        if (music.fileName == null) return const SizedBox.shrink();
+
+        final accent = Theme.of(context).colorScheme.primary;
+        final double posMs = music.position.inMilliseconds.toDouble();
+        final double durMs = music.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+        final double progress = (posMs / durMs).clamp(0.0, 1.0);
+
+        String _fmt(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2,'0')}';
+
+        return Positioned(
+          bottom: 90, left: 16, right: 16,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 400),
+            opacity: 1.0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context).withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 10))
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header: Title + Expansion Toggle
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => notifier.pauseResume(),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                              child: Icon(music.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 18, color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(music.fileName!, 
+                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppColors.textPrimary(context)),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                                // 🚀 PERFORMANCE ISOLATED SPECTRUM: ONLY THIS TINY BUILDER REDRAWS, SAVING MASSIVE LAG!
+                                const SizedBox(height: 4),
+                                ValueListenableBuilder<double>(
+                                  valueListenable: notifier.liveEnergyNotifier,
+                                  builder: (context, energy, _) {
+                                    return Container(
+                                      height: 3,
+                                      width: 100,
+                                      alignment: Alignment.centerLeft,
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 40),
+                                        height: 3, 
+                                        width: 100 * energy,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(colors: [accent, Colors.pinkAccent]),
+                                          borderRadius: BorderRadius.circular(1.5),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: Icon(_isMusicExpanded ? Icons.expand_less_rounded : Icons.tune_rounded, size: 20, color: AppColors.textSecondary(context)),
+                            onPressed: () => setState(() => _isMusicExpanded = !_isMusicExpanded),
+                            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20, color: Colors.redAccent),
+                            onPressed: () {
+                              notifier.stop();
+                              setState(() => _isMusicExpanded = false);
+                            },
+                            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                          )
+                        ],
+                      ),
+
+                      // ELEGANTLY COLLAPSIBLE DETAILS
+                      AnimatedCrossFade(
+                        duration: const Duration(milliseconds: 300),
+                        crossFadeState: _isMusicExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                        firstChild: const SizedBox.shrink(),
+                        secondChild: Column(
+                          children: [
+                            const SizedBox(height: 16),
+                            // Expanded Progress Scrubber
+                            Row(
+                              children: [
+                                Text(_fmt(music.position), style: GoogleFonts.robotoMono(fontSize: 10, color: AppColors.textSecondary(context))),
+                                Expanded(
+                                  child: SliderTheme(
+                                    data: SliderThemeData(
+                                      trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                      activeTrackColor: accent, inactiveTrackColor: accent.withOpacity(0.15), thumbColor: accent,
+                                    ),
+                                    child: Slider(
+                                      value: progress,
+                                      onChanged: (v) => notifier.seek(Duration(milliseconds: (v * durMs).toInt())),
+                                    ),
+                                  ),
+                                ),
+                                Text(_fmt(music.duration), style: GoogleFonts.robotoMono(fontSize: 10, color: AppColors.textSecondary(context))),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // Sensitivity Slider (The detailed Tweak!)
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(12)),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text('BOB INTENSITY', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 10, color: AppColors.textPrimary(context))),
+                                      Text('${(music.sensitivity * 100).toInt()}%', style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.orangeAccent)),
+                                    ],
+                                  ),
+                                  SliderTheme(
+                                    data: SliderThemeData(
+                                      trackHeight: 2, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                      activeTrackColor: Colors.orangeAccent, inactiveTrackColor: Colors.orangeAccent.withOpacity(0.15), thumbColor: Colors.orangeAccent,
+                                    ),
+                                    child: Slider(
+                                      value: music.sensitivity,
+                                      min: 0.5, max: 2.5,
+                                      onChanged: (v) => notifier.setSensitivity(v),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
     );
   }
 }
