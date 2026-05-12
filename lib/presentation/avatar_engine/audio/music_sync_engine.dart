@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:just_waveform/just_waveform.dart';
 import 'package:path/path.dart' as p;
 import '../core/avatar_engine.dart';
 import '../emotions/emotion_preset.dart';
@@ -15,17 +17,18 @@ final musicSyncProvider = NotifierProvider<MusicSyncNotifier, AvatarMusicState>(
 
 class MusicSyncNotifier extends Notifier<AvatarMusicState> {
   late AudioPlayer _player;
-  static const _controlChannel = MethodChannel('pk.edu.bahria.lostfound/visualizer_control');
-  static const _eventChannel = EventChannel('pk.edu.bahria.lostfound/visualizer_events');
-  
   final ValueNotifier<double> liveEnergyNotifier = ValueNotifier(0.0);
   
-  StreamSubscription? _visualizerSub;
+  Waveform? _currentWaveform;
+  Timer? _ticker;
+  
   StreamSubscription? _posSub;
   StreamSubscription? _durSub;
   StreamSubscription? _playStateSub;
 
-  double _rollingPeak = 0.0;
+  double _rollingAverage = 0.15; // 📈 Dynamic moving low-pass average
+  double _prevRatio = 0.0; // 💾 UNCLAMPED high-precision memory
+  double _longPeak = 0.5; // 🏔️ Long-term automatic gain normalization peak
   DateTime _lastBeat = DateTime.now();
 
   @override
@@ -46,6 +49,8 @@ class MusicSyncNotifier extends Notifier<AvatarMusicState> {
     _posSub?.cancel();
     _durSub?.cancel();
     _playStateSub?.cancel();
+    _ticker?.cancel();
+    _ticker = null;
   }
 
   void _bindListeners() {
@@ -64,6 +69,10 @@ class MusicSyncNotifier extends Notifier<AvatarMusicState> {
         state = state.copyWith(isPlaying: playing);
       }
     });
+    
+    // 🎯 HIGH-PRECISION SIMULATION TICKER (Replaces Visualizer EventStream)
+    // Fires 30 times per second to sample pre-calculated waveform amplitude.
+    _ticker = Timer.periodic(const Duration(milliseconds: 33), (_) => _onTick());
   }
 
   Future<void> _initSession() async {
@@ -72,146 +81,158 @@ class MusicSyncNotifier extends Notifier<AvatarMusicState> {
   }
 
   Future<void> playFile(String filePath) async {
-    // 1. MUST REQUEST RUNTIME MICROPHONE PERMISSION FOR VISUALIZER
-    final perm = await Permission.microphone.request();
-    if (!perm.isGranted) {
-      debugPrint("⚠️ Microphone permission denied. Visualization engine won't capture data.");
-    }
-
     try {
-      debugPrint('🔄 RECYCLING ENGINE: Disposing old instance for pristine reboot...');
+      debugPrint('🔄 OFFLINE WAVE ANALYSIS: Booting secure processing engine...');
+      
+      // 1. Kill old instance completely to prevent memory crossover
       await _player.stop().catchError((_) {});
       await _player.dispose().catchError((_) {});
       
-      // ⚠️ CRITICAL BUG FIX: MUST reset debug flag so the second run attempts to latch!
-      _hasPrintedDebug = false;
-      _rollingPeak = 0.0;
-      _debugCount = 0;
+      _rollingAverage = 0.15;
+      _prevRatio = 0.0;
+      _longPeak = 0.5;
+      _currentWaveform = null;
 
       // 🌟 CREATE FRESH NEW PLAYER FROM SCRATCH
       _player = AudioPlayer();
       _bindListeners();
 
       final cleanName = p.basename(filePath);
-      state = state.copyWith(fileName: cleanName, isPlaying: true, liveEnergy: 0.0);
+      state = state.copyWith(
+        fileName: cleanName, 
+        isPlaying: false, // Don't state 'playing' until fully prepped!
+        isAnalyzing: true, // 🚀 ALERT UI: Show skeleton loader!
+        liveEnergy: 0.0
+      );
 
-      debugPrint('📊 SYNC STEP 2: Loading File into NEW Engine...');
+      debugPrint('📊 WAVE STEP 1: Checking Persistence Cache / Analyzing...');
+      
+      final tempDir = await getTemporaryDirectory();
+      // 🛡️ SECURE CACHING: Deterministic file storage preventing repeat analysis!
+      final int cacheId = filePath.hashCode.abs();
+      final waveFile = File('${tempDir.path}/wave_cache_$cacheId.wave');
+      
+      bool analysisRequired = true;
+      if (await waveFile.exists()) {
+        final int sz = await waveFile.length();
+        if (sz > 100) { // Valid wave header length
+          try {
+             _currentWaveform = await JustWaveform.parse(waveFile);
+             debugPrint('⚡ FLASH CACHE HIT: Instant waveform loaded!');
+             analysisRequired = false;
+          } catch (e) {
+             debugPrint('⚠️ Cache corruption detected, forcing re-analysis.');
+          }
+        }
+      }
+
+      // Fallback to synchronous awaited extraction ONLY if cache missing
+      if (analysisRequired) {
+        final progressStream = JustWaveform.extract(
+          audioInFile: File(filePath),
+          waveOutFile: waveFile,
+          zoom: const WaveformZoom.pixelsPerSecond(50),
+        );
+
+        await for (final progress in progressStream) {
+          if (progress.waveform != null) {
+            _currentWaveform = progress.waveform;
+            debugPrint('✅ WAVE EXTRACTION COMPLETE! Total Frames=${_currentWaveform?.length}');
+            break;
+          }
+        }
+      }
+
+      // 🚀 UNLOCK UI: Analysis Done!
+      state = state.copyWith(isAnalyzing: false);
+
+      debugPrint('📊 WAVE STEP 2: Initializing File Audio Engine...');
       await _player.setFilePath(filePath);
       
-      debugPrint('📊 SYNC STEP 3: Dispatching Play command on NEW Engine...');
-      // CRITICAL FIX: Do NOT await play(), as it blocks execution until track finishes!
+      debugPrint('📊 WAVE STEP 3: Commencing Perfectly-Synced Secure Audio...');
+      state = state.copyWith(isPlaying: true);
       _player.play(); 
-
-      debugPrint('📊 SYNC STEP 4: Starting smart reboot system...');
-      // --- 🚀 HIGH-VELOCITY SMART REBOOT SYSTEM ---
-      // Explicitly cycle driver binding dynamically until first bytes hit, ensuring physical devices catch.
-      for (int attempt = 1; attempt <= 4; attempt++) {
-         await Future.delayed(Duration(milliseconds: 600 + (attempt * 300)));
-         if (_hasPrintedDebug) break; // ✅ WE HAVE BYTES! DO NOT INTERRUPT.
-         
-         debugPrint('⚡ SYSTEM DRIVER LINK: Executing latch attempt #$attempt...');
-         await _attemptVisualizerLatch();
-      }
-    } catch (e) {
-      debugPrint('Playback Init Error: $e');
-    }
-  }
-
-  Future<void> _attemptVisualizerLatch() async {
-    if (kIsWeb) return;
-    final int? sessionId = _player.androidAudioSessionId;
-    if (sessionId != null) {
-      final bool ok = await _controlChannel.invokeMethod<bool>('startVisualizer', {'sessionId': sessionId}) ?? false;
-      if (ok) {
-        _startListening();
-      } else {
-        debugPrint('🔊 SYSTEM DEBUG: Latch failure reported by native bridge.');
-      }
-    } else {
-      debugPrint('🔊 SYSTEM DEBUG: No active Session ID yet.');
-    }
-  }
-
-  bool _hasPrintedDebug = false;
-  void _startListening() {
-    _visualizerSub?.cancel();
-    _hasPrintedDebug = false;
-    debugPrint('🔊 SYSTEM DEBUG: STARTING broadcast stream listener on Dart Side.');
-    _visualizerSub = _eventChannel.receiveBroadcastStream().listen((dynamic data) {
-      if (!_hasPrintedDebug) {
-         debugPrint('🚀 CRITICAL SUCCESS: First binary FFT packet arrived in Dart from Kotlin! Size = ${data is Uint8List ? (data as Uint8List).length : "NULL"}');
-         _hasPrintedDebug = true;
-      }
-      if (data is Uint8List) {
-        _processFft(data);
-      }
-    });
-  }
-
-  int _debugCount = 0;
-  void _processFft(Uint8List data) {
-    if (data.isEmpty) return;
-    
-    double totalMagnitude = 0.0;
-    // Capture all frequencies, not just the first 32! 
-    // Let's look at the lower half of frequencies which contain most bass/power
-    int limit = math.min(data.length, 128); 
-    int pairs = 0;
-
-    for (int i = 2; i < limit - 1; i += 2) {
-      // Correctly interpret as SIGNED bytes!
-      final int rInt = data[i].toSigned(8);
-      final int imInt = data[i + 1].toSigned(8);
       
-      final double magnitude = math.sqrt((rInt * rInt) + (imInt * imInt)).toDouble();
-      totalMagnitude += magnitude;
-      pairs++;
+    } catch (e) {
+      debugPrint('🔒 Wave Analysis Error: $e');
     }
+  }
 
-    final double avgEnergy = pairs > 0 ? (totalMagnitude / pairs) : 0.0;
-    _rollingPeak = math.max(_rollingPeak * 0.98, avgEnergy);
+  void _onTick() {
+    final waveform = _currentWaveform;
+    if (!_player.playing || waveform == null) return;
+
+    final Duration currentPos = _player.position;
     
-    // Periodic Diagnostic to help fix if it goes totally dead again
-    _debugCount++;
-    if (_debugCount % 100 == 0) {
-       debugPrint('🔊 ENERGY CHECK: avg=$avgEnergy, peak=$_rollingPeak, data0=${data[0]}');
-    }
+    // 🔍 DERIVE PRECISE INTENSITY SLICE FROM PRE-LOADED WAVEFORM
+    final double pixelIndex = waveform.positionToPixel(currentPos);
+    final int idx = pixelIndex.toInt();
+    
+    // Fetch bipolar sample boundaries
+    final int rawMax = waveform.getPixelMax(idx);
+    final int rawMin = waveform.getPixelMin(idx);
+    
+    // Transform to absolute unscaled energy
+    final double rawEnergy = (rawMax.abs() + rawMin.abs()) / 2.0;
+    
+    // Correctly interpret source resolution (16-bit vs 8-bit)
+    final double scale = waveform.flags == 0 ? 32767.0 : 127.0;
+    
+    final double rawRatio = rawEnergy / scale; 
+    
+    // 🏔️ 1. AUTO-GAIN TRACKER (Tracks long-term peak to prevent wall-of-sound clipping!)
+    _longPeak = math.max(_longPeak * 0.998, rawRatio); // Gradual decay to allow downward adaptation
+    _longPeak = math.max(_longPeak, 0.1); // Safety floor
+    
+    // Balance signal based on real-time adaptive range
+    final double adaptiveEnergy = (rawRatio / _longPeak).clamp(0.0, 1.0);
+    
+    // 📊 2. SIGNAL COMPRESSION (Standard Audio Root-Curve gives rich headroom instead of flatline!)
+    final double compressedEnergy = math.sqrt(adaptiveEnergy);
+    
+    // 💡 FEED COMPRESSED MOUTH & UI REFRESH
+    liveEnergyNotifier.value = compressedEnergy;
+    ref.read(avatarEngineProvider.notifier).pulseMouth(compressedEnergy * 0.82);
 
-    // Normalize for live UI bar - Multiply by a boost to make sure it is visible!
-    final double normalizedEnergy = (avgEnergy / 50.0).clamp(0.0, 1.0);
+    // 🧠 3. DYNAMIC CONTRAST CALCULUS (The Multi-Metric Solver)
+    // Update dynamic low-pass average to track local song density (wall-of-lyrics vs silence)
+    _rollingAverage += (rawRatio - _rollingAverage) * 0.12; // High-tempo dynamic tracking
+    
+    // Calculate local rate-of-change transient WITHOUT clamping!
+    final double rawContrast = (rawRatio - _prevRatio);
+    _prevRatio = rawRatio; // Save unclamped high-precision state
 
-    // 🚀 PERFORMANCE BOOST: Update specialized notifier INSTEAD of general app state!
-    // This isolates the redraw only to the spectrum bar widget, keeping app lag-free!
-    liveEnergyNotifier.value = normalizedEnergy;
-
-    // 🎵 LIP-SYNC INJECTION: Directly pump energy into mouth physics real-time!
-    // This causes the mouth to naturally vibrate, sync and pulse to the beat!
-    ref.read(avatarEngineProvider.notifier).pulseMouth(normalizedEnergy * 0.8);
+    // 🎯 4. ADAPTIVE THRESHOLD (Relative contrast to local average!)
+    // As song gets louder, threshold rises. In quietness, it becomes hyper-sensitive!
+    final double adaptiveThreshold = math.max(0.006, _rollingAverage * 0.16);
+    
+    // Triggers if local spike breaks adaptive threshold OR sudden absolute impact
+    final bool isPercussiveHit = (rawContrast > adaptiveThreshold && rawContrast > 0.003);
 
     final now = DateTime.now();
     final msSinceLast = now.difference(_lastBeat).inMilliseconds;
-
-    // LOOSEN beat trigger thresholds slightly to favor sensitivity!
-    if (msSinceLast > 160 && avgEnergy > 6.0 && avgEnergy > _rollingPeak * 0.75) {
+    
+    if (msSinceLast > 180 && (isPercussiveHit || rawContrast > 0.09)) {
       _lastBeat = now;
-      // Use normalized value boosted by user slider
-      _injectPhysicsBump(normalizedEnergy);
+      // Deliver kinetic impact scaled perfectly to long-term peak!
+      final double hitMagnitude = (rawContrast / _longPeak).clamp(0.1, 1.5) * 2.2;
+      _injectPhysicsBump(hitMagnitude);
     }
   }
 
   void _injectPhysicsBump(double rawIntensity) {
-    // Multiply raw intensity by user's active preference toggle!
     final double scaledIntensity = rawIntensity * state.sensitivity;
-    
     final engine = ref.read(avatarEngineProvider.notifier);
-    // Softened force ranges for natural vibe, with smooth variation
-    final double lat = (math.Random().nextDouble() - 0.5) * 12.0 * scaledIntensity;
-    final double vert = -14.0 - (18.0 * scaledIntensity); 
     
-    engine.applyDirectForce(Offset(lat, vert));
+    // 🚀 HIGH-FIDELITY HEAD BOB: Massive vertical impulse downwards driven by real beat math!
+    final double lateral = (math.Random().nextDouble() - 0.5) * 10.0 * scaledIntensity;
+    final double verticalBob = -18.0 - (22.0 * scaledIntensity); // Intense downward slam recoil
     
-    if (scaledIntensity > 1.1) { // Boosted detection for excitement
-       engine.triggerReaction(AvatarEmotion.excited, duration: const Duration(milliseconds: 650));
+    engine.applyDirectForce(Offset(lateral, verticalBob));
+    
+    // 🥳 OCCASIONAL EXCITEMENT: If it's a HUGE heavy drop spike!
+    if (scaledIntensity > 1.3) { 
+       engine.triggerReaction(AvatarEmotion.excited, duration: const Duration(milliseconds: 700));
     }
   }
 
@@ -233,9 +254,7 @@ class MusicSyncNotifier extends Notifier<AvatarMusicState> {
 
   void stop() {
     _player.stop();
-    _controlChannel.invokeMethod('stopVisualizer').catchError((_) {});
-    _visualizerSub?.cancel();
-    _visualizerSub = null;
+    _currentWaveform = null;
     state = AvatarMusicState(sensitivity: state.sensitivity); // Reset, keep sensitivity
   }
 }

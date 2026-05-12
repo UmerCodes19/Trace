@@ -6,6 +6,7 @@ class AvatarMusicState {
   final Duration duration;
   final double liveEnergy;
   final double sensitivity; // 0.5 to 2.5 for user tuning
+  final bool isAnalyzing; // NEW: Toggles minimal skeleton loader UI
   final String? fileName;
 
   AvatarMusicState({
@@ -14,6 +15,7 @@ class AvatarMusicState {
     this.duration = Duration.zero,
     this.liveEnergy = 0.0,
     this.sensitivity = 1.0,
+    this.isAnalyzing = false,
     this.fileName,
   });
 
@@ -23,6 +25,7 @@ class AvatarMusicState {
     Duration? duration,
     double? liveEnergy,
     double? sensitivity,
+    bool? isAnalyzing,
     String? fileName,
   }) {
     return AvatarMusicState(
@@ -31,6 +34,7 @@ class AvatarMusicState {
       duration: duration ?? this.duration,
       liveEnergy: liveEnergy ?? this.liveEnergy,
       sensitivity: sensitivity ?? this.sensitivity,
+      isAnalyzing: isAnalyzing ?? this.isAnalyzing,
       fileName: fileName ?? this.fileName,
     );
   }

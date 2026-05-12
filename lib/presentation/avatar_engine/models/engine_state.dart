@@ -36,6 +36,10 @@ class AvatarRenderSnapshot {
   // --- ATMOSPHERIC LAYERS ---
   final double moodColorIntensity; 
   final List<AvatarParticle> activeParticles;
+  
+  // --- WAVEFORM VISUALS ---
+  final List<double> waveSamples; // Rolling historic samples for background visualizer
+  final double waveFade; // 0.0 to 1.0 for in/out transparency
 
   const AvatarRenderSnapshot({
     this.headOffset = Offset.zero,
@@ -51,6 +55,8 @@ class AvatarRenderSnapshot {
     this.breathExpansion = 0.0,
     this.moodColorIntensity = 0.0,
     this.activeParticles = const [],
+    this.waveSamples = const [],
+    this.waveFade = 0.0,
   });
 
   static const AvatarRenderSnapshot idle = AvatarRenderSnapshot();
@@ -69,6 +75,8 @@ class AvatarRenderSnapshot {
     double? breathExpansion,
     double? moodColorIntensity,
     List<AvatarParticle>? activeParticles,
+    List<double>? waveSamples,
+    double? waveFade,
   }) {
     return AvatarRenderSnapshot(
       headOffset: headOffset ?? this.headOffset,
@@ -84,6 +92,8 @@ class AvatarRenderSnapshot {
       breathExpansion: breathExpansion ?? this.breathExpansion,
       moodColorIntensity: moodColorIntensity ?? this.moodColorIntensity,
       activeParticles: activeParticles ?? this.activeParticles,
+      waveSamples: waveSamples ?? this.waveSamples,
+      waveFade: waveFade ?? this.waveFade,
     );
   }
 }

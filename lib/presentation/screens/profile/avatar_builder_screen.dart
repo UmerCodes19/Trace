@@ -16,6 +16,8 @@ import '../../avatar_engine/models/avatar_config.dart';
 import '../../avatar_engine/ui/interactive_avatar.dart';
 import '../../avatar_engine/audio/music_sync_engine.dart';
 import '../../avatar_engine/audio/music_state.dart';
+import '../../avatar_engine/core/avatar_engine.dart';
+import '../../avatar_engine/models/engine_state.dart';
 
 class AvatarBuilderScreen extends ConsumerStatefulWidget {
   const AvatarBuilderScreen({super.key});
@@ -184,10 +186,27 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
                 child: Hero(
                   tag: 'avatar_creator_canvas',
                   child: SizedBox(
-                    height: 200, width: 200,
+                    height: 250, width: 250,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
+                        // 🌌 LOCAL DYNAMIC AUDIO VISUALIZER (Fading Glow around the avatar)
+                        Positioned.fill(
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final snap = ref.watch(avatarEngineProvider);
+                              if (snap.waveFade <= 0.01) return const SizedBox.shrink();
+                              return IgnorePointer(
+                                child: CustomPaint(
+                                  painter: GlobalAtmosphericWavePainter(
+                                    snapshot: snap,
+                                    accentColor: accent,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                         // Cinematic Pedestal
                         // Pedestal removed by user request
                         // Identity Morph Reveal Switcher
@@ -347,6 +366,8 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
             else
               _buildPaintToolbar(),
 
+            _buildMusicStatsDeck(),
+
             // Tab Bar
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -417,7 +438,6 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
           ],
         ),
       ),
-      _buildMusicStatsDeck(),
     ],
   ),
 );
@@ -758,155 +778,144 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
 
         String _fmt(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2,'0')}';
 
-        return Positioned(
-          bottom: 90, left: 16, right: 16,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 400),
-            opacity: 1.0,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOutCubic,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface(context).withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 10))
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: accent.withOpacity(0.2)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 3))],
+          ),
+          child: music.isAnalyzing 
+            ? Row(
+                children: [
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('PREPARING PHYSICS ENGINE...', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w900, fontSize: 10, color: accent, letterSpacing: 0.5)),
+                        const SizedBox(height: 5),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(minHeight: 3, backgroundColor: accent.withOpacity(0.1), color: accent),
+                        ),
+                      ],
+                    ),
+                  )
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
                     children: [
-                      // Header: Title + Expansion Toggle
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => notifier.pauseResume(),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-                              child: Icon(music.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 18, color: Colors.white),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(music.fileName!, 
-                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppColors.textPrimary(context)),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                                // 🚀 PERFORMANCE ISOLATED SPECTRUM: ONLY THIS TINY BUILDER REDRAWS, SAVING MASSIVE LAG!
-                                const SizedBox(height: 4),
-                                ValueListenableBuilder<double>(
-                                  valueListenable: notifier.liveEnergyNotifier,
-                                  builder: (context, energy, _) {
-                                    return Container(
-                                      height: 3,
-                                      width: 100,
-                                      alignment: Alignment.centerLeft,
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 40),
-                                        height: 3, 
-                                        width: 100 * energy,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(colors: [accent, Colors.pinkAccent]),
-                                          borderRadius: BorderRadius.circular(1.5),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: Icon(_isMusicExpanded ? Icons.expand_less_rounded : Icons.tune_rounded, size: 20, color: AppColors.textSecondary(context)),
-                            onPressed: () => setState(() => _isMusicExpanded = !_isMusicExpanded),
-                            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(width: 10),
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 20, color: Colors.redAccent),
-                            onPressed: () {
-                              notifier.stop();
-                              setState(() => _isMusicExpanded = false);
-                            },
-                            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                          )
-                        ],
+                      GestureDetector(
+                        onTap: () => notifier.pauseResume(),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                          child: Icon(music.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                        ),
                       ),
-
-                      // ELEGANTLY COLLAPSIBLE DETAILS
-                      AnimatedCrossFade(
-                        duration: const Duration(milliseconds: 300),
-                        crossFadeState: _isMusicExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                        firstChild: const SizedBox.shrink(),
-                        secondChild: Column(
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SizedBox(height: 16),
-                            // Expanded Progress Scrubber
-                            Row(
-                              children: [
-                                Text(_fmt(music.position), style: GoogleFonts.robotoMono(fontSize: 10, color: AppColors.textSecondary(context))),
-                                Expanded(
-                                  child: SliderTheme(
-                                    data: SliderThemeData(
-                                      trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                      activeTrackColor: accent, inactiveTrackColor: accent.withOpacity(0.15), thumbColor: accent,
-                                    ),
-                                    child: Slider(
-                                      value: progress,
-                                      onChanged: (v) => notifier.seek(Duration(milliseconds: (v * durMs).toInt())),
-                                    ),
-                                  ),
+                            Text(music.fileName!, 
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 11.5, color: AppColors.textPrimary(context)),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            ValueListenableBuilder<double>(
+                              valueListenable: notifier.liveEnergyNotifier,
+                              builder: (context, energy, _) => Container(
+                                height: 2.5, width: 80, alignment: Alignment.centerLeft,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 40),
+                                  height: 2.5, width: 80 * energy,
+                                  decoration: BoxDecoration(gradient: LinearGradient(colors: [accent, Colors.pinkAccent]), borderRadius: BorderRadius.circular(1.5)),
                                 ),
-                                Text(_fmt(music.duration), style: GoogleFonts.robotoMono(fontSize: 10, color: AppColors.textSecondary(context))),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Sensitivity Slider (The detailed Tweak!)
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(12)),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text('BOB INTENSITY', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 10, color: AppColors.textPrimary(context))),
-                                      Text('${(music.sensitivity * 100).toInt()}%', style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.orangeAccent)),
-                                    ],
-                                  ),
-                                  SliderTheme(
-                                    data: SliderThemeData(
-                                      trackHeight: 2, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                                      activeTrackColor: Colors.orangeAccent, inactiveTrackColor: Colors.orangeAccent.withOpacity(0.15), thumbColor: Colors.orangeAccent,
-                                    ),
-                                    child: Slider(
-                                      value: music.sensitivity,
-                                      min: 0.5, max: 2.5,
-                                      onChanged: (v) => notifier.setSensitivity(v),
-                                    ),
-                                  ),
-                                ],
                               ),
-                            )
+                            ),
                           ],
                         ),
                       ),
+                      IconButton(
+                        icon: Icon(_isMusicExpanded ? Icons.expand_less_rounded : Icons.tune_rounded, size: 18, color: AppColors.textSecondary(context)),
+                        onPressed: () => setState(() => _isMusicExpanded = !_isMusicExpanded),
+                        padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18, color: Colors.redAccent),
+                        onPressed: () { notifier.stop(); setState(() => _isMusicExpanded = false); },
+                        padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                      )
                     ],
                   ),
-                ),
+                  AnimatedCrossFade(
+                    duration: const Duration(milliseconds: 250),
+                    crossFadeState: _isMusicExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                    firstChild: const SizedBox.shrink(),
+                    secondChild: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Text(_fmt(music.position), style: GoogleFonts.robotoMono(fontSize: 9, color: AppColors.textSecondary(context))),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderThemeData(
+                                  trackHeight: 2, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                  activeTrackColor: accent, inactiveTrackColor: accent.withOpacity(0.1), thumbColor: accent,
+                                  overlayShape: SliderComponentShape.noOverlay,
+                                ),
+                                child: Slider(
+                                  value: progress,
+                                  onChanged: (v) => notifier.seek(Duration(milliseconds: (v * durMs).toInt())),
+                                ),
+                              ),
+                            ),
+                            Text(_fmt(music.duration), style: GoogleFonts.robotoMono(fontSize: 9, color: AppColors.textSecondary(context))),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(color: Colors.black.withOpacity(0.03), borderRadius: BorderRadius.circular(10)),
+                          child: Row(
+                            children: [
+                              Text('SENSITIVITY', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 9, color: AppColors.textPrimary(context))),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight: 2, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
+                                    activeTrackColor: Colors.orangeAccent, inactiveTrackColor: Colors.orangeAccent.withOpacity(0.1), thumbColor: Colors.orangeAccent,
+                                    overlayShape: SliderComponentShape.noOverlay,
+                                  ),
+                                  child: Slider(
+                                    value: music.sensitivity,
+                                    min: 0.5, max: 2.5,
+                                    onChanged: (v) => notifier.setSensitivity(v),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text('${(music.sensitivity * 100).toInt()}%', style: GoogleFonts.robotoMono(fontWeight: FontWeight.bold, fontSize: 9, color: Colors.orangeAccent)),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
         );
       }
     );
@@ -949,4 +958,83 @@ class PedestalPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant PedestalPainter oldDelegate) => oldDelegate.rotation != rotation || oldDelegate.baseColor != baseColor;
+}
+
+class GlobalAtmosphericWavePainter extends CustomPainter {
+  final AvatarRenderSnapshot snapshot;
+  final Color accentColor;
+
+  GlobalAtmosphericWavePainter({required this.snapshot, required this.accentColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (snapshot.waveSamples.isEmpty || snapshot.waveFade <= 0.01) return;
+
+    final double w = size.width;
+    final double h = size.height;
+    final double fade = snapshot.waveFade;
+    final int count = snapshot.waveSamples.length;
+
+    // 🎯 1. BOUNDED CONTAINMENT: Constrains drawing strictly into safe bounds
+    final double startX = w * 0.1;
+    final double endX = w * 0.9;
+    final double activeW = endX - startX;
+    final double step = activeW / (count - 1);
+    
+    // 🎯 2. PERFECT CENTROID: Passes straight through exact local center
+    final double centerY = h * 0.5; 
+    
+    final Path topPath = Path();
+    final Path bottomPath = Path();
+
+    for (int i = 0; i < count; i++) {
+      final double rawVal = snapshot.waveSamples[i];
+      // 🚀 HEIGHT BOOST: Increased amplitude reaches out over the circle's top/bottom!
+      final double amp = rawVal * h * 0.42; 
+      final double x = startX + i * step;
+
+      if (i == 0) {
+        topPath.moveTo(x, centerY - amp);
+        bottomPath.moveTo(x, centerY + amp);
+      } else {
+        final double prevX = startX + (i - 1) * step;
+        final double prevAmp = snapshot.waveSamples[i - 1] * h * 0.42;
+        final double mx = (prevX + x) / 2;
+        topPath.cubicTo(mx, centerY - prevAmp, mx, centerY - amp, x, centerY - amp);
+        bottomPath.cubicTo(mx, centerY + prevAmp, mx, centerY + amp, x, centerY + amp);
+      }
+    }
+
+    // 🎨 3. SILKY EDGE FADE: Ensures visual doesn't hit hard edges
+    final Rect bounds = Rect.fromLTWH(startX, centerY - h * 0.4, activeW, h * 0.8);
+    final shader = LinearGradient(
+      colors: [accentColor.withOpacity(0), accentColor, accentColor, accentColor.withOpacity(0)],
+      stops: const [0.0, 0.25, 0.75, 1.0],
+    ).createShader(bounds);
+
+    // 🌈 4. RENDER STROKES (Vibrant & Bright, Still Premium Thin)
+    final Paint glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = w * 0.04 
+      ..shader = shader
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0) 
+      ..color = Colors.white.withValues(alpha: fade * 0.38); // 💡 Bright Glow Boost
+
+    canvas.drawPath(topPath, glowPaint);
+    canvas.drawPath(bottomPath, glowPaint);
+
+    final Paint corePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = w * 0.008 
+      ..shader = shader
+      ..color = Colors.white.withValues(alpha: fade * 0.95); // 💡 Neon Core Pop
+    
+    canvas.drawPath(topPath, corePaint);
+    canvas.drawPath(bottomPath, corePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant GlobalAtmosphericWavePainter oldDelegate) => true;
 }

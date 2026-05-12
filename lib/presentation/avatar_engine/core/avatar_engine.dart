@@ -132,6 +132,7 @@ class AvatarEngineNotifier extends Notifier<AvatarRenderSnapshot> {
   /// Ideal for lip-sync visualization and real-time audio energy injection!
   void pulseMouth(double intensity) {
     _physics.injectMouthForce(intensity);
+    _physics.injectMusicPulse(intensity); // 🎶 Pipe explicitly to visuals ONLY on music sync!
   }
 
   void registerScrollImpact(double velocityY) {

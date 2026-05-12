@@ -28,6 +28,11 @@ class AvatarPhysicsEngine {
 
   // --- PARTICLE SYSTEM ---
   final List<AvatarParticle> _particles = [];
+
+  // --- WAVE VISUALIZER BUFFER ---
+  final List<double> _waveHistory = List.filled(45, 0.0); // Higher sample count for silkier waves
+  double _waveVisualFade = 0.0; // Drives smooth intro/outro opacity
+  double _liveMusicAmp = 0.0; // 🔒 SAFE SILO: Only receives explicit music feeds!
   final math.Random _rand = math.Random();
 
   // Cumulative Simulation Clock
@@ -51,13 +56,13 @@ class AvatarPhysicsEngine {
 
     // --- COMPOUND BREATHING ---
     final double breathBase = math.sin(_totalTime * 2.4 * speed);
-    final double breathY = breathBase * 1.2 * emotion.breatheAmp;
+    final double breathY = breathBase * 0.5 * emotion.breatheAmp; // Softened Breathe
     
     // Organic slow drift
-    final double slowSwayX = math.sin(_totalTime * 0.9 * speed) * 1.4 * swayAmp;
+    final double slowSwayX = math.sin(_totalTime * 0.9 * speed) * 0.6 * swayAmp; // Softened Sway
     _postureShiftSeed += dt * 0.15;
-    final double driftX = math.sin(_postureShiftSeed) * 1.0;
-    final double driftY = math.cos(_postureShiftSeed * 0.7) * 0.8;
+    final double driftX = math.sin(_postureShiftSeed) * 0.4; // Softened Drift
+    final double driftY = math.cos(_postureShiftSeed * 0.7) * 0.3; // Softened Drift
 
     final Offset baseTarget = Offset(slowSwayX + driftX, breathY + driftY) + _externalMomentum;
 
@@ -98,7 +103,22 @@ class AvatarPhysicsEngine {
     mouthVel += mouthForce * dt;
     mouthStretch += mouthVel * dt;
 
-    // --- 6. PARTICLE QUEUE STEP ---
+    // --- 6. BACKGROUND WAVEFORM BUFFER ROTATION ---
+    // Slide history vector and inject fresh peak sample
+    for (int i = 0; i < _waveHistory.length - 1; i++) {
+      _waveHistory[i] = _waveHistory[i + 1];
+    }
+    // Smooth out the newly added sample using SAFE isolated music amp ONLY!
+    _waveHistory[_waveHistory.length - 1] = _liveMusicAmp * 0.85;
+
+    // Seamlessly lerp visibility based on explicit music activity silo
+    final double targetFade = (_liveMusicAmp > 0.005) ? 1.0 : 0.0;
+    _waveVisualFade += (targetFade - _waveVisualFade) * math.min(1.0, 4.0 * dt);
+
+    // Gradual decay of music sample ensures 60fps continuity between asynchronous audio ticks!
+    _liveMusicAmp *= math.pow(0.001, dt); // Swift decay toward zero
+
+    // --- 7. PARTICLE QUEUE STEP ---
     _stepParticles(dt);
 
     return AvatarRenderSnapshot(
@@ -115,6 +135,8 @@ class AvatarPhysicsEngine {
       breathExpansion: breathBase.clamp(-0.5, 1.0), // Flatten exhale slightly
       moodColorIntensity: tension / 2.5, // Normalized excitement scaler
       activeParticles: List<AvatarParticle>.from(_particles),
+      waveSamples: List<double>.from(_waveHistory), // Pipe full array forward for render!
+      waveFade: _waveVisualFade, // Pipe live fade magnitude forward!
     );
   }
 
@@ -173,5 +195,10 @@ class AvatarPhysicsEngine {
   void injectMouthForce(double force) {
      // Directly acceleration impulse applied to mouth velocity
      mouthVel += force * 15.0; 
+  }
+
+  void injectMusicPulse(double amp) {
+    // Immediately set peak capture silo avoiding averaging losses!
+    _liveMusicAmp = math.max(_liveMusicAmp, amp);
   }
 }

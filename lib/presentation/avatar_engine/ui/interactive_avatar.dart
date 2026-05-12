@@ -31,6 +31,7 @@ class InteractiveAvatarView extends ConsumerWidget {
           config: config,
           snapshot: snapshot,
           renderSize: size,
+          accentColor: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -46,14 +47,32 @@ class InteractiveAvatarView extends ConsumerWidget {
 
         final engine = ref.read(avatarEngineProvider.notifier);
 
-        // Advanced Spatial-Hit Mapping
-        if (normY < 0.3) {
-          engine.triggerReaction(AvatarEmotion.curious, duration: const Duration(milliseconds: 1800));
-        } else if (normX < 0.3 || normX > 0.7) {
-          engine.triggerReaction(AvatarEmotion.alert, duration: const Duration(milliseconds: 1500));
+        // 🚀 DIVERSIFIED PERSONALITY INJECTION
+        // Derive unique reaction archetypes based on CURRENT MOUTH TYPE!
+        AvatarEmotion reaction = AvatarEmotion.happy;
+        int durationMs = 1500;
+
+        if (config.mouth == 1) { // Surprised
+          reaction = AvatarEmotion.alert; durationMs = 1800;
+        } else if (config.mouth == 2) { // Serious
+          reaction = AvatarEmotion.focused; durationMs = 2000;
+        } else if (config.mouth == 5) { // Frown
+          reaction = AvatarEmotion.confused; durationMs = 2200;
+        } else if (config.mouth == 7 || config.mouth == 8) { // Grin / Tongue
+          reaction = AvatarEmotion.excited; durationMs = 1200;
+        } else if (config.mouth == 9) { // Whisper
+          reaction = AvatarEmotion.sleepy; durationMs = 2500;
         } else {
-          engine.triggerReaction(AvatarEmotion.happy, duration: const Duration(milliseconds: 1500));
+          // Spatial Default for standard mouths
+          if (normY < 0.3) {
+            reaction = AvatarEmotion.curious;
+            durationMs = 1800;
+          } else if (normX < 0.3 || normX > 0.7) {
+            reaction = AvatarEmotion.alert;
+          }
         }
+
+        engine.triggerReaction(reaction, duration: Duration(milliseconds: durationMs));
       },
       behavior: HitTestBehavior.opaque,
       child: avatar,

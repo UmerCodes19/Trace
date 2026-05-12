@@ -9,11 +9,13 @@ class AvatarPainter extends CustomPainter {
   final AvatarConfig config;
   final AvatarRenderSnapshot snapshot;
   final double renderSize;
+  final Color? accentColor; // User-picked system accent color passed down for background effects
 
   AvatarPainter({
     required this.config,
     required this.snapshot,
     this.renderSize = 100.0,
+    this.accentColor,
   });
 
   bool get _isMicro => renderSize <= 40;
@@ -183,34 +185,38 @@ class AvatarPainter extends CustomPainter {
       drawEarringAt(leftPivot); drawEarringAt(rightPivot);
     }
 
+    // ─── 3D PARALLAX: INNER FACE FEATURES (BLUSH, HAIR, MOUTH) TRACKS GAZE ───
+    final double faceX = cx + (snapshot.gazeOffset.dx * 0.35);
+    final double faceY = cy + (snapshot.gazeOffset.dy * 0.18);
+
     // FACE DETAILS
     paint.style = PaintingStyle.fill;
     if (config.details == 1) {
       paint.color = Colors.pinkAccent.withValues(alpha: 0.25);
-      canvas.drawCircle(Offset(cx - w * 0.16, cy + h * 0.05), w * 0.045, paint);
-      canvas.drawCircle(Offset(cx + w * 0.16, cy + h * 0.05), w * 0.045, paint);
+      canvas.drawCircle(Offset(faceX - w * 0.16, faceY + h * 0.05), w * 0.045, paint);
+      canvas.drawCircle(Offset(faceX + w * 0.16, faceY + h * 0.05), w * 0.045, paint);
     } else if (config.details == 2) {
       paint.color = const Color(0xFF8D5524).withValues(alpha: 0.6);
-      canvas.drawCircle(Offset(cx - w * 0.14, cy + h * 0.04), w * 0.006, paint);
-      canvas.drawCircle(Offset(cx - w * 0.11, cy + h * 0.05), w * 0.006, paint);
-      canvas.drawCircle(Offset(cx + w * 0.11, cy + h * 0.05), w * 0.006, paint);
-      canvas.drawCircle(Offset(cx + w * 0.14, cy + h * 0.04), w * 0.006, paint);
+      canvas.drawCircle(Offset(faceX - w * 0.14, faceY + h * 0.04), w * 0.006, paint);
+      canvas.drawCircle(Offset(faceX - w * 0.11, faceY + h * 0.05), w * 0.006, paint);
+      canvas.drawCircle(Offset(faceX + w * 0.11, faceY + h * 0.05), w * 0.006, paint);
+      canvas.drawCircle(Offset(faceX + w * 0.14, faceY + h * 0.04), w * 0.006, paint);
     }
 
     // FACIAL HAIR RESTORATION
     paint.color = hairColor;
     if (config.facialHair == 1) {
-      final Path g = Path()..moveTo(cx - w * 0.08, cy + h * 0.14)..quadraticBezierTo(cx, cy + h * 0.18, cx + w * 0.08, cy + h * 0.14)..quadraticBezierTo(cx, cy + h * 0.28, cx - w * 0.08, cy + h * 0.14)..close();
+      final Path g = Path()..moveTo(faceX - w * 0.08, faceY + h * 0.14)..quadraticBezierTo(faceX, faceY + h * 0.18, faceX + w * 0.08, faceY + h * 0.14)..quadraticBezierTo(faceX, faceY + h * 0.28, faceX - w * 0.08, faceY + h * 0.14)..close();
       canvas.drawPath(g, paint);
     } else if (config.facialHair == 2) {
-      final Path fb = Path()..moveTo(cx - w * 0.26, cy)..quadraticBezierTo(cx - w * 0.28, cy + h * 0.18, cx - w * 0.15, cy + h * 0.24)..quadraticBezierTo(cx, cy + h * 0.32, cx + w * 0.15, cy + h * 0.24)..quadraticBezierTo(cx + w * 0.28, cy + h * 0.18, cx + w * 0.26, cy)..quadraticBezierTo(cx + w * 0.22, cy + h * 0.08, cx + w * 0.12, cy + h * 0.15)..quadraticBezierTo(cx, cy + h * 0.2, cx - w * 0.12, cy + h * 0.15)..quadraticBezierTo(cx - w * 0.22, cy + h * 0.08, cx - w * 0.26, cy)..close();
+      final Path fb = Path()..moveTo(faceX - w * 0.26, faceY)..quadraticBezierTo(faceX - w * 0.28, faceY + h * 0.18, faceX - w * 0.15, faceY + h * 0.24)..quadraticBezierTo(faceX, faceY + h * 0.32, faceX + w * 0.15, faceY + h * 0.24)..quadraticBezierTo(faceX + w * 0.28, faceY + h * 0.18, faceX + w * 0.26, faceY)..quadraticBezierTo(faceX + w * 0.22, faceY + h * 0.08, faceX + w * 0.12, faceY + h * 0.15)..quadraticBezierTo(faceX, faceY + h * 0.2, faceX - w * 0.12, faceY + h * 0.15)..quadraticBezierTo(faceX - w * 0.22, faceY + h * 0.08, faceX - w * 0.26, faceY)..close();
       canvas.drawPath(fb, paint);
     } else if (config.facialHair == 3) {
       paint.color = hairColor.withValues(alpha: 0.35);
-      final Path st = Path()..moveTo(cx - w * 0.26, cy)..quadraticBezierTo(cx - w * 0.28, cy + h * 0.18, cx, cy + h * 0.28)..quadraticBezierTo(cx + w * 0.28, cy + h * 0.18, cx + w * 0.26, cy)..quadraticBezierTo(cx + w * 0.22, cy + h * 0.12, cx, cy + h * 0.18)..quadraticBezierTo(cx - w * 0.22, cy + h * 0.12, cx - w * 0.26, cy)..close();
+      final Path st = Path()..moveTo(faceX - w * 0.26, faceY)..quadraticBezierTo(faceX - w * 0.28, faceY + h * 0.18, faceX, faceY + h * 0.28)..quadraticBezierTo(faceX + w * 0.28, faceY + h * 0.18, faceX + w * 0.26, faceY)..quadraticBezierTo(faceX + w * 0.22, faceY + h * 0.12, faceX, faceY + h * 0.18)..quadraticBezierTo(faceX - w * 0.22, faceY + h * 0.12, faceX - w * 0.26, faceY)..close();
       canvas.drawPath(st, paint);
     } else if (config.facialHair == 4) {
-      final Path m = Path()..moveTo(cx - w * 0.11, cy + h * 0.07)..quadraticBezierTo(cx - w * 0.06, cy + h * 0.04, cx, cy + h * 0.07)..quadraticBezierTo(cx + w * 0.06, cy + h * 0.04, cx + w * 0.11, cy + h * 0.07)..quadraticBezierTo(cx + w * 0.14, cy + h * 0.05, cx + w * 0.16, cy + h * 0.08)..quadraticBezierTo(cx + w * 0.06, cy + h * 0.11, cx, cy + h * 0.09)..quadraticBezierTo(cx - w * 0.06, cy + h * 0.11, cx - w * 0.16, cy + h * 0.08)..quadraticBezierTo(cx - w * 0.14, cy + h * 0.05, cx - w * 0.11, cy + h * 0.07)..close();
+      final Path m = Path()..moveTo(faceX - w * 0.11, faceY + h * 0.07)..quadraticBezierTo(faceX - w * 0.06, faceY + h * 0.04, faceX, faceY + h * 0.07)..quadraticBezierTo(faceX + w * 0.06, faceY + h * 0.04, faceX + w * 0.11, faceY + h * 0.07)..quadraticBezierTo(faceX + w * 0.14, faceY + h * 0.05, faceX + w * 0.16, faceY + h * 0.08)..quadraticBezierTo(faceX + w * 0.06, faceY + h * 0.11, faceX, faceY + h * 0.09)..quadraticBezierTo(faceX - w * 0.06, faceY + h * 0.11, faceX - w * 0.16, faceY + h * 0.08)..quadraticBezierTo(faceX - w * 0.14, faceY + h * 0.05, faceX - w * 0.11, faceY + h * 0.07)..close();
       canvas.drawPath(m, paint);
     }
 
@@ -273,17 +279,27 @@ class AvatarPainter extends CustomPainter {
     }
     canvas.restore();
 
+    // ─── ⚡ SMART-SYNC: LINK MOUTH STRETCH TO EYES ⚡ ───
+    final double syncMod = snapshot.mouthStretch; // Live music intensity / emotion bias
+    // Raise eyebrows smoothly as mouth opens (clamp for safety)
+    final double browLift = (syncMod * h * 0.018).clamp(-h * 0.01, h * 0.028);
+    // Gently scale up eye radius during peaks to simulate wide-eyed excitement
+    final double eyeSyncScale = (1.0 + syncMod.clamp(0.0, 1.2) * 0.14);
+
     // ─── SHARED EYES COORDINATE PLANE ───
     final double leftEyeY = cy + snapshot.gazeOffset.dy;
     final double rightEyeY = cy + snapshot.gazeOffset.dy;
     final double leftEyeX = cx - w * 0.09 + snapshot.gazeOffset.dx;
     final double rightEyeX = cx + w * 0.09 + snapshot.gazeOffset.dx;
-    final double eyeSize = w * 0.035;
+    final double eyeSize = w * 0.035 * eyeSyncScale; // Dynamically scale eye based on beat!
 
     // ─── FULL EYEBROW LIBRARY RESTORATION ───
     if (!_isMicro) {
       paint.color = hairColor; paint.style = PaintingStyle.stroke; paint.strokeCap = StrokeCap.round;
-      final double browY = cy - h * 0.06; final double browSpan = w * 0.07;
+      // Base Brow position subtracted by browLift (upwards)
+      final double browY = cy - h * 0.06 - browLift; 
+      final double browSpan = w * 0.07;
+      
       if (config.eyebrows == 0) {
         paint.strokeWidth = w * 0.012;
         canvas.drawArc(Rect.fromCenter(center: Offset(leftEyeX, browY), width: browSpan, height: w * 0.03), -2.8, 1.6, false, paint);
@@ -367,57 +383,57 @@ class AvatarPainter extends CustomPainter {
     paint.style = PaintingStyle.stroke; paint.color = const Color(0xFF1A202C); paint.strokeCap = StrokeCap.round; paint.strokeWidth = w * 0.012;
     
     final double bias = snapshot.mouthStretch; // Derived directly from physics engine emotion bias (-0.5 to 2.0)
-    final double mouthY = cy + h * 0.1 + (bias * h * 0.005);
+    final double mouthY = faceY + h * 0.1 + (bias * h * 0.005);
     
     // 🚀 1. EXTREME EMOTION OVERRIDE (Laughing / Excited High Magnitude)
     // Smoothly transitions fully into an expressive laugh mask if bias > 1.3
     if (bias > 1.3) { 
       paint.style = PaintingStyle.fill;
       final double openHeight = (h * 0.06 * (0.5 + bias * 0.4)).clamp(h * 0.03, h * 0.12);
-      canvas.drawPath(Path()..moveTo(cx - w * 0.07, mouthY)..quadraticBezierTo(cx, mouthY + openHeight, cx + w * 0.07, mouthY)..close(), paint);
+      canvas.drawPath(Path()..moveTo(faceX - w * 0.07, mouthY)..quadraticBezierTo(faceX, mouthY + openHeight, faceX + w * 0.07, mouthY)..close(), paint);
     } else {
       // 🚀 2. ADAPTIVE PROCEDURAL MORPH (Continual Math interpolation applied directly into path control points)
       final double curveMod = bias * h * 0.022; // Dynamic vertical deflection applied to center gravity point
       
       if (config.mouth == 0) { // Smile
-        canvas.drawPath(Path()..moveTo(cx - w * 0.06, mouthY)..quadraticBezierTo(cx, mouthY + h * 0.03 + curveMod, cx + w * 0.06, mouthY), paint);
+        canvas.drawPath(Path()..moveTo(faceX - w * 0.06, mouthY)..quadraticBezierTo(faceX, mouthY + h * 0.03 + curveMod, faceX + w * 0.06, mouthY), paint);
       } else if (config.mouth == 1) { // Surprised
         final double circScale = (1.0 + bias * 0.4).clamp(0.6, 1.6);
-        canvas.drawCircle(Offset(cx, mouthY + h * 0.02), w * 0.035 * circScale, paint);
+        canvas.drawCircle(Offset(faceX, mouthY + h * 0.02), w * 0.035 * circScale, paint);
       } else if (config.mouth == 2) { // Serious (Lines curve subtly into smiles!)
-        canvas.drawPath(Path()..moveTo(cx - w * 0.05, mouthY + h * 0.02)..quadraticBezierTo(cx, mouthY + h * 0.02 + curveMod, cx + w * 0.05, mouthY + h * 0.02), paint);
+        canvas.drawPath(Path()..moveTo(faceX - w * 0.05, mouthY + h * 0.02)..quadraticBezierTo(faceX, mouthY + h * 0.02 + curveMod, faceX + w * 0.05, mouthY + h * 0.02), paint);
       } else if (config.mouth == 3) { // Smirk
-        canvas.drawPath(Path()..moveTo(cx - w * 0.05, mouthY + h * 0.02)..quadraticBezierTo(cx + w * 0.03, mouthY + h * 0.03 + curveMod, cx + w * 0.06, mouthY + h * 0.01), paint);
+        canvas.drawPath(Path()..moveTo(faceX - w * 0.05, mouthY + h * 0.02)..quadraticBezierTo(faceX + w * 0.03, mouthY + h * 0.03 + curveMod, faceX + w * 0.06, mouthY + h * 0.01), paint);
       } else if (config.mouth == 4) { // Laughing
         paint.style = PaintingStyle.fill;
-        canvas.drawPath(Path()..moveTo(cx - w * 0.07, mouthY)..quadraticBezierTo(cx, mouthY + h * 0.06 + curveMod * 0.5, cx + w * 0.07, mouthY)..close(), paint);
+        canvas.drawPath(Path()..moveTo(faceX - w * 0.07, mouthY)..quadraticBezierTo(faceX, mouthY + h * 0.06 + curveMod * 0.5, faceX + w * 0.07, mouthY)..close(), paint);
       } else if (config.mouth == 5) { // Frown (Procedurally inverts back upward if happy bias is positive!)
-        canvas.drawPath(Path()..moveTo(cx - w * 0.05, mouthY + h * 0.03)..quadraticBezierTo(cx, mouthY + curveMod, cx + w * 0.05, mouthY + h * 0.03), paint);
+        canvas.drawPath(Path()..moveTo(faceX - w * 0.05, mouthY + h * 0.03)..quadraticBezierTo(faceX, mouthY + curveMod, faceX + w * 0.05, mouthY + h * 0.03), paint);
       } else if (config.mouth == 6) { // Cat
-        canvas.drawPath(Path()..moveTo(cx, mouthY)..quadraticBezierTo(cx - w*0.04, mouthY + h*0.03 + curveMod*0.6, cx - w*0.07, mouthY), paint);
-        canvas.drawPath(Path()..moveTo(cx, mouthY)..quadraticBezierTo(cx + w*0.04, mouthY + h*0.03 + curveMod*0.6, cx + w*0.07, mouthY), paint);
+        canvas.drawPath(Path()..moveTo(faceX, mouthY)..quadraticBezierTo(faceX - w*0.04, mouthY + h*0.03 + curveMod*0.6, faceX - w*0.07, mouthY), paint);
+        canvas.drawPath(Path()..moveTo(faceX, mouthY)..quadraticBezierTo(faceX + w*0.04, mouthY + h*0.03 + curveMod*0.6, faceX + w*0.07, mouthY), paint);
       } else if (config.mouth == 7) { // Grin
         final double grinW = w * 0.07 + (bias.clamp(0.0, 1.0) * w * 0.02);
-        canvas.drawPath(Path()..moveTo(cx - grinW, mouthY + h*0.01)..quadraticBezierTo(cx, mouthY + h*0.035 + curveMod, cx + grinW, mouthY + h*0.01), paint);
-        canvas.drawLine(Offset(cx - grinW * 0.7, mouthY + h*0.022 + curveMod*0.4), Offset(cx + grinW * 0.7, mouthY + h*0.022 + curveMod*0.4), paint);
+        canvas.drawPath(Path()..moveTo(faceX - grinW, mouthY + h*0.01)..quadraticBezierTo(faceX, mouthY + h*0.035 + curveMod, faceX + grinW, mouthY + h*0.01), paint);
+        canvas.drawLine(Offset(faceX - grinW * 0.7, mouthY + h*0.022 + curveMod*0.4), Offset(faceX + grinW * 0.7, mouthY + h*0.022 + curveMod*0.4), paint);
       } else if (config.mouth == 8) { // Tongue
         paint.style = PaintingStyle.fill;
         final double tongueOpen = (h * 0.05 + curveMod).clamp(h*0.02, h*0.08);
-        final Path mouthShape = Path()..moveTo(cx - w * 0.06, mouthY)..quadraticBezierTo(cx, mouthY + tongueOpen, cx + w * 0.06, mouthY)..close();
+        final Path mouthShape = Path()..moveTo(faceX - w * 0.06, mouthY)..quadraticBezierTo(faceX, mouthY + tongueOpen, faceX + w * 0.06, mouthY)..close();
         canvas.drawPath(mouthShape, paint);
         // Draw pink tongue
         final Paint tonguePaint = Paint()..color = const Color(0xFFFF7597)..style = PaintingStyle.fill;
         canvas.save();
         canvas.clipPath(mouthShape);
-        canvas.drawCircle(Offset(cx, mouthY + tongueOpen * 0.9), w * 0.035 + (bias.clamp(0.0, 1.0) * w * 0.01), tonguePaint);
+        canvas.drawCircle(Offset(faceX, mouthY + tongueOpen * 0.9), w * 0.035 + (bias.clamp(0.0, 1.0) * w * 0.01), tonguePaint);
         canvas.restore();
       } else if (config.mouth == 9) { // Whisper
         paint.style = PaintingStyle.stroke;
         final double wRad = (w * 0.016 + (bias * w * 0.01)).clamp(w * 0.008, w * 0.05);
-        canvas.drawOval(Rect.fromCenter(center: Offset(cx, mouthY + h * 0.02), width: wRad * 1.6, height: wRad * 2.2), paint);
+        canvas.drawOval(Rect.fromCenter(center: Offset(faceX, mouthY + h * 0.02), width: wRad * 1.6, height: wRad * 2.2), paint);
       } else {
         // Fallback
-        canvas.drawPath(Path()..moveTo(cx - w * 0.06, mouthY)..quadraticBezierTo(cx, mouthY + h * 0.03 + curveMod, cx + w * 0.06, mouthY), paint);
+        canvas.drawPath(Path()..moveTo(faceX - w * 0.06, mouthY)..quadraticBezierTo(faceX, mouthY + h * 0.03 + curveMod, faceX + w * 0.06, mouthY), paint);
       }
     }
 
@@ -428,13 +444,13 @@ class AvatarPainter extends CustomPainter {
       paint.strokeWidth = w * 0.012;
       canvas.drawCircle(Offset(leftEyeX, eyeY), w * 0.08, paint);
       canvas.drawCircle(Offset(rightEyeX, eyeY), w * 0.08, paint);
-      canvas.drawLine(Offset(cx - w * 0.03, eyeY), Offset(cx + w * 0.03, eyeY), paint);
+      canvas.drawLine(Offset(faceX - w * 0.03, eyeY), Offset(faceX + w * 0.03, eyeY), paint);
     } else if (config.acc == 2) { // Sunglasses
       paint.style = PaintingStyle.fill; paint.color = const Color(0xFF1A202C).withValues(alpha: 0.95);
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(leftEyeX-w*0.08, eyeY-h*0.05, w*0.16, h*0.09), Radius.circular(w*0.02)), paint);
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(rightEyeX-w*0.08, eyeY-h*0.05, w*0.16, h*0.09), Radius.circular(w*0.02)), paint);
       paint.style = PaintingStyle.stroke; paint.strokeWidth = w * 0.015; paint.color = const Color(0xFF1A202C);
-      canvas.drawLine(Offset(cx-w*0.04, eyeY-h*0.02), Offset(cx+w*0.04, eyeY-h*0.02), paint);
+      canvas.drawLine(Offset(faceX-w*0.04, eyeY-h*0.02), Offset(faceX+w*0.04, eyeY-h*0.02), paint);
     } else if (config.acc == 3) { // Eyepatch
       paint.style = PaintingStyle.fill; paint.color = const Color(0xFF1A202C);
       canvas.drawCircle(Offset(leftEyeX, eyeY), w * 0.065, paint);
@@ -455,7 +471,7 @@ class AvatarPainter extends CustomPainter {
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(cx+w*0.27, cy+h*0.02), width: w*0.04, height: h*0.06), Radius.circular(w*0.02)), paint);
     } else if (config.acc == 10) { // Nose Ring
       paint.style = PaintingStyle.stroke; paint.color = const Color(0xFFFFD700); paint.strokeWidth = w * 0.008;
-      canvas.drawArc(Rect.fromCenter(center: Offset(cx+w*0.02, cy+h*0.06), width: w*0.03, height: h*0.03), 0.3, 2.5, false, paint);
+      canvas.drawArc(Rect.fromCenter(center: Offset(faceX+w*0.02, faceY+h*0.06), width: w*0.03, height: h*0.03), 0.3, 2.5, false, paint);
     }
 
     canvas.restore(); // Pop Main Scaler
