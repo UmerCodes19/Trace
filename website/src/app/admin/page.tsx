@@ -8,13 +8,13 @@ import {
   Flag, 
   ShieldCheck, 
   Zap,
-  TrendingUp,
   ArrowUpRight,
   FileText,
   Lock,
   Compass,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Activity
 } from "lucide-react";
 
 interface Stats {
@@ -41,14 +41,12 @@ export default function AdminOverview() {
     resolvedItems: 0,
     successRate: 0
   });
-  const [activityTrend, setActivityTrend] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [validationState, setValidationState] = useState<"idle" | "validating" | "secure" | "tampered">("idle");
   const [validationMsg, setValidationMsg] = useState("");
 
   useEffect(() => {
     fetchStats();
-    generateMockTrend();
   }, []);
 
   async function fetchStats() {
@@ -96,7 +94,7 @@ export default function AdminOverview() {
 
   async function validateChain() {
     setValidationState("validating");
-    setValidationMsg("Auditing blockchain logs recursively...");
+    setValidationMsg("Checking logs for tampering...");
     
     try {
       const { data: logs, error } = await supabase
@@ -106,18 +104,18 @@ export default function AdminOverview() {
 
       if (error) throw error;
 
+      await new Promise(resolve => setTimeout(resolve, 1200));
+
       if (!logs || logs.length === 0) {
         setValidationState("secure");
-        setValidationMsg("Chain is empty but secure (No logs found yet).");
+        setValidationMsg("Log is empty and secure");
         return;
       }
 
-      // Check integrity of SHA256 chain links
       let isChainSecure = true;
       for (let i = 0; i < logs.length; i++) {
         const current = logs[i];
         const prevHash = i === 0 ? 'GENESIS' : logs[i - 1].current_hash;
-
         if (current.prev_hash !== prevHash) {
           isChainSecure = false;
           break;
@@ -126,150 +124,138 @@ export default function AdminOverview() {
 
       if (isChainSecure) {
         setValidationState("secure");
-        setValidationMsg(`Chain Verified Secure! Successfully validated ${logs.length} blocks.`);
+        setValidationMsg(`Successfully verified ${logs.length} entries.`);
       } else {
         setValidationState("tampered");
-        setValidationMsg("CRITICAL: Blockchain link discrepancy detected!");
+        setValidationMsg("Warning: Log discrepancy detected");
       }
     } catch (err: any) {
       setValidationState("tampered");
-      setValidationMsg("Verification failed: " + err.message);
+      setValidationMsg("System failed to verify logs.");
     }
   }
 
-  function generateMockTrend() {
-    const trend = Array.from({ length: 24 }, () => Math.floor(Math.random() * 60) + 10);
-    setActivityTrend(trend);
-  }
-
   return (
-    <div className="space-y-10 pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[var(--border-color)] pb-10">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 rounded-full bg-jade-primary animate-pulse"></div>
-            <span className="text-[10px] font-bold text-jade-primary uppercase tracking-[0.3em]">System Operational</span>
+    <div className="space-y-10 pb-20 font-sans">
+      {/* HUD Header simplified */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[var(--border-color)] pb-8">
+        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-jade-primary uppercase tracking-widest">
+             <div className="w-2 h-2 bg-jade-primary rounded-full animate-pulse shadow-[0_0_8px_currentColor]" />
+             System Online
           </div>
-          <h1 className="text-4xl font-black tracking-tighter uppercase text-[var(--foreground)]">Dashboard <span className="text-jade-primary">Overview</span></h1>
-          <p className="text-sm text-jade-primary/60 font-bold uppercase tracking-widest mt-2 max-w-md">
-            Management, Moderation & Blockchain Integrity
-          </p>
+          <h1 className="text-4xl font-black tracking-tight uppercase text-[var(--foreground)]">
+             Admin <span className="text-jade-primary">Dashboard</span>
+          </h1>
         </motion.div>
         
         <button 
           onClick={fetchStats}
-          className="flex items-center gap-3 px-8 py-4 bg-jade-primary text-white rounded-2xl hover:bg-jade-deep transition-all shadow-lg shadow-jade-primary/20 font-bold text-xs uppercase tracking-widest"
+          disabled={isLoading}
+          className="flex items-center gap-3 px-6 py-3 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-xl hover:border-jade-primary hover:text-jade-primary transition-all text-xs font-bold shadow-sm"
         >
-          <Zap className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <Activity className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh Data
         </button>
       </div>
 
-      {/* Advanced Blockchain Integration Panel */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[40px] p-10 relative overflow-hidden group shadow-xl shadow-black/5 grid grid-cols-1 md:grid-cols-2 gap-10">
-        <div className="space-y-6">
+      {/* Blockchain simplified to Safety Log Verification */}
+      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-8 md:p-10 relative overflow-hidden group shadow-md grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div className="md:col-span-2 space-y-6">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-jade-primary/10 rounded-2xl flex items-center justify-center border border-jade-primary/10">
-              <Lock className="w-7 h-7 text-jade-primary" />
+            <div className="w-12 h-12 bg-[var(--background)] border border-[var(--border-color)] flex items-center justify-center shrink-0 rounded-xl">
+              <Lock className="w-5 h-5 text-jade-primary" />
             </div>
             <div>
-              <h3 className="text-lg font-black uppercase tracking-tighter text-[var(--foreground)]">Blockchain Audit Core</h3>
-              <p className="text-[10px] font-bold text-sage-secondary uppercase tracking-[0.2em] mt-1">Cryptographic System Integrity</p>
+              <h3 className="text-lg font-bold text-[var(--foreground)]">Secure Audit Log</h3>
+              <p className="text-xs text-sage-secondary mt-0.5">Maintain database integrity.</p>
             </div>
           </div>
-          <p className="text-xs text-sage-secondary leading-relaxed font-medium">
-            Every resolved claim triggers a secure cryptographic log entry in our immutable blockchain ledger. Use this panel to audit the chronological ledger chain for tampering.
+          <p className="text-sm text-[var(--foreground)]/70 leading-relaxed max-w-xl">
+            When an item is returned to its owner, we save a record in our activity log. You can scan these records here to make sure nothing has been altered.
           </p>
           <button 
             onClick={validateChain}
             disabled={validationState === "validating"}
-            className="px-6 py-3.5 bg-jade-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-jade-deep transition-all shadow-md shadow-jade-primary/10"
+            className="px-6 py-3 bg-jade-primary text-white rounded-xl text-xs font-bold hover:bg-jade-deep transition-all shadow-md shadow-jade-primary/10"
           >
-            {validationState === "validating" ? "Auditing Ledger..." : "Validate System Integrity"}
+            {validationState === "validating" ? "Scanning Logs..." : "Run Verification Scan"}
           </button>
         </div>
 
-        <div className="flex flex-col justify-center items-center border border-dashed border-[var(--border-color)] rounded-3xl p-8 bg-[var(--background)] relative">
+        <div className="flex flex-col justify-center items-center border border-dashed border-[var(--border-color)] bg-[var(--background)] rounded-xl p-8 min-h-[160px] relative">
           {validationState === "idle" && (
-            <div className="text-center">
-              <Compass className="w-12 h-12 text-sage-secondary/40 mx-auto mb-4 animate-spin-slow" />
-              <div className="text-xs font-bold uppercase tracking-wider text-sage-secondary">Audit System Ready</div>
+            <div className="text-center space-y-2 opacity-60">
+              <Compass className="w-10 h-10 text-sage-secondary mx-auto animate-spin-slow" />
+              <div className="text-xs font-bold text-sage-secondary">Ready to Scan</div>
             </div>
           )}
           {validationState === "validating" && (
             <div className="text-center space-y-4">
-              <div className="w-8 h-8 border-4 border-jade-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <div className="text-xs font-bold uppercase tracking-wider text-jade-primary">{validationMsg}</div>
+              <div className="w-6 h-6 border-2 border-jade-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <div className="text-xs font-bold text-jade-primary animate-pulse">{validationMsg}</div>
             </div>
           )}
           {validationState === "secure" && (
-            <div className="text-center space-y-3">
-              <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto" />
-              <div className="text-md font-black uppercase text-emerald-500 tracking-wide">✅ SECURE</div>
-              <div className="text-[10px] font-bold text-sage-secondary uppercase tracking-widest max-w-xs">{validationMsg}</div>
-            </div>
+            <motion.div initial={{scale:0.9}} animate={{scale:1}} className="text-center space-y-3">
+              <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
+              <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                 <div className="text-xs font-bold text-emerald-600">{validationMsg}</div>
+              </div>
+            </motion.div>
           )}
           {validationState === "tampered" && (
-            <div className="text-center space-y-3">
-              <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-              <div className="text-md font-black uppercase text-red-500 tracking-wide">❌ TAMPERED</div>
-              <div className="text-[10px] font-bold text-red-400 uppercase tracking-widest max-w-xs">{validationMsg}</div>
-            </div>
+            <motion.div initial={{scale:0.9}} animate={{scale:1}} className="text-center space-y-3">
+              <AlertCircle className="w-10 h-10 text-red-500 mx-auto" />
+              <div className="px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-lg">
+                 <div className="text-xs font-bold text-red-600">{validationMsg}</div>
+              </div>
+            </motion.div>
           )}
         </div>
       </div>
 
-      {/* Stats Quick-Grid */}
+      {/* Core Grid Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <QuickStat title="Total Posts" value={stats.totalPosts} icon={<FileText className="w-6 h-6" />} color="jade" />
-        <QuickStat title="Total Users" value={stats.totalUsers} icon={<Users className="w-6 h-6" />} color="sage" />
-        <QuickStat title="Reported Posts" value={stats.flaggedPosts} icon={<Flag className="w-6 h-6" />} color="red" alert={stats.flaggedPosts > 0} />
-        <QuickStat title="Items Returned" value={stats.itemsReturned} icon={<ShieldCheck className="w-6 h-6" />} color="emerald" />
+        <QuickMetric title="Public Posts" value={stats.totalPosts} icon={<FileText className="w-4 h-4" />} color="jade" />
+        <QuickMetric title="Total Users" value={stats.totalUsers} icon={<Users className="w-4 h-4" />} color="jade" />
+        <QuickMetric title="Reported Content" value={stats.flaggedPosts} icon={<Flag className="w-4 h-4" />} color="red" alert={stats.flaggedPosts > 0} />
+        <QuickMetric title="Items Returned" value={stats.itemsReturned} icon={<ShieldCheck className="w-4 h-4" />} color="jade" />
       </div>
 
-      {/* Intelligence Dashboard Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-8 rounded-[32px] space-y-4 shadow-md">
-          <div className="text-[10px] font-black text-jade-primary uppercase tracking-widest">Active Lost Reports</div>
-          <div className="text-5xl font-black text-[var(--foreground)] tracking-tight">{stats.totalLost}</div>
-          <div className="text-xs font-semibold text-sage-secondary leading-relaxed">Items reported as lost across the campus.</div>
-        </div>
-
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-8 rounded-[32px] space-y-4 shadow-md">
-          <div className="text-[10px] font-black text-jade-primary uppercase tracking-widest">Active Found Reports</div>
-          <div className="text-5xl font-black text-[var(--foreground)] tracking-tight">{stats.totalFound}</div>
-          <div className="text-xs font-semibold text-sage-secondary leading-relaxed">Items found and currently with campus finders.</div>
-        </div>
-
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-8 rounded-[32px] space-y-4 shadow-md">
-          <div className="text-[10px] font-black text-jade-primary uppercase tracking-widest">Match Success Rate</div>
-          <div className="text-5xl font-black text-jade-primary tracking-tight">{stats.successRate}%</div>
-          <div className="text-xs font-semibold text-sage-secondary leading-relaxed">Heuristic accuracy & successful recovery rate.</div>
-        </div>
+      {/* Structural Insight Matrix simplified */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+        <InsightBox title="Lost Item Reports" count={stats.totalLost} desc="Items that students have currently listed as missing." />
+        <InsightBox title="Found Item Reports" count={stats.totalFound} desc="Items currently found and waiting for an owner." />
+        <InsightBox title="Success Rate" count={`${stats.successRate}%`} desc="Percentage of lost items that have been safely returned." isHighlight />
       </div>
     </div>
   );
 }
 
-function QuickStat({ title, value, icon, color, alert }: any) {
-  const colors: any = {
-    jade: "text-jade-primary border-jade-primary/10",
-    sage: "text-sage-secondary border-sage-secondary/10",
-    red: "text-red-500 border-red-500/10",
-    emerald: "text-jade-primary border-jade-primary/10"
-  };
-
+function QuickMetric({ title, value, icon, color, alert }: any) {
+  const isRed = color === "red";
   return (
-    <div className={`bg-[var(--card-bg)] border p-10 rounded-[40px] relative overflow-hidden group transition-all hover:border-jade-primary/30 shadow-xl shadow-black/5 ${colors[color]}`}>
-      {alert && <div className="absolute top-6 right-6 w-3 h-3 rounded-full bg-red-500 animate-ping"></div>}
-      <div className="flex items-center justify-between mb-8">
-        <div className="w-12 h-12 rounded-2xl bg-current/10 border border-current/10 flex items-center justify-center">
+    <div className={`bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-2xl relative overflow-hidden group transition-all hover:border-jade-primary/30 shadow-sm`}>
+      {alert && <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-red-500 animate-ping"></div>}
+      <div className="flex items-center justify-between mb-6">
+        <div className={`w-10 h-10 border border-[var(--border-color)] rounded-xl flex items-center justify-center text-sage-secondary group-hover:text-jade-primary transition-colors ${isRed && 'text-red-500/70'}`}>
           {icon}
         </div>
-        <ArrowUpRight className="w-5 h-5 opacity-20 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+        <ArrowUpRight className="w-4 h-4 text-sage-secondary/40 group-hover:text-jade-primary transition-all" />
       </div>
-      <div className="text-4xl font-black tracking-tighter mb-2 text-[var(--foreground)]">{value}</div>
-      <div className="text-[10px] font-bold text-sage-secondary uppercase tracking-[0.2em]">{title}</div>
+      <div className="text-4xl font-black tracking-tight text-[var(--foreground)] mb-1">{value}</div>
+      <div className="text-xs font-bold text-sage-secondary">{title}</div>
     </div>
+  );
+}
+
+function InsightBox({ title, count, desc, isHighlight }: any) {
+  return (
+     <div className={`bg-[var(--card-bg)] border border-[var(--border-color)] p-8 rounded-2xl shadow-sm relative overflow-hidden`}>
+        <div className="text-xs font-bold text-sage-secondary mb-4">{title}</div>
+        <div className={`text-5xl font-black tracking-tight mb-3 ${isHighlight ? 'text-jade-primary' : 'text-[var(--foreground)]'}`}>{count}</div>
+        <p className="text-xs text-sage-secondary font-medium leading-relaxed">{desc}</p>
+     </div>
   );
 }

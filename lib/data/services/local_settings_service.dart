@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class LocalSettingsService {
@@ -14,6 +16,7 @@ class LocalSettingsService {
   static const String _keySavedCMSAccounts = 'saved_cms_accounts';
 
   final SharedPreferences _prefs;
+  static const _secureStorage = FlutterSecureStorage();
 
   LocalSettingsService(this._prefs);
 
@@ -41,34 +44,63 @@ class LocalSettingsService {
   String? get intakeSemester => _prefs.getString(_keyIntakeSemester);
   Future<void> setIntakeSemester(String? value) => value != null ? _prefs.setString(_keyIntakeSemester, value) : _prefs.remove(_keyIntakeSemester);
 
-  List<Map<String, String>> getSavedCMSAccounts() {
-    final list = _prefs.getStringList(_keySavedCMSAccounts) ?? [];
-    return list.map((item) {
-      try {
-        final decoded = jsonDecode(item) as Map<String, dynamic>;
-        return {
-          'enrollment': decoded['enrollment']?.toString() ?? '',
-          'password': decoded['password']?.toString() ?? '',
-        };
-      } catch (_) {
-        return <String, String>{};
+  /// SECURE: Retreives, and automatically transparently migrates, plaintext credentials
+  /// from the legacy preferences into Hardware-backed Secure Storage on first access.
+  Future<List<Map<String, String>>> getSavedCMSAccounts() async {
+    try {
+      // 1. Check Encrypted Storage first
+      final securedValue = await _secureStorage.read(key: _keySavedCMSAccounts);
+      if (securedValue != null) {
+        final List<dynamic> decodedList = jsonDecode(securedValue);
+        return decodedList.map((item) => Map<String, String>.from(item)).toList();
       }
-    }).where((element) => element.isNotEmpty).toList();
+
+      // 2. AUTO-MIGRATION CHECK: Lookup insecure legacy location for background-migration
+      final legacyList = _prefs.getStringList(_keySavedCMSAccounts) ?? [];
+      if (legacyList.isNotEmpty) {
+        debugPrint('🔐 SECURITY: Found legacy plaintext accounts. Commencing secure vault migration...');
+        final List<Map<String, String>> migrated = [];
+        for (var item in legacyList) {
+          try {
+            final decoded = jsonDecode(item) as Map<String, dynamic>;
+            migrated.add({
+              'enrollment': decoded['enrollment']?.toString() ?? '',
+              'password': decoded['password']?.toString() ?? '',
+            });
+          } catch (_) {}
+        }
+
+        if (migrated.isNotEmpty) {
+          // Encrypt to Secure Storage immediately
+          await _secureStorage.write(key: _keySavedCMSAccounts, value: jsonEncode(migrated));
+          // WIPE non-encrypted evidence forever
+          await _prefs.remove(_keySavedCMSAccounts);
+          debugPrint('🔐 SECURITY: Successfully hardened credential vault. Unencrypted trace purged.');
+          return migrated;
+        }
+      }
+    } catch (e) {
+      debugPrint('🔐 STORAGE ERROR: Failed loading secure accounts: $e');
+    }
+    return [];
   }
 
   Future<void> saveCMSAccount(String enrollment, String password) async {
-    final list = getSavedCMSAccounts();
+    final list = await getSavedCMSAccounts();
     list.removeWhere((acc) => acc['enrollment'] == enrollment);
     list.insert(0, {'enrollment': enrollment, 'password': password});
-    final encoded = list.map((acc) => jsonEncode(acc)).toList();
-    await _prefs.setStringList(_keySavedCMSAccounts, encoded);
+    
+    // Encrypt to secure vault
+    await _secureStorage.write(key: _keySavedCMSAccounts, value: jsonEncode(list));
+    
+    // Redundant sanity wipe of legacy prefs in case it existed
+    await _prefs.remove(_keySavedCMSAccounts);
   }
 
   Future<void> deleteCMSAccount(String enrollment) async {
-    final list = getSavedCMSAccounts();
+    final list = await getSavedCMSAccounts();
     list.removeWhere((acc) => acc['enrollment'] == enrollment);
-    final encoded = list.map((acc) => jsonEncode(acc)).toList();
-    await _prefs.setStringList(_keySavedCMSAccounts, encoded);
+    await _secureStorage.write(key: _keySavedCMSAccounts, value: jsonEncode(list));
   }
 }
 
@@ -90,3 +122,5 @@ final accentColorProvider = StateProvider<int>((ref) {
   final settings = ref.watch(localSettingsProvider);
   return settings.accentColor;
 });
+
+final performanceOverlayProvider = StateProvider<bool>((ref) => false);

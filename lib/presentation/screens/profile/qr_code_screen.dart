@@ -5,6 +5,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/utils/app_utils.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/simple_user_model.dart';
 import '../../../data/services/auth_service.dart';
@@ -91,7 +93,7 @@ class QrCodeScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        user.name,
+                        cleanCMSUsername(user.name),
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

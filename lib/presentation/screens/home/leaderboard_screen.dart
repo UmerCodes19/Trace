@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/app_utils.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
@@ -143,7 +145,7 @@ class LeaderboardScreen extends ConsumerWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      u.name,
+                                      cleanCMSUsername(u.name),
                                       style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
                                     ),
                                     const SizedBox(height: 2),
@@ -238,7 +240,7 @@ class LeaderboardScreen extends ConsumerWidget {
         SizedBox(
           width: 80,
           child: Text(
-            user.name,
+            cleanCMSUsername(user.name),
             style: GoogleFonts.plusJakartaSans(fontSize: isRankOne ? 13 : 11, fontWeight: FontWeight.bold, color: textColor),
             textAlign: TextAlign.center,
             maxLines: 1,

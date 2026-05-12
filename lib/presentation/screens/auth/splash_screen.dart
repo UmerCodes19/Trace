@@ -41,16 +41,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   }
 
   Future<void> _runStartupFlow() async {
-    // Cinematic delay for startup micro animations
-    await Future.delayed(const Duration(milliseconds: 1000));
+    // Minimal cinematic beat — auth check runs almost immediately
+    await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     setState(() => _loadingMessage = 'Syncing secure session');
 
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    setState(() => _loadingMessage = 'Discovering nearby matches');
-
-    await Future.delayed(const Duration(milliseconds: 600));
+    // Run auth check concurrently with the brief animation
+    await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
 
     // Check first time use

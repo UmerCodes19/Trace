@@ -111,3 +111,7 @@ String sanitizeInput(String input) {
   result = result.replaceAll("'", '');
   return result;
 }
+/// ─── Username cleansing ──────────────────────────────────────────────────────
+String cleanCMSUsername(String name) {
+  return name.trim();
+}

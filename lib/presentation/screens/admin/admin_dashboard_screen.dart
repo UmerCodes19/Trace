@@ -181,7 +181,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
               photoURL: user.photoURL,
               radius: 20,
             ),
-            title: Text(user.name),
+            title: Text(cleanCMSUsername(user.name)),
             subtitle: Text(user.email),
             trailing: Switch(
               value: user.isBanned,

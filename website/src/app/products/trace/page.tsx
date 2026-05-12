@@ -1,38 +1,41 @@
 "use client";
 
-import { motion, useScroll, useTransform, useSpring, useMotionValue } from "framer-motion";
-import { ArrowLeft, ArrowRight, MapIcon, Search, Shield, Zap, Activity, Users, Radio, Navigation, Bell, Globe, Terminal, Cpu, Database, ChevronRight, Share2, Target, Link as LinkIcon, Layout, Fingerprint, QrCode, Lock, Server, Cpu as CpuIcon, Download, Smartphone, Laptop, Layers, Play, HelpCircle, CheckCircle2, ChevronDown } from "lucide-react";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { ArrowLeft, Map, Search, ShieldCheck, Smartphone, Download, HelpCircle, ChevronDown, Camera, CheckCircle, Star } from "lucide-react";
 import Link from "next/link";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
-// Trace Mesh Background
-function SimpleMesh() {
+function LuxuryGridBackground() {
    return (
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-10">
-         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--color-jade-primary)_0%,_transparent_80%)] opacity-20 mix-blend-overlay" />
          <svg className="w-full h-full">
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-               <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-[var(--border-color)]" />
+            <pattern id="trace-grid" width="60" height="60" patternUnits="userSpaceOnUse">
+               <path d="M 60 0 L 0 0 0 60" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-jade-primary opacity-30" />
+               <circle cx="0" cy="0" r="1" fill="currentColor" className="text-jade-primary opacity-50" />
             </pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" />
+            <rect width="100%" height="100%" fill="url(#trace-grid)" />
          </svg>
       </div>
    );
 }
 
-// Simple FAQ Component
-function SimpleFAQItem({ question, answer }: { question: string, answer: string }) {
+function TraceFAQItem({ question, answer }: { question: string, answer: string }) {
    const [isOpen, setIsOpen] = useState(false);
    return (
-      <div className="border-b border-[var(--border-color)] py-6">
+      <div className="border-b border-[var(--border-color)] py-6 transition-colors">
          <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center text-left group">
-            <span className="text-xs md:text-sm font-bold uppercase tracking-widest group-hover:text-[#E0874A] transition-colors pr-8">{question}</span>
-            <ChevronDown className={`w-4 h-4 text-neutral-600 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+            <span className="text-sm md:text-base font-bold group-hover:text-jade-primary transition-colors pr-8 text-[var(--foreground)]">{question}</span>
+            <ChevronDown className={`w-4 h-4 text-sage-secondary transition-transform shrink-0 ${isOpen ? 'rotate-180 text-jade-primary' : ''}`} />
          </button>
          {isOpen && (
-            <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 text-neutral-500 text-[10px] uppercase tracking-widest leading-relaxed">
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              className="mt-4 text-sage-secondary text-sm leading-relaxed max-w-2xl"
+            >
                {answer}
-            </motion.p>
+            </motion.div>
          )}
       </div>
    );
@@ -40,258 +43,218 @@ function SimpleFAQItem({ question, answer }: { question: string, answer: string 
 
 export default function TraceProductPage() {
    const containerRef = useRef<HTMLDivElement>(null);
-   const { scrollYProgress } = useScroll({
-      target: containerRef,
-      offset: ["start start", "end end"]
-   });
-
-   const heroOpacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
-   const heroScale = useTransform(scrollYProgress, [0, 0.1], [1, 0.95]);
+   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
+   const heroOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
+   const heroY = useTransform(scrollYProgress, [0, 0.15], [0, -20]);
 
    return (
-      <div ref={containerRef} className="min-h-screen bg-[var(--background)] text-[var(--foreground)] selection:bg-[#E0874A]/20 overflow-x-hidden font-sans transition-colors duration-1000">
-
-         {/* Product Navigation - Below Global Navbar */}
-         <div className="relative pt-16 z-40 px-4 md:px-10">
+      <div ref={containerRef} className="min-h-screen bg-[var(--background)] text-[var(--foreground)] transition-colors selection:bg-jade-primary/30 overflow-x-hidden font-sans">
+         
+         {/* Top Context Nav */}
+         <div className="relative pt-20 z-40 px-4 md:px-10">
             <div className="max-w-7xl mx-auto h-16 flex justify-between items-center border-b border-[var(--border-color)]">
-               <Link href="/" className="group flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] uppercase tracking-[0.2em] md:tracking-[0.4em] font-mono text-neutral-500 hover:text-[var(--foreground)] transition-colors">
-                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back
+               <Link href="/" className="group flex items-center gap-2 text-xs font-bold text-sage-secondary hover:text-jade-primary transition-colors">
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Home
                </Link>
-               <div className="px-3 md:px-4 py-2 bg-[var(--card-bg)]/60 backdrop-blur-md border border-[var(--border-color)] text-[8px] md:text-[9px] uppercase tracking-[0.2em] md:tracking-[0.4em] font-mono truncate max-w-[200px] md:max-w-none">
-                  Trace // Lost & Found App
+               <div className="px-4 py-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] text-[10px] font-bold text-jade-primary rounded-full uppercase tracking-wider shadow-sm">
+                  Available for Android
                </div>
             </div>
          </div>
 
-         {/* Hero Section - The Simple Solution */}
-         <section className="relative min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center text-center px-6 overflow-hidden py-12 md:py-0">
-            <SimpleMesh />
+         {/* Premium Hero Section */}
+         <section className="relative min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center text-center px-6 overflow-hidden">
+            <LuxuryGridBackground />
+            
+            {/* Soft Ambient Glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-jade-primary/10 blur-[140px] rounded-full pointer-events-none" />
 
-            <motion.div style={{ opacity: heroOpacity, scale: heroScale }} className="relative z-10 space-y-8 md:space-y-12 max-w-6xl w-full">
-               <div className="space-y-4 md:space-y-6">
-                  <motion.div
-                     initial={{ opacity: 0, y: 10 }}
-                     animate={{ opacity: 1, y: 0 }}
-                     className="flex items-center justify-center gap-2 md:gap-4"
+            <motion.div style={{ opacity: heroOpacity, y: heroY }} className="relative z-10 space-y-8 max-w-4xl">
+               <div className="space-y-6 flex flex-col items-center">
+                  <motion.div 
+                     initial={{ scale: 0.9, opacity: 0 }} 
+                     animate={{ scale: 1, opacity: 1 }}
+                     className="w-20 h-20 bg-[var(--card-bg)] border-2 border-[var(--border-color)] p-2 rounded-2xl shadow-xl mb-4"
                   >
-                     <div className="w-6 md:w-8 h-px bg-[#E0874A]/30" />
-                     <span className="text-[8px] md:text-[10px] font-mono text-[#E0874A] uppercase tracking-[0.4em] md:tracking-[0.8em]">Find Your Lost Items Faster</span>
-                     <div className="w-6 md:w-8 h-px bg-[#E0874A]/30" />
+                     <img src="/images/branding/trace_logo.png" alt="Trace App Logo" className="w-full h-full object-contain" />
                   </motion.div>
 
-                  <motion.h1
-                     initial={{ opacity: 0, y: 20 }}
-                     animate={{ opacity: 1, y: 0 }}
-                     transition={{ delay: 0.1 }}
-                     className="text-6xl sm:text-8xl md:text-[11rem] font-black tracking-tighter uppercase leading-none"
+                  <motion.h1 
+                     initial={{ opacity: 0, y: 30 }} 
+                     animate={{ opacity: 1, y: 0 }} 
+                     className="text-5xl md:text-8xl font-black tracking-tight leading-[0.9] text-[var(--foreground)]"
                   >
-                     Trace<span className="text-[#E0874A]">.</span>
+                     Trace<span className="text-jade-primary">.</span>
                   </motion.h1>
+                  <p className="text-lg md:text-xl font-medium text-sage-secondary max-w-2xl mx-auto">
+                     The modern lost and found app for your university campus. Find missing items instantly.
+                  </p>
                </div>
 
-               <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="flex flex-wrap justify-center gap-2 md:gap-3 max-w-3xl mx-auto px-4"
-               >
-                  {["Smart AI", "Cloud Storage", "Easy Matching", "Secure Claims", "Notifications"].map(tech => (
-                     <span key={tech} className="px-3 md:px-4 py-1 md:py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] text-[8px] md:text-[9px] font-mono text-neutral-500 uppercase tracking-widest whitespace-nowrap">
-                        {tech}
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="flex flex-wrap justify-center gap-3">
+                  {["Visual Search", "Campus Maps", "Safety Rewards", "Realtime Chat"].map(f => (
+                     <span key={f} className="px-4 py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] text-xs font-bold text-[var(--foreground)] rounded-full shadow-sm">
+                        {f}
                      </span>
                   ))}
                </motion.div>
 
-               <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-neutral-500 text-[9px] md:text-xs max-w-2xl mx-auto uppercase tracking-[0.2em] md:tracking-[0.4em] leading-loose font-mono px-4"
-               >
-                  Forget physical help desks. Trace is a simple app that helps you find your lost things by connecting you with people who found them.
-               </motion.p>
-
-               <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="flex flex-col sm:flex-row justify-center gap-4 md:gap-6 pt-6 md:pt-8 px-6 md:px-0"
-               >
-                  <button className="btn-premium px-8 md:px-10 group flex items-center justify-center gap-4 bg-[#E0874A] text-white border-none w-full sm:w-auto">
-                     <Download className="w-4 h-4" /> Download APK <span className="text-[8px] opacity-50 font-mono">v4.0.2</span>
-                  </button>
-                  <button className="btn-outline px-8 md:px-10 flex items-center justify-center gap-4 w-full sm:w-auto">
-                     <Smartphone className="w-4 h-4" /> Get on iPhone
-                  </button>
+               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
+                  <a href="#" className="px-8 py-4 bg-jade-primary text-white font-bold text-sm rounded-xl flex items-center justify-center gap-3 hover:bg-jade-deep transition-all shadow-lg shadow-jade-primary/20 active:scale-95">
+                     <Download className="w-5 h-5" /> Get the App
+                  </a>
+                  <a href="#" className="px-8 py-4 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] font-bold text-sm rounded-xl flex items-center justify-center gap-3 hover:border-jade-primary transition-all active:scale-95">
+                     <Smartphone className="w-5 h-5" /> View Screens
+                  </a>
                </motion.div>
             </motion.div>
-
-            {/* Decorative Radar Ring */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] md:w-[600px] h-[300px] md:h-[600px] border border-[#E0874A]/5 rounded-full pointer-events-none animate-ping" />
          </section>
 
-         {/* Video Demo Placeholder */}
-         <section className="py-24 md:py-32 px-4 md:px-6 bg-black relative overflow-hidden">
-            <div className="max-w-7xl mx-auto aspect-video bg-[var(--card-bg)] border border-[var(--border-color)] pixel-corners flex flex-col items-center justify-center group cursor-pointer relative">
-               <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-[#E0874A]/10 border border-[#E0874A]/30 flex items-center justify-center group-hover:scale-110 transition-transform relative z-10">
-                  <Play className="w-6 h-6 md:w-8 md:h-8 text-[#E0874A]" />
+         {/* Problem Statement Section */}
+         <section className="py-24 px-6 bg-[var(--card-bg)] border-y border-[var(--border-color)]">
+            <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+               <div className="space-y-6">
+                  <h2 className="text-3xl md:text-4xl font-black tracking-tight text-[var(--foreground)]">Why we built Trace</h2>
+                  <p className="text-sage-secondary font-medium leading-relaxed text-base">
+                     Losing something important on campus is stressful. Posting notices on social media or walking between buildings usually leads nowhere. 
+                  </p>
+                  <p className="text-sage-secondary font-medium leading-relaxed text-base">
+                     Trace was created to solve this. It's one centralized place to report lost belongings, track found items, and securely connect users for a smooth return.
+                  </p>
                </div>
-               <span className="mt-6 md:mt-8 text-[8px] md:text-[10px] font-mono text-neutral-600 uppercase tracking-[0.4em] md:tracking-[0.8em] relative z-10">Watch App Demo</span>
-               <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-5 group-hover:opacity-10 transition-opacity" />
-            </div>
-         </section>
-
-         {/* Problem & Solution - Easy Language */}
-         <section className="py-24 md:py-64 px-6 border-y border-[var(--border-color)] bg-[var(--card-bg)]/20 relative overflow-hidden">
-            <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 md:gap-24 items-center">
-               <div className="space-y-8 md:space-y-12">
-                  <div className="space-y-4 text-center lg:text-left">
-                     <span className="text-xs md:text-sm font-mono text-[#E0874A] uppercase tracking-[0.6em]">The Problem</span>
-                     <h2 className="text-4xl md:text-7xl font-bold tracking-tighter uppercase leading-[0.9]">Stop Losing <br />Your Stuff.</h2>
-                  </div>
-                  <div className="space-y-6 md:space-y-8 text-neutral-500 font-mono text-[10px] md:text-[11px] uppercase tracking-widest leading-loose max-w-md mx-auto lg:mx-0">
-                     <p>1. No easy way to report lost items online.</p>
-                     <p>2. Hard to match items when descriptions are different.</p>
-                     <p>3. No way to prove that you are the real owner.</p>
-                     <p>4. You don't get alerts when someone finds your item.</p>
-                  </div>
-               </div>
-
-               <div className="relative group px-4 md:px-0">
-                  <div className="absolute inset-0 bg-[#E0874A]/5 blur-[100px] opacity-0 group-hover:opacity-40 transition-opacity" />
-                  <div className="p-8 md:p-12 border border-[var(--border-color)] bg-[var(--background)] pixel-corners relative overflow-hidden">
-                     <div className="space-y-4 font-mono text-[8px] md:text-[9px] uppercase tracking-widest text-neutral-500">
-                        <div>&gt; Checking...</div>
-                        <div>&gt; Result: Most items are never found.</div>
-                        <div>&gt; Reason: Poor communication.</div>
-                        <div className="text-[#E0874A]">&gt; Solution: Use Trace App.</div>
+               <div className="grid grid-cols-1 gap-4">
+                  {[
+                     "No more scrolling through messy social media groups.",
+                     "Real-time push notifications when your item is found.",
+                     "Secure reward systems that prevent false claims."
+                  ].map((item, i) => (
+                     <div key={i} className="flex items-center gap-4 p-5 bg-[var(--background)] rounded-2xl border border-[var(--border-color)] shadow-sm">
+                        <div className="w-8 h-8 bg-jade-primary/10 rounded-full flex items-center justify-center shrink-0">
+                           <CheckCircle className="w-5 h-5 text-jade-primary" />
+                        </div>
+                        <span className="font-bold text-sm text-[var(--foreground)]">{item}</span>
                      </div>
-                  </div>
+                  ))}
                </div>
             </div>
          </section>
 
-         {/* Main Features - Easy Language */}
-         <section className="py-24 md:py-64 px-6 max-w-7xl mx-auto">
-            <div className="mb-16 md:mb-48 text-center space-y-6">
-               <h3 className="text-xs md:text-sm font-mono text-neutral-700 uppercase tracking-[0.6em] md:tracking-[0.8em]">Core Features</h3>
-               <h4 className="text-4xl md:text-7xl font-bold tracking-tighter uppercase">How it Helps.</h4>
+         {/* Product Mockup Preview */}
+         <section className="py-24 px-6 relative overflow-hidden">
+            <div className="max-w-6xl mx-auto aspect-video bg-jade-primary/5 rounded-3xl border border-[var(--border-color)] flex items-center justify-center relative overflow-hidden shadow-2xl group">
+               <div className="absolute inset-0 bg-[url('/images/branding/trace_main_jade.png')] bg-cover bg-center opacity-60 transition-transform duration-1000 group-hover:scale-105" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-[var(--background)]/20" />
+               <div className="relative z-10 flex flex-col items-center text-center gap-4">
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-xl text-white">
+                     <Smartphone className="w-8 h-8" />
+                  </div>
+                  <span className="text-lg font-bold text-white bg-black/40 px-6 py-2 rounded-full backdrop-blur-sm">Visual Preview</span>
+               </div>
+            </div>
+         </section>
+
+         {/* User Flow - How it works */}
+         <section className="py-32 px-6 max-w-7xl mx-auto">
+            <div className="text-center mb-20 space-y-4">
+               <h3 className="text-sm font-bold text-jade-primary uppercase tracking-widest">Simple 3-Step Flow</h3>
+               <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)]">How Trace Works.</h2>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+            <div className="grid md:grid-cols-3 gap-8 relative">
+               {/* Connector Line hidden on mobile */}
+               <div className="hidden md:block absolute top-14 left-[15%] right-[15%] h-0.5 bg-[var(--border-color)] border-t border-dashed border-sage-secondary/30 -z-10" />
+               
                {[
-                  {
-                     icon: Server,
-                     title: "Cloud Backup",
-                     desc: "All item reports are saved safely online so everyone can see them instantly.",
-                     tag: "Secure & Fast"
-                  },
-                  {
-                     icon: Cpu,
-                     title: "Smart Matching",
-                     desc: "Our AI helps find matches even if the words used to describe items are different.",
-                     tag: "AI Powered"
-                  },
-                  {
-                     icon: Lock,
-                     title: "Safe Claims",
-                     desc: "A secure way to prove you own the item before you pick it up.",
-                     tag: "Verified Ownership"
-                  }
-               ].map((node, i) => (
-                  <motion.div
-                     key={i}
-                     whileHover={{ y: -10 }}
-                     className="p-8 md:p-10 border border-[var(--border-color)] bg-[var(--card-bg)]/40 pixel-corners relative group overflow-hidden"
-                  >
-                     <div className="absolute inset-0 bg-gradient-to-br from-[#E0874A]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                     <node.icon className="w-8 h-8 text-[#E0874A] mb-8 md:mb-12" />
-                     <h5 className="text-lg md:text-xl font-bold uppercase tracking-tighter mb-4 text-[var(--foreground)]">{node.title}</h5>
-                     <p className="text-neutral-500 text-[9px] uppercase tracking-widest leading-loose mb-8 md:mb-10">{node.desc}</p>
-                     <div className="text-[8px] font-mono text-neutral-700 uppercase tracking-widest">{node.tag}</div>
-                  </motion.div>
+                  { icon: Camera, title: "1. Snap & Post", desc: "Found or lost something? Just snap a quick photo and post it in 30 seconds." },
+                  { icon: Map, title: "2. Map the Spot", desc: "Use internal floor maps to pin the exact location you found or lost the item." },
+                  { icon: ShieldCheck, title: "3. Secure Return", desc: "Chat securely inside the app to coordinate handover and scan QR to finish." }
+               ].map((step, i) => (
+                  <div key={i} className="flex flex-col items-center text-center space-y-6 bg-[var(--card-bg)] p-10 rounded-3xl border border-[var(--border-color)] shadow-md hover:border-jade-primary/30 transition-all">
+                     <div className="w-16 h-16 bg-jade-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-jade-primary/20">
+                        <step.icon className="w-8 h-8" />
+                     </div>
+                     <h4 className="text-xl font-bold text-[var(--foreground)]">{step.title}</h4>
+                     <p className="text-sage-secondary text-sm font-medium leading-relaxed">{step.desc}</p>
+                  </div>
                ))}
             </div>
          </section>
 
-         {/* Step by Step Guide */}
-         <section className="py-24 md:py-64 px-6 border-t border-[var(--border-color)] relative">
-            <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 md:gap-24 items-center">
-               <div className="space-y-12">
-                  <div className="space-y-4 text-center lg:text-left">
-                     <span className="text-xs md:text-sm font-mono text-[#E0874A] uppercase tracking-[0.6em]">Tutorial</span>
-                     <h2 className="text-4xl md:text-7xl font-bold tracking-tighter uppercase leading-[0.9]">Easy To Use.</h2>
+         {/* Visual Tech Section (Map preview) */}
+         <section className="py-24 px-6 bg-[var(--card-bg)] border-y border-[var(--border-color)]">
+            <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+               <div className="space-y-8 order-2 lg:order-1">
+                  <div className="space-y-4">
+                     <span className="text-jade-primary font-bold text-sm uppercase tracking-wider">Internal Navigation</span>
+                     <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)] leading-[1.1]">Never get lost looking for your stuff.</h2>
+                     <p className="text-sage-secondary text-base font-medium leading-relaxed">
+                        Finding a specific floor or room can be confusing. Trace includes detailed floorplans of the building so you can drop a pin exactly where you stand.
+                     </p>
                   </div>
-                  <div className="space-y-10 md:space-y-12 max-w-md mx-auto lg:mx-0">
+                  
+                  <ul className="space-y-4">
                      {[
-                        { step: "01", title: "Report It", desc: "Take a photo and write a simple description of what you lost or found." },
-                        { step: "02", title: "Smart Search", desc: "The app automatically checks for matches across the entire network." },
-                        { step: "03", title: "Confirm", desc: "Prove that the item is yours through a simple verification process." },
-                        { step: "04", title: "Pick Up", desc: "Collect your item using a secure QR code for safety." }
-                     ].map((item, i) => (
-                        <div key={i} className="flex gap-6 md:gap-8 group">
-                           <span className="text-xl md:text-2xl font-black text-neutral-800 group-hover:text-[#E0874A] transition-colors">{item.step}</span>
-                           <div className="space-y-2">
-                              <h5 className="text-[12px] md:text-sm font-bold uppercase tracking-widest">{item.title}</h5>
-                              <p className="text-neutral-500 text-[9px] md:text-[10px] uppercase tracking-widest leading-loose">{item.desc}</p>
-                           </div>
-                        </div>
+                        "Multi-floor navigation selector.",
+                        "Precise indoor room tags.",
+                        "Real-time route calculation on arrival."
+                     ].map((text, idx) => (
+                        <li key={idx} className="flex items-center gap-3 text-sm font-bold text-[var(--foreground)]">
+                           <Star className="w-4 h-4 text-jade-primary" fill="currentColor" /> {text}
+                        </li>
                      ))}
-                  </div>
+                  </ul>
                </div>
 
-               <div className="aspect-square bg-[var(--card-bg)] border border-[var(--border-color)] pixel-corners relative overflow-hidden max-w-md mx-auto w-full">
-                  <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-10" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                     <div className="p-6 md:p-8 bg-black/60 backdrop-blur-xl border border-white/5 max-w-[240px] md:max-w-[280px]">
-                        <Activity className="w-6 h-6 md:w-8 md:h-8 text-[#E0874A] mb-4 md:mb-6 animate-pulse" />
-                        <div className="space-y-4">
-                           <div className="h-2 w-full bg-white/10 rounded-full" />
-                           <div className="h-2 w-2/3 bg-white/5 rounded-full" />
-                        </div>
+               {/* The Jade Map Image Container */}
+               <div className="aspect-square rounded-3xl border border-[var(--border-color)] relative shadow-2xl overflow-hidden bg-[var(--background)] order-1 lg:order-2">
+                  <div className="absolute inset-0 bg-[url('/images/branding/trace_map_jade.png')] bg-cover bg-center opacity-80 group-hover:scale-105 transition-transform duration-[2s]" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--background)]/60" />
+                  <div className="absolute bottom-6 left-6 right-6 bg-[var(--card-bg)]/90 backdrop-blur-md border border-[var(--border-color)] p-5 rounded-2xl flex items-center justify-between shadow-xl">
+                     <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 bg-jade-primary rounded-full animate-pulse" />
+                        <span className="font-bold text-sm text-[var(--foreground)]">Campus Live Map</span>
                      </div>
+                     <div className="text-xs font-bold text-jade-primary">Ready</div>
                   </div>
                </div>
             </div>
          </section>
 
-         {/* Support FAQ */}
-         <section className="py-24 md:py-64 px-6 bg-[var(--card-bg)]/20 border-y border-[var(--border-color)]">
-            <div className="max-w-4xl mx-auto space-y-16 md:space-y-20">
-               <div className="text-center space-y-4">
-                  <HelpCircle className="w-8 h-8 text-[#E0874A] mx-auto" />
-                  <h3 className="text-3xl md:text-6xl font-bold tracking-tighter uppercase">Common Questions.</h3>
+         {/* Simplified FAQ */}
+         <section className="py-32 px-6">
+            <div className="max-w-3xl mx-auto space-y-12">
+               <div className="text-center">
+                  <HelpCircle className="w-8 h-8 text-jade-primary mx-auto mb-4" />
+                  <h3 className="text-3xl md:text-4xl font-black tracking-tight text-[var(--foreground)]">Got Questions?</h3>
                </div>
-               <div className="space-y-2 px-2 md:px-0">
-                  <SimpleFAQItem
-                     question="How does the smart matching work?"
-                     answer="Our app uses smart AI to understand what you're looking for. It doesn't just look at keywords—it understands the meaning behind your description to find better matches."
+               <div className="px-2">
+                  <TraceFAQItem 
+                     question="How do I prove an item belongs to me?"
+                     answer="The original owner must describe structural details or unique keys. Once coordinated, the finder generates a secure QR code that is verified on physical exchange."
                   />
-                  <SimpleFAQItem
-                     question="Is my identity safe?"
-                     answer="Yes. We use secure technology to make sure your personal info is hidden until a match is confirmed and you're ready to collect your item."
+                  <TraceFAQItem 
+                     question="Can I reward the finder?"
+                     answer="Yes! Trace includes a gesture and ranking system to reward honest community users for helping returns."
                   />
-                  <SimpleFAQItem
-                     question="How do I pick up my item?"
-                     answer="Once a match is confirmed, you'll get a unique QR code. You just show that code when picking up the item to prove you're the owner."
-                  />
-                  <SimpleFAQItem
-                     question="Is it free to use?"
-                     answer="Yes, the app is free for students and community members to report and find items."
+                  <TraceFAQItem 
+                     question="Is campus mapping accurate?"
+                     answer="We build precise, layered structural floorplans for every university department covered by the system."
                   />
                </div>
             </div>
          </section>
 
-         {/* CTA Footer */}
-         <section className="py-24 md:py-64 px-6 text-center">
-            <div className="max-w-4xl mx-auto space-y-12 md:space-y-16">
-               <h2 className="text-4xl md:text-[6rem] font-black tracking-tighter uppercase leading-none">Find Your <span className="text-[#E0874A]">Stuff</span> Now.</h2>
-               <div className="flex flex-col sm:flex-row justify-center gap-4 md:gap-8 px-6 md:px-0">
-                  <button className="btn-premium px-10 md:px-12 group flex items-center justify-center gap-4 bg-[#E0874A] text-white border-none w-full sm:w-auto">
-                     <Download className="w-4 h-4" /> Download App <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
-                  </button>
-                  <Link href="/" className="btn-outline px-10 md:px-12 flex justify-center w-full sm:w-auto">Back to Site</Link>
+         {/* Final CTA */}
+         <section className="py-32 px-6 text-center bg-jade-primary/5 border-t border-[var(--border-color)]">
+            <div className="max-w-3xl mx-auto space-y-10">
+               <h2 className="text-4xl md:text-7xl font-black tracking-tight text-[var(--foreground)] leading-tight">Start tracing <br /><span className="text-jade-primary">today.</span></h2>
+               <div className="flex flex-col sm:flex-row justify-center gap-4">
+                  <a href="#" className="px-10 py-5 bg-jade-primary text-white rounded-2xl font-bold text-base hover:bg-jade-deep transition-all shadow-lg shadow-jade-primary/20 active:scale-95">
+                     Download for Android
+                  </a>
+                  <Link href="/" className="px-10 py-5 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-2xl font-bold text-base hover:border-jade-primary transition-all active:scale-95">
+                     Back to Website
+                  </Link>
                </div>
             </div>
          </section>
@@ -299,3 +262,4 @@ export default function TraceProductPage() {
       </div>
    );
 }
+

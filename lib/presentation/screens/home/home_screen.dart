@@ -6,8 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../notifications/notification_list_screen.dart';
+import '../../widgets/security/two_factor_setup_dialog.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
@@ -40,14 +42,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   String? _selectedCategory;
   String? _selectedRecency;
 
-  String _cleanCMSUsername(String name) {
-    if (name.toUpperCase().contains('CMS USER') || name.contains('(') || name.contains(')')) {
-      final regExp = RegExp(r'\d{2}-\d{5,6}-\d{3}');
-      final match = regExp.firstMatch(name);
-      if (match != null) return match.group(0)!;
-    }
-    return name;
-  }
   
   @override
   void initState() {
@@ -55,9 +49,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     _tabController = TabController(length: 5, vsync: this);
     
     // Trigger check after frame mounts
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowIntroTour();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkAndShowIntroTour();
+      await _checkAndPrompt2FA();
     });
+  }
+
+  Future<void> _checkAndPrompt2FA() async {
+    // Give the cinematic tour a chance to clear if it fired
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    // If enabled, don't bother.
+    if (user.isTwoFactorEnabled) return;
+
+    // Check local persistence so we don't spam.
+    final prefs = await SharedPreferences.getInstance();
+    final hasBeenPrompted = prefs.getBool('has_prompted_2fa_${user.uid}') ?? false;
+
+    if (hasBeenPrompted) return;
+
+    // Only prompt if not already enabled.
+    if (mounted) {
+      // Save so we only auto-prompt once per account login event cycle
+      await prefs.setBool('has_prompted_2fa_${user.uid}', true);
+      
+      // Stylish Dialog before launching the setup modal
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.pageBg(context),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Row(
+              children: [
+                const Icon(Icons.security_rounded, color: Colors.green, size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Secure Account?',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+            content: Text(
+              'Would you like to enable Two-Factor Authentication (2FA) now for enhanced account security?',
+              style: GoogleFonts.inter(color: AppColors.textSecondary(context)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Maybe Later', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  TwoFactorSetupDialog.show(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Setup Now'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _checkAndShowIntroTour() async {
@@ -413,17 +475,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                                 style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary(context)),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                _cleanCMSUsername(user?.name ?? 'Guest'), 
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 26, 
-                                  fontWeight: FontWeight.w800, 
-                                  color: AppColors.textPrimary(context), 
-                                  letterSpacing: -0.5
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  cleanCMSUsername(user?.name ?? 'Guest'), 
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 26, 
+                                    fontWeight: FontWeight.w800, 
+                                    color: AppColors.textPrimary(context), 
+                                    letterSpacing: -0.5
+                                  ),
+                                  maxLines: 1,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
+
                             ],
                           ),
                         ),
@@ -889,7 +955,7 @@ class _SummaryItem extends StatelessWidget {
   }
 }
 
-class _PostFeed extends ConsumerWidget {
+class _PostFeed extends ConsumerStatefulWidget {
   final String query;
   final String filter;
   final String? building;
@@ -905,141 +971,119 @@ class _PostFeed extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final postsAsync = ref.watch(postsProvider);
-    final posts = postsAsync.value;
+  ConsumerState<_PostFeed> createState() => _PostFeedState();
+}
 
-    if (posts == null && postsAsync.isLoading) {
-      return const _LoadingFeed();
-    }
-    if (postsAsync.hasError && posts == null) {
-      return Center(child: Text('Error: ${postsAsync.error}'));
-    }
+class _PostFeedState extends ConsumerState<_PostFeed> {
+  late final ScrollController _scrollController;
 
-    final activePosts = posts ?? [];
-    final filtered = activePosts.where((p) {
-      // 1. Tab Type & Status Pre-Filtering
-      if (filter == 'lost') {
-        if (p.type != 'lost' || p.status == 'resolved') return false;
-      } else if (filter == 'found') {
-        if (p.type != 'found' || p.status == 'resolved') return false;
-      } else if (filter == 'resolved') {
-        if (p.status != 'resolved') return false;
-      }
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
+  }
 
-      // 2. Campus Building Filtering
-      if (building != null && p.location.building.toLowerCase() != building!.toLowerCase()) {
-        return false;
-      }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-      // 3. Category Semantic Keyword Filtering
-      if (category != null) {
-        final categoryLower = category!.toLowerCase();
-        final title = p.title.toLowerCase();
-        final desc = p.description.toLowerCase();
-        final tags = p.aiTags.map((t) => t.toLowerCase()).toList();
-
-        bool hasMatch = false;
-        if (categoryLower == 'electronics') {
-          final keywords = ['electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'calculator', 'watch', 'camera'];
-          hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'keys & cards') {
-          final keywords = ['key', 'keys', 'card', 'id', 'student card', 'atm', 'license', 'badge', 'cnic'];
-          hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'bags & wallets') {
-          final keywords = ['bag', 'wallet', 'purse', 'backpack', 'pouch', 'handbag', 'suede', 'pocketbook'];
-          hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'documents') {
-          final keywords = ['document', 'paper', 'file', 'cnic', 'passport', 'booklet', 'degree', 'certificate'];
-          hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'books & stationery') {
-          final keywords = ['book', 'stationery', 'pen', 'pencil', 'notebook', 'register', 'binder', 'calculator'];
-          hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'others') {
-          final keywords = [
-            'electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'calculator', 'watch',
-            'key', 'keys', 'card', 'id', 'student card', 'atm', 'license', 'badge',
-            'bag', 'wallet', 'purse', 'backpack', 'pouch', 'handbag', 'suede',
-            'document', 'paper', 'file', 'cnic', 'passport', 'booklet',
-            'book', 'stationery', 'pen', 'pencil', 'notebook', 'register'
-          ];
-          hasMatch = !keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        }
-        if (!hasMatch) return false;
-      }
-
-      // 4. Date Recency Filtering
-      if (recency != null) {
-        final now = DateTime.now();
-        final diff = now.difference(p.timestamp);
-        if (recency == 'Today') {
-          if (diff.inDays >= 1) return false;
-        } else if (recency == 'Last 3 Days') {
-          if (diff.inDays >= 3) return false;
-        } else if (recency == 'This Week') {
-          if (diff.inDays >= 7) return false;
-        } else if (recency == 'This Month') {
-          if (diff.inDays >= 30) return false;
-        }
-      }
-
-      // 5. Tokenized Search Query Filtering
-      if (query.trim().isNotEmpty) {
-        final cleanQuery = query.toLowerCase().trim();
-        final title = p.title.toLowerCase();
-        final desc = p.description.toLowerCase();
-        final bName = p.location.building.toLowerCase();
-
-        if (title.contains(cleanQuery) || desc.contains(cleanQuery) || bName.contains(cleanQuery)) {
-          return true;
-        }
-
-        final words = cleanQuery.split(' ').where((w) => w.length > 1).toList();
-        if (words.isEmpty) return false;
-
-        int matchScore = 0;
-        for (var word in words) {
-          if (title.contains(word)) matchScore += 2;
-          if (desc.contains(word)) matchScore += 1;
-          if (bName.contains(word)) matchScore += 1;
-          if (p.aiTags.any((tag) => tag.toLowerCase().contains(word) || word.contains(tag.toLowerCase()))) {
-            matchScore += 2;
-          }
-        }
-
-        if (matchScore < 2) return false;
-      }
-
-      return true;
-    }).toList();
-
-    if (filtered.isEmpty) {
-      return const LottieEmptyStateWidget(
-        lottieAsset: 'assets/animations/empty_feed.json',
-        fallbackIcon: Icons.travel_explore_rounded,
-        title: 'No Items Discovered',
-        subtitle: 'Try adjusting your filters, or check the Map to see items around campus.',
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    
+    // Proactively load next chunk when user hits 85% scroll depth
+    if (currentScroll >= (maxScroll * 0.85)) {
+      final config = FeedFilterConfig(
+        query: widget.query,
+        filter: widget.filter,
+        building: widget.building,
+        category: widget.category,
+        recency: widget.recency,
       );
+      ref.read(paginatedFeedProvider(config).notifier).loadMore();
     }
+  }
 
-    return RefreshIndicator(
-      onRefresh: () async => ref.refresh(postsProvider),
-      child: RepaintBoundary(
-        child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 140),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.64,
+  @override
+  Widget build(BuildContext context) {
+    final config = FeedFilterConfig(
+      query: widget.query,
+      filter: widget.filter,
+      building: widget.building,
+      category: widget.category,
+      recency: widget.recency,
+    );
+
+    final feedAsync = ref.watch(paginatedFeedProvider(config));
+
+    return feedAsync.when(
+      loading: () => const _LoadingFeed(),
+      error: (err, _) => Center(child: Text('Connection failure: $err', style: const TextStyle(color: Colors.grey))),
+      data: (state) {
+        if (state.posts.isEmpty) {
+          return const LottieEmptyStateWidget(
+            lottieAsset: 'assets/animations/empty_feed.json',
+            fallbackIcon: Icons.travel_explore_rounded,
+            title: 'No Items Discovered',
+            subtitle: 'Try adjusting your filters, or check the Map to see items around campus.',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async => ref.refresh(paginatedFeedProvider(config)),
+          color: AppColors.jadePrimary,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.64,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final post = state.posts[index];
+                      return PostCard(post: post)
+                          .animate()
+                          .fadeIn(delay: (index % 10 * 40).ms)
+                          .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuart);
+                    },
+                    childCount: state.posts.length,
+                  ),
+                ),
+              ),
+              
+              // Loading more indicator at very bottom
+              if (state.isLoadingMore)
+                SliverToBoxAdapter(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.jadePrimary),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Extra bottom buffer padding to account for bottom nav bars
+              const SliverToBoxAdapter(child: SizedBox(height: 140)),
+            ],
           ),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) => PostCard(post: filtered[index])
-              .animate()
-              .fadeIn(delay: (index * 30).ms)
-              .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1101,20 +1145,27 @@ class _MyClaimsFeed extends ConsumerWidget {
     }
 
     final activeClaims = claims ?? [];
+    
+    // PRE-CALCULATION OPTIMIZATION: Compute constants ONCE outside the iteration loop
+    final String? cLower = category?.toLowerCase();
+    final String? qTrim = query.trim().isEmpty ? null : query.toLowerCase().trim();
+    final List<String> qWords = (qTrim != null) ? qTrim.split(' ').where((w) => w.length > 1).toList() : [];
+    final DateTime now = DateTime.now();
+    final String? bLower = building?.toLowerCase();
+
     final filtered = activeClaims.where((c) {
       final post = c['posts'];
       if (post == null) return false;
       
-      final postBuilding = post['location']?['building']?.toString() ?? '';
+      final String postBuilding = post['location']?['building']?.toString() ?? '';
       
-      // 1. Campus Building Filtering
-      if (building != null && postBuilding.toLowerCase() != building!.toLowerCase()) {
+      // 1. Campus Building Filtering (Uses pre-lowercased constant)
+      if (bLower != null && postBuilding.toLowerCase() != bLower) {
         return false;
       }
 
       // 2. Category Semantic Keyword Filtering
-      if (category != null) {
-        final categoryLower = category!.toLowerCase();
+      if (cLower != null) {
         final title = (post['title'] ?? '').toString().toLowerCase();
         final desc = (post['description'] ?? '').toString().toLowerCase();
         final tags = (post['aiTags'] != null) 
@@ -1122,23 +1173,23 @@ class _MyClaimsFeed extends ConsumerWidget {
             : <String>[];
 
         bool hasMatch = false;
-        if (categoryLower == 'electronics') {
-          final keywords = ['electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'calculator', 'watch', 'camera'];
+        if (cLower == 'electronics') {
+          const keywords = ['electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'calculator', 'watch', 'camera'];
           hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'keys & cards') {
-          final keywords = ['key', 'keys', 'card', 'id', 'student card', 'atm', 'license', 'badge', 'cnic'];
+        } else if (cLower == 'keys & cards') {
+          const keywords = ['key', 'keys', 'card', 'id', 'student card', 'atm', 'license', 'badge', 'cnic'];
           hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'bags & wallets') {
-          final keywords = ['bag', 'wallet', 'purse', 'backpack', 'pouch', 'handbag', 'suede', 'pocketbook'];
+        } else if (cLower == 'bags & wallets') {
+          const keywords = ['bag', 'wallet', 'purse', 'backpack', 'pouch', 'handbag', 'suede', 'pocketbook'];
           hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'documents') {
-          final keywords = ['document', 'paper', 'file', 'cnic', 'passport', 'booklet', 'degree', 'certificate'];
+        } else if (cLower == 'documents') {
+          const keywords = ['document', 'paper', 'file', 'cnic', 'passport', 'booklet', 'degree', 'certificate'];
           hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'books & stationery') {
-          final keywords = ['book', 'stationery', 'pen', 'pencil', 'notebook', 'register', 'binder', 'calculator'];
+        } else if (cLower == 'books & stationery') {
+          const keywords = ['book', 'stationery', 'pen', 'pencil', 'notebook', 'register', 'binder', 'calculator'];
           hasMatch = keywords.any((kw) => title.contains(kw) || desc.contains(kw) || tags.contains(kw));
-        } else if (categoryLower == 'others') {
-          final keywords = [
+        } else if (cLower == 'others') {
+          const keywords = [
             'electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'calculator', 'watch',
             'key', 'keys', 'card', 'id', 'student card', 'atm', 'license', 'badge',
             'bag', 'wallet', 'purse', 'backpack', 'pouch', 'handbag', 'suede',
@@ -1150,38 +1201,39 @@ class _MyClaimsFeed extends ConsumerWidget {
         if (!hasMatch) return false;
       }
 
-      // 3. Date Recency Filtering
+      // 3. Date Recency Filtering (Uses cached baseline DateTime)
       if (recency != null && post['timestamp'] != null) {
-        final pTime = DateTime.parse(post['timestamp'].toString());
-        final now = DateTime.now();
-        final diff = now.difference(pTime);
-        if (recency == 'Today') {
-          if (diff.inDays >= 1) return false;
-        } else if (recency == 'Last 3 Days') {
-          if (diff.inDays >= 3) return false;
-        } else if (recency == 'This Week') {
-          if (diff.inDays >= 7) return false;
-        } else if (recency == 'This Month') {
-          if (diff.inDays >= 30) return false;
+        try {
+          final pTime = DateTime.parse(post['timestamp'].toString());
+          final diff = now.difference(pTime);
+          if (recency == 'Today') {
+            if (diff.inDays >= 1) return false;
+          } else if (recency == 'Last 3 Days') {
+            if (diff.inDays >= 3) return false;
+          } else if (recency == 'This Week') {
+            if (diff.inDays >= 7) return false;
+          } else if (recency == 'This Month') {
+            if (diff.inDays >= 30) return false;
+          }
+        } catch (_) {
+          // Safety capture for parse issues
         }
       }
 
       // 4. Tokenized Search Query Filtering
-      if (query.trim().isNotEmpty) {
-        final cleanQuery = query.toLowerCase().trim();
+      if (qTrim != null) {
         final title = (post['title'] ?? '').toString().toLowerCase();
         final desc = (post['description'] ?? '').toString().toLowerCase();
         final bName = postBuilding.toLowerCase();
 
-        if (title.contains(cleanQuery) || desc.contains(cleanQuery) || bName.contains(cleanQuery)) {
+        if (title.contains(qTrim) || desc.contains(qTrim) || bName.contains(qTrim)) {
           return true;
         }
 
-        final words = cleanQuery.split(' ').where((w) => w.length > 1).toList();
-        if (words.isEmpty) return false;
+        if (qWords.isEmpty) return false;
 
         int matchScore = 0;
-        for (var word in words) {
+        for (var word in qWords) {
           if (title.contains(word)) matchScore += 2;
           if (desc.contains(word)) matchScore += 1;
           if (bName.contains(word)) matchScore += 1;

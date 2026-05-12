@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'dart:ui' as ui show Path;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -304,7 +305,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       contentPadding: EdgeInsets.zero,
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Container(width: 48, height: 48, color: AppColors.shimmerBase(context), child: p.imageUrls.isNotEmpty ? Image.network(p.imageUrls.first, fit: BoxFit.cover) : Icon(Icons.image)),
+                        child: Container(
+                          width: 48, height: 48, 
+                          color: AppColors.shimmerBase(context), 
+                          child: p.imageUrls.isNotEmpty 
+                            ? CachedNetworkImage(
+                                imageUrl: p.imageUrls.first, 
+                                fit: BoxFit.cover,
+                                memCacheWidth: 200,
+                                memCacheHeight: 200,
+                                placeholder: (context, url) => const Center(child: SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1))),
+                                errorWidget: (context, url, error) => const Icon(Icons.broken_image_outlined, size: 16),
+                              ) 
+                            : Icon(Icons.image),
+                        ),
                       ),
                       title: Text(p.title, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
                       subtitle: Text(p.isLost ? 'Lost' : 'Found', style: GoogleFonts.inter(fontSize: 12, color: p.isLost ? AppColors.lost : AppColors.found)),
@@ -592,7 +606,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         width: 40, height: 40,
                         child: GestureDetector(
                           onTap: () => _showPinBottomSheet(p),
-                          child: _PulseMarker(color: p.isLost ? AppColors.lost : AppColors.found),
+                          child: RepaintBoundary(child: _PulseMarker(color: p.isLost ? AppColors.lost : AppColors.found)),
                         ),
                       );
                     }).toList(),

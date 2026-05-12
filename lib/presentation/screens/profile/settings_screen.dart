@@ -13,6 +13,7 @@ import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../../core/services/tutorial_service.dart';
 import '../../widgets/common/glass_card.dart';
+import '../../widgets/security/two_factor_setup_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -85,6 +86,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onTap: () => context.push('/login/cms'),
                     isDarkMode: isDarkMode,
                   ),
+                  const SizedBox(height: 12),
+                  _buildSettingTile(
+                    icon: Icons.enhanced_encryption_rounded,
+                    title: 'Two-Factor Auth',
+                    subtitle: _user?.isTwoFactorEnabled == true ? 'Secured & Active' : 'Enable Authenticator security',
+                    trailing: _user?.isTwoFactorEnabled == true
+                        ? const Icon(Icons.check_circle, color: AppColors.foundSuccess, size: 20)
+                        : Icon(Icons.arrow_forward_ios_rounded, color: accent.withOpacity(0.7), size: 14),
+                    onTap: () async {
+                      final updated = await TwoFactorSetupDialog.show(context);
+                      if (updated == true) {
+                        _loadUserData(); // refresh state
+                      }
+                    },
+                    isDarkMode: isDarkMode,
+                  ),
+                  const SizedBox(height: 12),
 
                   _buildSettingTile(
                     icon: Icons.qr_code_rounded,
@@ -185,6 +203,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     isDarkMode: isDarkMode,
                     accent: accent,
                   ),
+                  const SizedBox(height: 32),
+                  _buildSectionHeader('System & Performance', isDarkMode),
+                  const SizedBox(height: 12),
+                  _buildSwitchTile(
+                    icon: Icons.speed_rounded,
+                    title: 'Show Live Performance Graphs',
+                    subtitle: 'Render CPU/GPU timing and FPS monitor',
+                    value: ref.watch(performanceOverlayProvider),
+                    onChanged: (val) {
+                      HapticFeedback.mediumImpact();
+                      ref.read(performanceOverlayProvider.notifier).state = val;
+                    },
+                    isDarkMode: isDarkMode,
+                    accent: Colors.orange,
+                  ),
 
                   const SizedBox(height: 32),
                   _buildSectionHeader('Help & Learning', isDarkMode),
@@ -260,6 +293,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _buildThemeToggle(bool isDarkMode, Color accent) {
     return GlassCard(
+      blur: 0, // Bypasses compositor overhead on solid backgrounds for scrolling smoothness
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
@@ -315,6 +349,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ];
 
     return GlassCard(
+      blur: 0,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,6 +410,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }) {
     return GlassCard(
       onTap: onTap,
+      blur: 0,
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
@@ -418,6 +454,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required Color accent,
   }) {
     return GlassCard(
+      blur: 0,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [

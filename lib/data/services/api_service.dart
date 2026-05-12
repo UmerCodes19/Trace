@@ -8,23 +8,178 @@ import 'package:flutter/foundation.dart';
 import '../models/simple_post_model.dart';
 import './auth_service.dart';
 import './offline/sync_manager.dart';
+import 'package:flutter/foundation.dart';
+
+/// Configuration class for Riverpod caching and memoized filtering
+class FeedFilterConfig {
+  final String query;
+  final String filter;
+  final String? building;
+  final String? category;
+  final String? recency;
+
+  const FeedFilterConfig({
+    required this.query,
+    required this.filter,
+    this.building,
+    this.category,
+    this.recency,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FeedFilterConfig &&
+          runtimeType == other.runtimeType &&
+          query == other.query &&
+          filter == other.filter &&
+          building == other.building &&
+          category == other.category &&
+          recency == other.recency;
+
+  @override
+  int get hashCode => query.hashCode ^ filter.hashCode ^ building.hashCode ^ category.hashCode ^ recency.hashCode;
+}
+
+/// ISOLATE HARDWARE WORKER FUNCTION:
+/// Processes computationally-heavy string scoring and recursive tagging logic off the main thread.
+List<String> _executeBackgroundFilter(Map<String, dynamic> input) {
+  final List<dynamic> rawPosts = input['posts'] ?? [];
+  final Map<String, dynamic> config = input['config'] ?? {};
+  
+  final query = (config['query'] as String? ?? '').trim();
+  final filter = config['filter'] as String? ?? 'all';
+  final building = config['building'] as String?;
+  final category = config['category'] as String?;
+  final recency = config['recency'] as String?;
+
+  final now = DateTime.now();
+  final matchingIds = <String>[];
+
+  for (var p in rawPosts) {
+    try {
+      final String id = p['id']?.toString() ?? '';
+      final String type = p['type']?.toString() ?? 'lost';
+      final String status = p['status']?.toString() ?? 'open';
+      final String bName = (p['location_building'] ?? p['buildingName'] ?? '').toString();
+      final String title = p['title']?.toString() ?? '';
+      final String desc = p['description']?.toString() ?? '';
+      
+      dynamic rawTags = p['aiTags'] ?? [];
+      final List<String> tags = rawTags is List ? rawTags.map((t) => t.toString().toLowerCase()).toList() : [];
+
+      // 1. Tab Pre-Filtering
+      if (filter == 'lost') {
+        if (type != 'lost' || status == 'resolved') continue;
+      } else if (filter == 'found') {
+        if (type != 'found' || status == 'resolved') continue;
+      } else if (filter == 'resolved') {
+        if (status != 'resolved') continue;
+      }
+
+      // 2. Campus Building Filtering
+      if (building != null && bName.toLowerCase() != building.toLowerCase()) {
+        continue;
+      }
+
+      // 3. Category Semantic Filtering
+      if (category != null) {
+        final catLow = category.toLowerCase();
+        final tLow = title.toLowerCase();
+        final dLow = desc.toLowerCase();
+
+        bool match = false;
+        if (catLow == 'electronics') {
+          final kw = ['electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'calculator', 'watch', 'camera'];
+          match = kw.any((k) => tLow.contains(k) || dLow.contains(k) || tags.contains(k));
+        } else if (catLow == 'keys & cards') {
+          final kw = ['key', 'keys', 'card', 'id', 'student card', 'atm', 'license', 'badge', 'cnic'];
+          match = kw.any((k) => tLow.contains(k) || dLow.contains(k) || tags.contains(k));
+        } else if (catLow == 'bags & wallets') {
+          final kw = ['bag', 'wallet', 'purse', 'backpack', 'pouch', 'handbag', 'suede', 'pocketbook'];
+          match = kw.any((k) => tLow.contains(k) || dLow.contains(k) || tags.contains(k));
+        } else if (catLow == 'documents') {
+          final kw = ['document', 'paper', 'file', 'cnic', 'passport', 'booklet', 'degree', 'certificate'];
+          match = kw.any((k) => tLow.contains(k) || dLow.contains(k) || tags.contains(k));
+        } else if (catLow == 'books & stationery') {
+          final kw = ['book', 'stationery', 'pen', 'pencil', 'notebook', 'register', 'binder', 'calculator'];
+          match = kw.any((k) => tLow.contains(k) || dLow.contains(k) || tags.contains(k));
+        } else if (catLow == 'others') {
+          final kw = ['electronics', 'phone', 'laptop', 'charger', 'earbuds', 'device', 'cable', 'usb', 'key', 'keys', 'card', 'id', 'bag', 'wallet', 'document', 'book'];
+          match = !kw.any((k) => tLow.contains(k) || dLow.contains(k) || tags.contains(k));
+        }
+        if (!match) continue;
+      }
+
+      // 4. Date Recency
+      if (recency != null && p['timestamp'] != null) {
+        final tsStr = p['timestamp'].toString();
+        DateTime? tDate;
+        try { tDate = DateTime.tryParse(tsStr); } catch (_) {}
+        
+        if (tDate != null) {
+          final diffDays = now.difference(tDate).inDays;
+          if (recency == 'Today' && diffDays >= 1) continue;
+          if (recency == 'Last 3 Days' && diffDays >= 3) continue;
+          if (recency == 'This Week' && diffDays >= 7) continue;
+          if (recency == 'This Month' && diffDays >= 30) continue;
+        }
+      }
+
+      // 5. Tokenized Search Score (Computational Intensity)
+      if (query.isNotEmpty) {
+        final qLow = query.toLowerCase();
+        final tLow = title.toLowerCase();
+        final dLow = desc.toLowerCase();
+        final bLow = bName.toLowerCase();
+
+        if (tLow.contains(qLow) || dLow.contains(qLow) || bLow.contains(qLow)) {
+          matchingIds.add(id);
+          continue;
+        }
+
+        final words = qLow.split(' ').where((w) => w.length > 1).toList();
+        if (words.isEmpty) continue;
+
+        int score = 0;
+        for (var word in words) {
+          if (tLow.contains(word)) score += 2;
+          if (dLow.contains(word)) score += 1;
+          if (bLow.contains(word)) score += 1;
+          if (tags.any((tg) => tg.contains(word) || word.contains(tg))) score += 2;
+        }
+        
+        if (score >= 2) {
+          matchingIds.add(id);
+        }
+      } else {
+        // No search query, passes everything else
+        matchingIds.add(id);
+      }
+
+    } catch (_) {
+      // Skip corrupt post entries gracefully in background
+    }
+  }
+
+  return matchingIds;
+}
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return ApiService();
 });
 
-final liveRefreshProvider = StreamProvider<int>((ref) {
-  return Stream.periodic(const Duration(seconds: 30), (count) => count);
-});
+// PERF: Disabled 30s polling timer — was triggering 4 network requests + full rebuild
+// every 30s even when backgrounded. Use pull-to-refresh + future Realtime subscriptions.
+// final liveRefreshProvider = StreamProvider<int>((ref) {
+//   return Stream.periodic(const Duration(seconds: 30), (count) => count);
+// });
 
 // Optimistic local tracking for deleted/resolved posts to collapse grid instantly
 final removedPostIdsProvider = StateProvider<Set<String>>((ref) => {});
 
 final postsProvider = FutureProvider<List<SimplePostModel>>((ref) async {
   final removedIds = ref.watch(removedPostIdsProvider);
-  
-  // Watch the timer to trigger periodic refreshes
-  ref.watch(liveRefreshProvider);
   
   final api = ref.watch(apiServiceProvider);
   final data = await api.getPosts();
@@ -44,14 +199,170 @@ final postsProvider = FutureProvider<List<SimplePostModel>>((ref) async {
   return combined.where((post) => !removedIds.contains(post.id)).toList();
 });
 
+/// Reactive state manager for contextual comment feeds.
+final commentsProvider = FutureProvider.family.autoDispose<List<dynamic>, String>((ref, postId) async {
+  final api = ref.watch(apiServiceProvider);
+  return await api.getCommentsForPost(postId);
+});
+
+/// Struct tracking context for global Reply-to overlay mechanisms.
+class ActiveReply {
+  final String commentId;
+  final String userName;
+  ActiveReply({required this.commentId, required this.userName});
+}
+/// Real-time dispatcher tracking the actively engaged reply target globally.
+final activeReplyProvider = StateProvider.autoDispose<ActiveReply?>((ref) => null);
+
+
+/// High Performance Filtered Provider:
+/// Memoizes based on configurations, and routes algorithmic searches to Background Isolates.
+final filteredPostsProvider = FutureProvider.family<List<SimplePostModel>, FeedFilterConfig>((ref, config) async {
+  // Step 1: Grab the base feed data (auto-cached by postsProvider)
+  final postsAsync = ref.watch(postsProvider);
+  final posts = postsAsync.asData?.value ?? [];
+
+  if (posts.isEmpty) return [];
+
+  // Step 2: Extract minimum necessary attributes for zero-friction cross-isolate transmission.
+  // We ONLY serialize identification + searchable fields, avoiding photo URLs memory bloat.
+  final payload = posts.map((p) => {
+    'id': p.id,
+    'type': p.type,
+    'status': p.status,
+    'title': p.title,
+    'description': p.description,
+    'location_building': p.location.building,
+    'aiTags': p.aiTags,
+    'timestamp': p.timestamp.toIso8601String(),
+  }).toList();
+
+  final workerPayload = {
+    'posts': payload,
+    'config': {
+      'query': config.query,
+      'filter': config.filter,
+      'building': config.building,
+      'category': config.category,
+      'recency': config.recency,
+    }
+  };
+
+  // Step 3: Spawn hardware isolate worker for complex scoring without pausing UI renderer.
+  final List<String> matchedIds = await compute(_executeBackgroundFilter, workerPayload);
+
+  // Step 4: Map IDs back to original objects at O(N) speed.
+  final idSet = Set<String>.from(matchedIds);
+  return posts.where((p) => idSet.contains(p.id)).toList();
+});
+
+/// ========================================================
+/// PHASE 3: ENTERPRISE-GRADE PAGINATED FEED CONTROLLER
+/// ========================================================
+
+class PaginatedFeedState {
+  final List<SimplePostModel> posts;
+  final bool hasMore;
+  final bool isLoadingMore;
+
+  PaginatedFeedState({
+    required this.posts,
+    required this.hasMore,
+    this.isLoadingMore = false,
+  });
+
+  PaginatedFeedState copyWith({
+    List<SimplePostModel>? posts,
+    bool? hasMore,
+    bool? isLoadingMore,
+  }) {
+    return PaginatedFeedState(
+      posts: posts ?? this.posts,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    );
+  }
+}
+
+/// Smart notifier that orchestrates progressive chunk fetching from the backend.
+class PaginatedFeedNotifier extends AutoDisposeFamilyAsyncNotifier<PaginatedFeedState, FeedFilterConfig> {
+  static const int _pageSize = 15;
+
+  @override
+  Future<PaginatedFeedState> build(FeedFilterConfig arg) async {
+    // Fetch initial chunk instantly when widget mounts
+    final results = await _fetchChunk(offset: 0);
+    
+    // Sift in any local pending sync posts only for the very first initial page
+    List<SimplePostModel> initialList = results;
+    if (arg.query.isEmpty && arg.filter == 'all') {
+      try {
+         final pendingRaw = SyncManager.instance.getPendingPosts();
+         final pending = pendingRaw.map((p) => SimplePostModel.fromMap(p)).toList();
+         initialList = [...pending, ...results];
+      } catch (_) {}
+    }
+
+    return PaginatedFeedState(
+      posts: initialList,
+      hasMore: results.length >= _pageSize,
+    );
+  }
+
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (current == null || !current.hasMore || current.isLoadingMore) return;
+
+    // Update state to show loading bubble at bottom of list
+    state = AsyncData(current.copyWith(isLoadingMore: true));
+
+    try {
+      // Offset should be the count of ACTUAL fetched posts (excluding pending syncs)
+      final existingPostCount = current.posts.where((p) => !p.id.startsWith('pending_')).length;
+      final nextChunk = await _fetchChunk(offset: existingPostCount);
+      
+      // Deduplicate just in case items shifted order in real-time DB
+      final existingIds = current.posts.map((p) => p.id).toSet();
+      final uniqueNew = nextChunk.where((p) => !existingIds.contains(p.id)).toList();
+
+      state = AsyncData(PaginatedFeedState(
+        posts: [...current.posts, ...uniqueNew],
+        hasMore: nextChunk.length >= _pageSize,
+        isLoadingMore: false,
+      ));
+    } catch (e, stack) {
+      state = AsyncError(e, stack);
+    }
+  }
+
+  Future<List<SimplePostModel>> _fetchChunk({required int offset}) async {
+    final api = ref.read(apiServiceProvider);
+    
+    final response = await api.getPosts(
+      limit: _pageSize,
+      offset: offset,
+      type: arg.filter == 'lost' ? 'lost' : (arg.filter == 'found' ? 'found' : null),
+      status: arg.filter == 'resolved' ? 'resolved' : 'open', // Only resolved if selected, else active
+      building: arg.building,
+      category: arg.category,
+      search: arg.query.isNotEmpty ? arg.query : null,
+      recency: arg.recency,
+    );
+
+    return response.map((m) => SimplePostModel.fromMap(m)).toList();
+  }
+}
+
+final paginatedFeedProvider = AsyncNotifierProvider.family.autoDispose<PaginatedFeedNotifier, PaginatedFeedState, FeedFilterConfig>(() {
+  return PaginatedFeedNotifier();
+});
+
 final myClaimsProvider = FutureProvider<List<dynamic>>((ref) async {
-  ref.watch(liveRefreshProvider);
   final api = ref.watch(apiServiceProvider);
   return api.getMyClaims();
 });
 
 final notificationsProvider = FutureProvider<List<dynamic>>((ref) async {
-  ref.watch(liveRefreshProvider);
   final api = ref.watch(apiServiceProvider);
   final user = ref.watch(authServiceProvider).currentUser;
   if (user == null) return [];
@@ -67,7 +378,6 @@ final notificationsProvider = FutureProvider<List<dynamic>>((ref) async {
 });
 
 final unreadCountProvider = FutureProvider<int>((ref) async {
-  ref.watch(liveRefreshProvider);
   final api = ref.watch(apiServiceProvider);
   final user = ref.watch(authServiceProvider).currentUser;
   if (user == null) return 0;
@@ -81,9 +391,24 @@ class ApiService {
     receiveTimeout: const Duration(seconds: 10),
   ));
 
+  // Reusable client for direct Supabase side-loading with connection pooling
+  late final Dio _supabaseDio;
+
   Dio get dio => _dio;
 
   ApiService() {
+    final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xmtyxfsqhvywvszlinur.supabase.co';
+    final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+    _supabaseDio = Dio(BaseOptions(
+      baseUrl: '$supabaseUrl/rest/v1',
+      headers: {
+        'apikey': anonKey,
+        'Authorization': 'Bearer $anonKey',
+      },
+      connectTimeout: const Duration(seconds: 10),
+    ));
+
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
@@ -145,23 +470,13 @@ class ApiService {
   Future<List<dynamic>> getLeaderboard() async {
     try {
       // Direct fetch to Supabase bypasses Vercel deployment delays!
-      final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xmtyxfsqhvywvszlinur.supabase.co';
-      final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-      
-      final directDio = Dio();
-      final response = await directDio.get(
-        '$supabaseUrl/rest/v1/users',
+      final response = await _supabaseDio.get(
+        '/users',
         queryParameters: {
           'select': 'uid,name,email,karmaPoints,photoURL,itemsReturned',
           'order': 'karmaPoints.desc',
           'limit': '50',
         },
-        options: Options(
-          headers: {
-            'apikey': anonKey,
-            'Authorization': 'Bearer $anonKey',
-          },
-        ),
       );
       return response.data as List<dynamic>;
     } catch (e) {
@@ -191,6 +506,10 @@ class ApiService {
     String? status,
     int? limit,
     int? offset,
+    String? building,
+    String? category,
+    String? search,
+    String? recency,
   }) async {
     try {
       final response = await _dio.get('/posts', queryParameters: {
@@ -198,6 +517,10 @@ class ApiService {
         if (status != null) 'status': status,
         if (limit != null) 'limit': limit,
         if (offset != null) 'offset': offset,
+        if (building != null) 'building': building,
+        if (category != null) 'category': category,
+        if (search != null) 'search': search,
+        if (recency != null) 'recency': recency,
       });
       return response.data;
     } catch (e) {
@@ -304,17 +627,13 @@ class ApiService {
       if (distinctUids.isNotEmpty) {
         try {
           // Direct Supabase Batch Fetch in ONE CALL
-          final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xmtyxfsqhvywvszlinur.supabase.co';
-          final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-          
-          final directDio = Dio();
-          final batchResp = await directDio.get(
-            '$supabaseUrl/rest/v1/users',
+          // Direct Supabase Batch Fetch via reusable pooled client
+          final batchResp = await _supabaseDio.get(
+            '/users',
             queryParameters: {
               'uid': 'in.(${distinctUids.join(',')})',
               'select': 'uid,name,photoURL',
             },
-            options: Options(headers: { 'apikey': anonKey, 'Authorization': 'Bearer $anonKey' }),
           );
 
           final List<dynamic> profiles = batchResp.data;
@@ -360,17 +679,11 @@ class ApiService {
   Future<bool> deleteChat(String chatId) async {
     try {
       // Direct Supabase bypass for immediate real-time destructive sync
-      final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xmtyxfsqhvywvszlinur.supabase.co';
-      final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-      
-      final directDio = Dio();
-      await directDio.delete(
-        '$supabaseUrl/rest/v1/chats',
+      await _supabaseDio.delete(
+        '/chats',
         queryParameters: { 'id': 'eq.$chatId' },
         options: Options(
           headers: {
-            'apikey': anonKey,
-            'Authorization': 'Bearer $anonKey',
             'Prefer': 'return=minimal'
           },
         ),

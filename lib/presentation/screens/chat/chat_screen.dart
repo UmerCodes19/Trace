@@ -604,6 +604,7 @@ class _ChatImage extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: url,
         width: 220,
+        memCacheWidth: 400,
         fit: BoxFit.cover,
         placeholder: (_, __) => Container(
           width: 220,

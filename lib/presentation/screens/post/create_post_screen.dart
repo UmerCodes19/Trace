@@ -90,7 +90,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _secretQuestionCtrl = TextEditingController();
   final _manualTagCtrl = TextEditingController();
 
-  int _floor = 0;
+  int _floor = 1;
 
   double? _indoorX;
 
@@ -221,16 +221,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   Future<void> _checkCreateTour() async {
     if (!mounted) return;
-    final state = ref.read(activeTourStateProvider);
-    if (state != ActiveTourState.create) return;
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    if (notifier.state != ActiveTourState.create) return;
+    notifier.state = ActiveTourState.none; // Consume token immediately
 
     // Wait for screen stability
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) _launchCreateTour();
   }
 
-  void _launchCreateTour() {
+  Future<void> _launchCreateTour() async {
     final service = ref.read(tutorialServiceProvider);
+    if (await service.isFeatureTourCompleted('create_tour')) return;
     final targets = <TargetFocus>[
       AppGuideOrchestrator.buildTarget(
         key: TutorialKeys.createPostPhotosKey,
@@ -1037,7 +1039,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
                   if (result.room != null) {
 
-                    _roomCtrl.text = result.room!;
+                    final rawRoom = result.room!;
+                    final RegExp digits = RegExp(r'\d{3,}');
+                    final match = digits.firstMatch(rawRoom);
+                    _roomCtrl.text = match != null ? match.group(0)! : rawRoom;
+                    _floor = 1; // Ensure floor is reset to default upon prediction update
 
                   }
 

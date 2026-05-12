@@ -120,7 +120,7 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(user['name'] ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text(cleanCMSUsername(user['name'] ?? 'User'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                               Text('Match: $score pts', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: index == 0 ? Colors.green : Colors.grey)),
                             ],
                           ),
@@ -262,7 +262,14 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                                         children: [
                                           Row(
                                             children: [
-                                              Text(user['name'] ?? 'Unknown User', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                              Flexible(
+                                                child: Text(
+                                                  cleanCMSUsername(user['name'] ?? 'Unknown User'), 
+                                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
                                               if (isBestMatch) ...[
                                                 const SizedBox(width: 8),
                                                 Container(
@@ -358,7 +365,7 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                                         context.push('/handover/qr', extra: {
                                           'claimId': claim['id'],
                                           'itemTitle': widget.postTitle,
-                                          'claimerName': user['name'] ?? 'User',
+                                          'claimerName': cleanCMSUsername(user['name'] ?? 'User'),
                                         });
                                       },
                                       icon: const Icon(Icons.qr_code_rounded, size: 18),

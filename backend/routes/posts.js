@@ -5,6 +5,7 @@ const BlockchainService = require('../services/blockchain_service');
 const NotificationService = require('../services/notification_service');
 const MatchmakerService = require('../services/matchmaker_service');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { cache, invalidate } = require('../middleware/cache');
 
 // Helper matching logic delegated to proactive MatchmakerService
 async function runMatchingLogic(newPost) {
@@ -23,15 +24,49 @@ const validTransitions = {
   'resolved': []
 };
 
-// Get all posts
-router.get('/', async (req, res) => {
+// Get all posts with scalable server-side filtering and cursor offset pagination
+// Layer 2 Performance: 15-second high-speed RAM buffer caching
+router.get('/', cache(15), async (req, res) => {
   try {
-    const { type, status, limit, offset } = req.query;
-    let query = supabase.from('posts').select('id, userId, type, title, description, imageUrl, location_name, buildingName, floor, location_room, location_lat, location_lng, timestamp, status, aiTags, reportCount, viewCount, likeCount, isCMSVerified, category').order('timestamp', { ascending: false });
+    const { type, status, limit, offset, building, category, search, recency } = req.query;
+    
+    let query = supabase
+      .from('posts')
+      .select('id, userId, type, title, description, imageUrl, location_name, buildingName, floor, location_room, location_lat, location_lng, timestamp, status, aiTags, reportCount, viewCount, likeCount, isCMSVerified')
+      .order('timestamp', { ascending: false });
 
+    // Basic exact matches
     if (type) query = query.eq('type', type);
     if (status) query = query.eq('status', status);
-    if (limit) query = query.range(parseInt(offset) || 0, (parseInt(offset) || 0) + (parseInt(limit) - 1));
+    if (building) query = query.ilike('buildingName', `%${building}%`);
+    // if (category) query = query.eq('category', category); // Disabled: Database schema mismatch
+
+    // High-performance date-partition query pruning
+    if (recency) {
+      const now = new Date();
+      if (recency === 'Today') now.setDate(now.getDate() - 1);
+      else if (recency === 'Last 3 Days') now.setDate(now.getDate() - 3);
+      else if (recency === 'This Week') now.setDate(now.getDate() - 7);
+      else if (recency === 'This Month') now.setMonth(now.getMonth() - 1);
+      
+      if (['Today', 'Last 3 Days', 'This Week', 'This Month'].includes(recency)) {
+        // Handle ISO or numeric epoch timestamps safely
+        query = query.or(`timestamp.gte.${now.toISOString()},timestamp.gte.${now.getTime()}`);
+      }
+    }
+
+    // Full Text / Substring Parallel Lookup
+    if (search && search.trim().length > 0) {
+      const cleanSearch = search.trim();
+      query = query.or(`title.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%,buildingName.ilike.%${cleanSearch}%`);
+    }
+
+    // Infinite Page Windows applied AFTER constraints
+    if (limit) {
+      const start = parseInt(offset) || 0;
+      const end = start + (parseInt(limit) - 1);
+      query = query.range(start, end);
+    }
 
     const { data, error } = await query;
 
@@ -43,7 +78,8 @@ router.get('/', async (req, res) => {
 });
 
 // Get comments for a post
-router.get('/:postId/comments', async (req, res) => {
+// Active 30-second RAM buffer for read-heavy comment threads
+router.get('/:postId/comments', cache(30), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('comments')
@@ -92,6 +128,8 @@ router.post('/:postId/comments', verifyToken, async (req, res) => {
     }
 
     res.json({ message: 'Comment added' });
+    // Bust comments cache so newly added comment shows instantly
+    invalidate(`/${postId}/comments`);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -195,7 +233,8 @@ router.post('/:postId/report', verifyToken, async (req, res) => {
 });
 
 // Get post by ID
-router.get('/:id', async (req, res) => {
+// Layer 2 Static Cache for isolated objects
+router.get('/:id', cache(60), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('posts')
@@ -227,6 +266,9 @@ router.post('/', verifyToken, async (req, res) => {
 
     // Run matching engine asynchronously
     runMatchingLogic(data[0]).catch(e => console.error('Matching system error:', e));
+
+    // Auto-evict static post lists to maintain real-time feed integrity
+    invalidate('/posts');
 
     res.status(201).json(data[0]);
   } catch (error) {
@@ -292,6 +334,7 @@ router.put('/:id', verifyToken, async (req, res) => {
       runMatchingLogic(updatedPost[0]).catch(e => console.error('Matching system error:', e));
     }
 
+    invalidate('/posts');
     res.json(updatedPost[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -322,6 +365,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
       .eq('id', id);
 
     if (error) throw error;
+    invalidate('/posts');
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

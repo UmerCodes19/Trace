@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/constants/app_colors.dart';
@@ -20,42 +22,13 @@ class CommentsSection extends ConsumerStatefulWidget {
 
 class _CommentsSectionState extends ConsumerState<CommentsSection> {
   final _commentController = TextEditingController();
-  List<CommentModel> _comments = [];
-  Timer? _pollingTimer;
-  bool _isLoading = true;
   String? _replyToId;
   String? _replyToName;
 
   @override
-  void initState() {
-    super.initState();
-    _loadComments();
-    _startPolling();
-  }
-
-  void _startPolling() {
-    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (mounted) _loadComments(isPolling: true);
-    });
-  }
-
-  @override
   void dispose() {
-    _pollingTimer?.cancel();
     _commentController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadComments({bool isPolling = false}) async {
-    final api = ref.read(apiServiceProvider);
-    final results = await api.getCommentsForPost(widget.postId);
-    if (mounted) {
-      if (isPolling && results.length == _comments.length) return;
-      setState(() {
-        _comments = results.map((m) => CommentModel.fromMap(m)).toList();
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _submitComment() async {
@@ -75,64 +48,70 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
       timestamp: DateTime.now(),
     );
 
-    final oldComments = List<CommentModel>.from(_comments);
+    _commentController.clear();
+    AppHaptics.success();
+    
     setState(() {
-      _comments = [comment, ..._comments]; // Prepend new comments for better UX
       _replyToId = null;
       _replyToName = null;
     });
-    _commentController.clear();
-    AppHaptics.success();
 
     try {
       await api.addComment(comment.toMap());
+      // Force Riverpod cache invalidation to trigger refresh on ALL widgets watching this post's comments instantly!
+      ref.invalidate(commentsProvider(widget.postId));
     } catch (e) {
-      setState(() {
-        _comments = oldComments;
-      });
       if (mounted) showAppSnack(context, 'Failed to post comment', isError: true);
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Padding(
+    final commentsAsync = ref.watch(commentsProvider(widget.postId));
+
+    return commentsAsync.when(
+      loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(child: CircularProgressIndicator()),
-      );
-    }
+      ),
+      error: (err, stack) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(child: Text('Failed to load comments: $err')),
+      ),
+      data: (rawList) {
+        final comments = rawList.map((m) => CommentModel.fromMap(m)).toList();
+        final parentComments = comments.where((c) => c.parentId == null).toList();
 
-    // Organize comments into parent-child structure
-    final parentComments = _comments.where((c) => c.parentId == null).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Comments (${_comments.length})',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary(context),
-                ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Comments (${comments.length})',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 12),
+            
+            // DOCKED COMMENT SYSTEM ACTIVE: 
+            // We moved this input to the Scaffold Persistent Bottom Navigation Bar 
+            // to remove redundancy and fulfill user request for immediate interaction.
+            const SizedBox(height: 4), 
 
-        // Add a comment directly at the TOP for quick access
-        _buildInputArea(),
+            
+            if (comments.isEmpty)
 
-        const SizedBox(height: 16),
-
-        if (_comments.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 36.0),
@@ -147,31 +126,32 @@ class _CommentsSectionState extends ConsumerState<CommentsSection> {
               ),
             ),
           )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: parentComments.length,
-            itemBuilder: (context, index) {
-              final parent = parentComments[index];
-              final replies = _comments.where((c) => c.parentId == parent.id).toList();
-              
-              return _CommentTile(
-                comment: parent,
-                replies: replies,
-                onReply: (id, name) {
-                  setState(() {
-                    _replyToId = id;
-                    _replyToName = name;
-                  });
-                  FocusScope.of(context).requestFocus(FocusNode()); // Focus if needed
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: parentComments.length,
+                itemBuilder: (context, index) {
+                  final parent = parentComments[index];
+                  final replies = comments.where((c) => c.parentId == parent.id).toList();
+                  
+                  return _CommentTile(
+                    comment: parent,
+                    replies: replies,
+                    onReply: (id, name) {
+                      ref.read(activeReplyProvider.notifier).state = ActiveReply(commentId: id, userName: name);
+                      HapticFeedback.lightImpact();
+                    },
+
+                  );
                 },
-              );
-            },
-          ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
+
 
   Widget _buildInputArea() {
     return Container(
@@ -272,14 +252,28 @@ class _CommentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return Dismissible(
+      key: Key('comment_${comment.id}'),
+      direction: DismissDirection.startToEnd,
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        color: AppColors.jadePrimary.withOpacity(0.1),
+        child: Icon(Icons.reply_rounded, color: AppColors.jadePrimary, size: 22),
+      ),
+      confirmDismiss: (direction) async {
+        onReply(comment.id, comment.userName);
+        return false; // Do not remove tile!
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
               UserAvatar(
                 photoURL: comment.userAvatarUrl,
                 radius: 16,
@@ -293,7 +287,7 @@ class _CommentTile extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            comment.userName,
+                            cleanCMSUsername(comment.userName),
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -360,7 +354,7 @@ class _CommentTile extends StatelessWidget {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    reply.userName,
+                                    cleanCMSUsername(reply.userName),
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
@@ -398,6 +392,8 @@ class _CommentTile extends StatelessWidget {
             ),
         ],
       ),
+    ),
     );
   }
 }
+

@@ -50,8 +50,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
   Future<void> _checkInboxTour() async {
     if (!mounted) return;
-    final state = ref.read(activeTourStateProvider);
-    if (state != ActiveTourState.inbox) return;
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    if (notifier.state != ActiveTourState.inbox) return;
+    notifier.state = ActiveTourState.none; // Consume immediately
 
     // Patiently poll until dynamic chat stream buffers successfully
     int retryCount = 0;
@@ -66,8 +67,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     }
   }
 
-  void _launchInboxTour() {
+  Future<void> _launchInboxTour() async {
     final service = ref.read(tutorialServiceProvider);
+    if (await service.isFeatureTourCompleted('inbox_tour')) return;
+
     final targets = <TargetFocus>[
       AppGuideOrchestrator.buildTarget(
         key: TutorialKeys.inboxListKey,
@@ -75,7 +78,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         description: 'Talk with other students to claim items.',
         stepLabel: 'Inbox',
         align: ContentAlign.bottom,
-        radius: 8,
+        radius: 24,
       ),
     ];
 
@@ -183,9 +186,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
               titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: Container(
-                key: TutorialKeys.inboxListKey,
-                child: Text(
+              title: Text(
                   'Inbox',
                   style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w900,
@@ -194,8 +195,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     color: AppColors.textPrimary(context),
                   ),
                 ),
-              ),
-              background: Stack(
+              background: Container(
+                key: TutorialKeys.inboxListKey,
+                child: Stack(
                 children: [
                   Positioned.fill(
                     child: Container(
@@ -221,6 +223,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 ],
               ),
             ),
+          ),
             actions: [
               if (totalUnread > 0)
                 Center(

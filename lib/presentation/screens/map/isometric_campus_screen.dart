@@ -22,6 +22,7 @@ class _IsometricCampusScreenState extends ConsumerState<IsometricCampusScreen> {
   final List<Map<String, dynamic>> _pins = [];
   bool _engineReady = false;
   List<CampusRoom>? _activeNavigationPath;
+  List<FloorData> _cachedFloors = [];
 
   @override
   void initState() {
@@ -32,7 +33,9 @@ class _IsometricCampusScreenState extends ConsumerState<IsometricCampusScreen> {
   Future<void> _initEngine() async {
     await MapEngineService.instance.initialize();
     if (mounted) {
+      final data = _getBuildingFloors(); // Compute only ONCE
       setState(() {
+        _cachedFloors = data;
         _engineReady = true;
       });
     }
@@ -106,7 +109,7 @@ class _IsometricCampusScreenState extends ConsumerState<IsometricCampusScreen> {
 
   void _handleCanvasTap(Offset localPos, Size canvasSize) {
     final center = Offset(canvasSize.width / 2, canvasSize.height * 0.7);
-    final floors = _getBuildingFloors();
+    final floors = _cachedFloors;
     if (floors.isEmpty) return;
 
     final floor = floors[_currentFloor];
@@ -155,7 +158,7 @@ class _IsometricCampusScreenState extends ConsumerState<IsometricCampusScreen> {
       );
     }
 
-    final floors = _getBuildingFloors();
+    final floors = _cachedFloors;
     final floor = floors[_currentFloor];
 
     return Scaffold(
@@ -284,11 +287,12 @@ class _IsometricCampusScreenState extends ConsumerState<IsometricCampusScreen> {
               child: _RoomInfoCard(
                 room: floors[_currentFloor].rooms.firstWhere((r) => r.id == _selectedRoomId),
                 onClose: () => setState(() => _selectedRoomId = null),
-                onNavigate: () {
+                onNavigate: () async {
                   final destId = _selectedRoomId;
                   if (destId != null) {
                     final startId = _currentFloor == 1 ? "liaquat_1_201" : "liaquat_${_currentFloor}_201";
-                    final path = MapEngineService.instance.calculateAStarPath(startId, destId);
+                    final path = await MapEngineService.instance.calculateAStarPath(startId, destId);
+                    if (!mounted) return;
                     setState(() {
                       _activeNavigationPath = path;
                       _selectedRoomId = null; // Close card when navigating
@@ -543,7 +547,12 @@ class IsometricCampusPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant IsometricCampusPainter oldDelegate) => true;
+  bool shouldRepaint(covariant IsometricCampusPainter oldDelegate) {
+    return oldDelegate.currentFloor != currentFloor ||
+           oldDelegate.selectedRoomId != selectedRoomId ||
+           oldDelegate.pins.length != pins.length ||
+           oldDelegate.activePath?.length != activePath?.length;
+  }
 
   @override
   bool? hitTest(Offset position) => true;

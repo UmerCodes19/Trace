@@ -43,7 +43,7 @@ class AppGuideOrchestrator {
     return TargetFocus(
       identify: key.toString(),
       keyTarget: key,
-      alignSkip: Alignment.topRight,
+      alignSkip: Alignment.bottomRight,
       shape: shape,
       radius: radius,
       contents: [

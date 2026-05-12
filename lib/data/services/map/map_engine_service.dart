@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/map/campus_gis_models.dart';
 
@@ -229,108 +230,115 @@ class MapEngineService {
     return null;
   }
 
-  /// Calculates turn-by-turn routing using A* Search Algorithm
-  List<CampusRoom> calculateAStarPath(String startRoomId, String endRoomId) {
-    debugPrint('A* SOLVER: Starting search from "$startRoomId" to "$endRoomId"');
-    final startRoom = getRoomById(startRoomId);
-    final endRoom = getRoomById(endRoomId);
-    if (startRoom == null) {
-      debugPrint('A* SOLVER ERROR: Start room "$startRoomId" not found in memory!');
-      return [];
-    }
-    if (endRoom == null) {
-      debugPrint('A* SOLVER ERROR: End room "$endRoomId" not found in memory!');
-      return [];
+  /// PREFER ASYNC: Calculates turn-by-turn routing using A* Search on a Background Isolate.
+  /// This prevents any Main Thread frametime drops during graph search execution.
+  Future<List<CampusRoom>> calculateAStarPath(String startRoomId, String endRoomId) async {
+    debugPrint('⚡ PATHFINDING: Offloading search from "$startRoomId" to "$endRoomId" via compute() isolate.');
+    
+    // Pre-calculate simplified node map for thread-safe isolate messaging
+    final Map<String, Map<String, dynamic>> nodeGraph = {};
+    for (var entry in _extrapolatedFloors.entries) {
+      for (var room in entry.value) {
+        final center = getRoomCenter(room);
+        nodeGraph[room.id] = {
+          'connected': room.connectedRooms,
+          'floor': room.floor,
+          'cx': center.dx,
+          'cy': center.dy,
+        };
+      }
     }
 
-    final List<_AStarNode> openSet = [];
+    final List<String> pathIds = await compute(_runPathfindingIsolate, {
+      'startId': startRoomId,
+      'endId': endRoomId,
+      'graph': nodeGraph,
+    });
+
+    return pathIds.map((id) => getRoomById(id)).whereType<CampusRoom>().toList();
+  }
+
+  /// Core mathematical logic running isolated on background core.
+  /// Accepts ONLY primitive dart serializable Maps/Lists, zero dart:ui dependency!
+  static List<String> _runPathfindingIsolate(Map<String, dynamic> args) {
+    final String startId = args['startId'];
+    final String endId = args['endId'];
+    final Map<String, dynamic> graph = args['graph'];
+
+    if (!graph.containsKey(startId) || !graph.containsKey(endId)) return [];
+
+    final startNodeRaw = graph[startId] as Map<String, dynamic>;
+    final endNodeRaw = graph[endId] as Map<String, dynamic>;
+
+    final List<_AStarNodeData> openSet = [];
     final Set<String> closedSet = {};
 
-    openSet.add(_AStarNode(
-      room: startRoom,
+    openSet.add(_AStarNodeData(
+      id: startId,
       gCost: 0,
-      hCost: _calculateHeuristic(startRoom, endRoom),
+      hCost: _calculateHeuristicRaw(startNodeRaw, endNodeRaw),
     ));
 
-    int iterations = 0;
+    int limit = 0;
     while (openSet.isNotEmpty) {
-      iterations++;
-      if (iterations > 200) {
-        debugPrint('A* SOLVER WARNING: Pathfinding exceeded 200 iterations, aborting.');
-        break;
-      }
+      limit++;
+      if (limit > 300) break; // circuit breaker
 
-      openSet.sort((a, b) => a.fCost.compareTo(b.fCost));
+      openSet.sort((a, b) => (a.gCost + a.hCost).compareTo(b.gCost + b.hCost));
       final current = openSet.removeAt(0);
 
-      debugPrint('A* SOLVER STEP $iterations: Evaluating current room "${current.room.id}" (F-cost: ${current.fCost})');
-
-      if (current.room.id == endRoom.id) {
-        final List<CampusRoom> path = [];
-        _AStarNode? temp = current;
+      if (current.id == endId) {
+        final List<String> path = [];
+        _AStarNodeData? temp = current;
         while (temp != null) {
-          path.insert(0, temp.room);
+          path.insert(0, temp.id);
           temp = temp.parent;
         }
-        debugPrint('A* SOLVER SUCCESS: Path found with ${path.length} nodes: ${path.map((r) => r.roomNumber).toList()}');
         return path;
       }
 
-      closedSet.add(current.room.id);
+      closedSet.add(current.id);
 
-      for (final neighborId in current.room.connectedRooms) {
-        if (closedSet.contains(neighborId)) continue;
+      final currentNodeData = graph[current.id] as Map<String, dynamic>;
+      final neighbors = (currentNodeData['connected'] as List? ?? []).cast<String>();
 
-        final neighborRoom = getRoomById(neighborId);
-        if (neighborRoom == null) {
-          debugPrint('A* SOLVER NEIGHBOR WARNING: Connection "$neighborId" defined in "${current.room.id}" was not found in database!');
-          continue;
-        }
+      for (final neighborId in neighbors) {
+        if (closedSet.contains(neighborId) || !graph.containsKey(neighborId)) continue;
 
-        final transitionCost = _calculateHeuristic(current.room, neighborRoom);
-        final tentativeGCost = current.gCost + transitionCost;
+        final neighborData = graph[neighborId] as Map<String, dynamic>;
+        final dist = _calculateHeuristicRaw(currentNodeData, neighborData);
+        final tentativeG = current.gCost + dist;
 
-        final existingIndex = openSet.indexWhere((node) => node.room.id == neighborRoom.id);
+        final existingIndex = openSet.indexWhere((n) => n.id == neighborId);
         if (existingIndex != -1) {
-          if (tentativeGCost >= openSet[existingIndex].gCost) continue;
+          if (tentativeG >= openSet[existingIndex].gCost) continue;
           openSet.removeAt(existingIndex);
         }
 
-        openSet.add(_AStarNode(
-          room: neighborRoom,
+        openSet.add(_AStarNodeData(
+          id: neighborId,
           parent: current,
-          gCost: tentativeGCost,
-          hCost: _calculateHeuristic(neighborRoom, endRoom),
+          gCost: tentativeG,
+          hCost: _calculateHeuristicRaw(neighborData, endNodeRaw),
         ));
       }
     }
-
-    debugPrint('A* SOLVER FAILURE: No path exists between "$startRoomId" and "$endRoomId" (OpenSet was empty)');
     return [];
   }
 
-  double _calculateHeuristic(CampusRoom a, CampusRoom b) {
-    final cA = getRoomCenter(a);
-    final cB = getRoomCenter(b);
-    final dx = cA.dx - cB.dx;
-    final dy = cA.dy - cB.dy;
-    final floorDiff = (a.floor - b.floor).abs();
+  static double _calculateHeuristicRaw(Map<String, dynamic> nodeA, Map<String, dynamic> nodeB) {
+    final double dx = (nodeA['cx'] as double) - (nodeB['cx'] as double);
+    final double dy = (nodeA['cy'] as double) - (nodeB['cy'] as double);
+    final int floorDiff = ((nodeA['floor'] as int) - (nodeB['floor'] as int)).abs();
     return (dx * dx + dy * dy) + (floorDiff * 100.0);
   }
 }
 
-class _AStarNode {
-  final CampusRoom room;
-  final _AStarNode? parent;
+class _AStarNodeData {
+  final String id;
+  final _AStarNodeData? parent;
   final double gCost;
   final double hCost;
-  double get fCost => gCost + hCost;
-
-  _AStarNode({
-    required this.room,
-    this.parent,
-    required this.gCost,
-    required this.hCost,
-  });
+  _AStarNodeData({required this.id, this.parent, required this.gCost, required this.hCost});
 }
 

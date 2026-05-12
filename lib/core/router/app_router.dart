@@ -242,7 +242,7 @@ CustomTransitionPage _fadePage(Widget child, GoRouterState state) {
         child: child,
       );
     },
-    transitionDuration: const Duration(milliseconds: 600),
+    transitionDuration: const Duration(milliseconds: 300),
   );
 }
 
@@ -256,6 +256,6 @@ CustomTransitionPage _tabFadePage(Widget child, GoRouterState state) {
         child: child,
       );
     },
-    transitionDuration: const Duration(milliseconds: 150),
+    transitionDuration: const Duration(milliseconds: 120),
   );
 }

@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { createClient } from "@supabase/supabase-js";
-import { User, Shield, MapPin, GraduationCap, Calendar, Mail, Phone, ChevronLeft, Moon, Sun } from "lucide-react";
+import { User, Shield, MapPin, GraduationCap, Calendar, Mail, Phone, ChevronLeft, Hash, Activity } from "lucide-react";
 import Link from "next/link";
 
-// Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -16,45 +15,22 @@ export default function ProfilePage() {
   const { uid } = useParams();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
-    // Initial theme setup from system or localStorage
-    const savedTheme = localStorage.getItem("trace-theme") as "light" | "dark";
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    const initialTheme = savedTheme || systemTheme;
-    setTheme(initialTheme);
-    document.documentElement.setAttribute("data-theme", initialTheme);
-
     async function fetchUser() {
       if (!uid) return;
-      
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("uid", uid)
-        .single();
-
-      if (data) {
-        setUser(data);
-      }
+      const { data, error } = await supabase.from("users").select("*").eq("uid", uid).single();
+      if (data) setUser(data);
       setLoading(false);
     }
-
     fetchUser();
   }, [uid]);
 
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    document.documentElement.setAttribute("data-theme", newTheme);
-    localStorage.setItem("trace-theme", newTheme);
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-foreground/20 border-t-foreground rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center gap-4">
+        <Activity className="w-8 h-8 text-jade-primary animate-pulse" />
+        <span className="text-xs font-bold text-sage-secondary uppercase tracking-widest">Loading Profile...</span>
       </div>
     );
   }
@@ -62,19 +38,18 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
-          <User className="w-10 h-10 text-red-500" />
+        <div className="w-16 h-16 bg-[var(--card-bg)] border border-red-500/20 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
+          <Shield className="w-6 h-6 text-red-500" />
         </div>
-        <h1 className="text-2xl font-black mb-2 uppercase tracking-tighter text-[var(--foreground)]">Profile Not Found</h1>
-        <p className="text-foreground/40 mb-8 max-w-xs font-bold uppercase tracking-widest text-xs">Verification failed. ID record missing.</p>
-        <Link href="/" className="px-8 py-4 bg-foreground text-background rounded-2xl hover:opacity-90 transition-opacity font-bold text-xs uppercase tracking-widest">
-          Return to Portal
+        <h1 className="text-2xl font-black mb-2 uppercase tracking-tight text-[var(--foreground)]">Not Found</h1>
+        <p className="text-sage-secondary mb-8 max-w-xs text-xs font-bold uppercase tracking-wider">This user could not be found.</p>
+        <Link href="/" className="px-8 py-3 bg-jade-primary text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-md hover:bg-jade-deep transition-all">
+          Go Back
         </Link>
       </div>
     );
   }
 
-  // Parse privacy settings (assume they exist in user object)
   const privacy = user.privacy_settings || {
     showFatherName: true,
     showContactNumber: true,
@@ -84,121 +59,120 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] selection:bg-foreground/10 transition-colors duration-500">
-      {/* Background Accents */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-50">
-        <div className="absolute -top-[20%] -right-[10%] w-[70vw] h-[70vw] bg-foreground/5 blur-[120px] rounded-full"></div>
-        <div className="absolute -bottom-[20%] -left-[10%] w-[60vw] h-[60vw] bg-foreground/5 blur-[120px] rounded-full"></div>
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] transition-colors selection:bg-jade-primary/30 font-sans overflow-x-hidden pt-12">
+      
+      {/* Dynamic Background Glow */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-30">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80vw] h-[40vh] bg-jade-primary/10 blur-[120px] rounded-full" />
       </div>
 
-      <main className="relative z-10 max-w-2xl mx-auto px-6 pt-24 pb-20">
-        {/* Header Navigation */}
+      <main className="relative z-10 max-w-xl mx-auto px-6 pt-20 pb-20">
+        
+        {/* Branded Navigation */}
         <div className="flex items-center justify-between mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 text-foreground/40 hover:text-foreground transition-colors group">
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-xs font-bold uppercase tracking-widest">Back</span>
+          <Link href="/" className="flex items-center gap-2 text-jade-primary font-bold text-xs uppercase tracking-wider hover:opacity-70 transition-opacity">
+            <ChevronLeft className="w-4 h-4" /> Back to Home
           </Link>
-          <button 
-            onClick={toggleTheme}
-            className="p-3 bg-foreground/5 rounded-2xl text-foreground hover:bg-foreground/10 transition-all"
-          >
-            {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center gap-2 px-4 py-2 border border-[var(--border-color)] bg-[var(--card-bg)] rounded-xl font-bold text-[10px] text-sage-secondary uppercase tracking-widest shadow-sm">
+             <div className="w-2 h-2 bg-jade-primary rounded-full animate-pulse" />
+             User Profile
+          </div>
         </div>
 
-        {/* Profile Card */}
+        {/* Core Digital ID Frame */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[var(--card-bg)] backdrop-blur-2xl border border-[var(--border-color)] rounded-[40px] p-8 md:p-12 relative overflow-hidden shadow-2xl shadow-black/5"
+          className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-8 md:p-10 relative shadow-xl shadow-black/5"
         >
-          {/* Verified Badge */}
-          <div className="absolute top-8 right-8 px-5 py-2 bg-foreground text-background rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-black/10">
-            <Shield className="w-3.5 h-3.5 fill-current" />
-            Verified
+          {/* Absolute Verified Badge */}
+          <div className="absolute top-8 right-8">
+             <div className="px-3 py-1.5 bg-jade-primary/10 border border-jade-primary/20 text-jade-primary text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 rounded-full">
+               <Shield className="w-3.5 h-3.5" />
+               Verified
+             </div>
           </div>
 
-          {/* Profile Header */}
-          <div className="flex flex-col items-center text-center mb-10">
-            <div className="relative mb-8">
-              <img 
-                src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=000&color=fff`} 
-                alt={user.name}
-                className="w-36 h-36 rounded-[48px] object-cover border-4 border-foreground/5 shadow-2xl"
-              />
-              <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-foreground border-4 border-[var(--card-bg)] rounded-2xl flex items-center justify-center shadow-lg">
-                <Shield className="w-5 h-5 text-background" />
-              </div>
+          {/* Profile Details */}
+          <div className="flex flex-col items-center text-center mb-10 pt-4">
+            <div className="relative mb-6">
+               <div className="w-28 h-28 bg-[var(--background)] border-2 border-[var(--border-color)] p-1 rounded-full overflow-hidden shadow-sm">
+                  <img 
+                    src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=00796B&color=ffffff`} 
+                    alt={user.name}
+                    className="w-full h-full object-cover rounded-full"
+                  />
+               </div>
             </div>
             
-            <h1 className="text-4xl font-black tracking-tighter mb-2 text-[var(--foreground)] uppercase">
+            <h1 className="text-3xl font-black tracking-tight mb-2 text-[var(--foreground)] capitalize leading-tight">
               {user.name}
             </h1>
-            <p className="text-foreground/60 font-bold tracking-[0.2em] uppercase text-xs">
-              {(privacy.showRegistrationNo ? (user.cmsStudentId || user.registrationNo) : null) || "Student Identity"}
-            </p>
+            <div className="flex items-center gap-2 text-xs text-sage-secondary font-bold uppercase tracking-wider">
+              <Hash className="w-3.5 h-3.5 text-jade-primary" />
+              {(privacy.showRegistrationNo ? (user.cmsStudentId || user.registrationNo) : null) || "No ID Linked"}
+            </div>
           </div>
 
-          <div className="h-px bg-foreground/5 w-full mb-10"></div>
+          <div className="h-px bg-[var(--border-color)] w-full mb-10" />
 
-          {/* Info Sections */}
-          <div className="grid gap-10">
-            <InfoSection label="Campus Identity">
-              {privacy.showFatherName && <InfoItem icon={User} label="Father Name" value={user.fatherName || "—"} />}
-              {privacy.showDepartment && <InfoItem icon={GraduationCap} label="Department" value={user.department || "Computing"} />}
-              <InfoItem icon={Calendar} label="Intake Semester" value={user.intakeSemester || "Fall 2022"} />
-            </InfoSection>
+          {/* Details Section */}
+          <div className="space-y-10">
+            <DataCluster label="Campus Information">
+              {privacy.showFatherName && <DataItem icon={User} label="Father Name" value={user.fatherName || "Not Provided"} />}
+              {privacy.showDepartment && <DataItem icon={GraduationCap} label="Department" value={user.department || "General"} />}
+              <DataItem icon={Calendar} label="Enrollment" value={user.intakeSemester || "Student"} />
+            </DataCluster>
 
-            <InfoSection label="Secure Contact">
-              <InfoItem icon={Mail} label="University Email" value={user.email} />
-              {privacy.showContactNumber && <InfoItem icon={Phone} label="Mobile Number" value={user.contactNumber || "—"} />}
-              {privacy.showAddress && <InfoItem icon={MapPin} label="Current Address" value={user.currentAddress || "Islamabad, Pakistan"} />}
-            </InfoSection>
+            <DataCluster label="Contact Info">
+              <DataItem icon={Mail} label="Email" value={user.email} />
+              {privacy.showContactNumber && <DataItem icon={Phone} label="Phone" value={user.contactNumber || "Hidden"} />}
+              {privacy.showAddress && <DataItem icon={MapPin} label="Address" value={user.currentAddress || "Islamabad"} />}
+            </DataCluster>
           </div>
 
-          {/* Action Button */}
+          {/* Main Button */}
           <motion.button
-            whileHover={{ scale: 1.02 }}
+            whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full mt-12 py-5 bg-foreground hover:opacity-90 text-background font-black rounded-[24px] transition-all shadow-2xl shadow-black/10 uppercase tracking-widest text-xs"
+            className="w-full mt-12 py-4 bg-jade-primary hover:bg-jade-deep text-white font-bold uppercase tracking-widest text-xs transition-all shadow-lg shadow-jade-primary/10 rounded-xl"
           >
-            Contact via Trace App
+            Send Message
           </motion.button>
         </motion.div>
 
-        {/* Footer */}
-        <div className="mt-12 text-center">
-            <div className="text-2xl font-black tracking-tighter text-[var(--foreground)] uppercase">TRACE<span className="text-foreground/20">.</span></div>
-            <p className="text-[9px] font-bold text-foreground/20 uppercase tracking-[0.4em] mt-3">Official Digital Identity Portal</p>
+        <div className="mt-12 text-center opacity-40">
+            <div className="text-xl font-black tracking-wide text-[var(--foreground)]">Trace<span className="text-jade-primary">.</span></div>
         </div>
       </main>
     </div>
   );
 }
 
-function InfoSection({ label, children }: { label: string; children: React.ReactNode }) {
+function DataCluster({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/20 px-1">
+    <div className="space-y-5">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-sage-secondary px-1">
         {label}
       </h3>
-      <div className="grid gap-6">
+      <div className="grid gap-5 pl-2">
         {children}
       </div>
     </div>
   );
 }
 
-function InfoItem({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function DataItem({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-5 group">
-      <div className="w-12 h-12 rounded-2xl bg-foreground/5 border border-foreground/10 flex items-center justify-center shrink-0 group-hover:bg-foreground group-hover:text-background transition-all duration-300">
-        <Icon className="w-6 h-6 text-foreground group-hover:text-background transition-colors" />
+    <div className="flex items-center gap-4 group bg-[var(--background)] p-4 rounded-2xl border border-[var(--border-color)] hover:border-jade-primary/30 transition-colors shadow-sm">
+      <div className="w-10 h-10 border border-[var(--border-color)] bg-[var(--card-bg)] flex items-center justify-center shrink-0 rounded-xl shadow-sm">
+        <Icon className="w-4 h-4 text-jade-primary group-hover:scale-110 transition-transform" />
       </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-foreground/30 font-bold uppercase tracking-wider">{label}</span>
-        <span className="text-base font-black text-[var(--foreground)] tracking-tight">{value}</span>
+      <div className="flex flex-col justify-center">
+        <span className="text-[10px] text-sage-secondary font-bold uppercase tracking-wider">{label}</span>
+        <span className="text-sm font-bold text-[var(--foreground)] tracking-tight">{value}</span>
       </div>
     </div>
   );
 }
+

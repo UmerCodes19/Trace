@@ -13,11 +13,16 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
     "cloudinary": "^2.10.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
     "firebase-admin": "^13.8.0",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.10.1"
+    "morgan": "^1.10.1",
+    "node-cache": "^5.1.2",
+    "otplib": "^13.4.0",
+    "qrcode": "^1.5.4"
   }
 }

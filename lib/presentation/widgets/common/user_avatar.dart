@@ -19,18 +19,30 @@ class UserAvatar extends StatefulWidget {
   State<UserAvatar> createState() => _UserAvatarState();
 }
 
-class _UserAvatarState extends State<UserAvatar> with SingleTickerProviderStateMixin {
+class _UserAvatarState extends State<UserAvatar> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _auraController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _auraController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
     );
     if (widget.animated) {
       _auraController.repeat();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (widget.animated) {
+      if (state == AppLifecycleState.resumed) {
+        if (!_auraController.isAnimating) _auraController.repeat();
+      } else {
+        _auraController.stop(); // Stop battery drain
+      }
     }
   }
 
@@ -46,6 +58,7 @@ class _UserAvatarState extends State<UserAvatar> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _auraController.dispose();
     super.dispose();
   }
@@ -69,6 +82,8 @@ class _UserAvatarState extends State<UserAvatar> with SingleTickerProviderStateM
         borderRadius: BorderRadius.circular(widget.radius),
         child: CachedNetworkImage(
           imageUrl: widget.photoURL!, width: size, height: size, fit: BoxFit.cover,
+          memCacheWidth: 120, // Tiny circle decoding optimization
+          memCacheHeight: 120,
           placeholder: (context, url) => Container(color: Colors.grey[200], width: size, height: size),
           errorWidget: (context, url, error) => _buildPlaceholder(size),
         ),
@@ -76,6 +91,8 @@ class _UserAvatarState extends State<UserAvatar> with SingleTickerProviderStateM
     } else {
       avatarWidget = _buildPlaceholder(size);
     }
+
+    final accent = Theme.of(context).colorScheme.primary;
 
     // Social Presence Stack
     final content = Stack(
@@ -85,17 +102,26 @@ class _UserAvatarState extends State<UserAvatar> with SingleTickerProviderStateM
           AnimatedBuilder(
             animation: _auraController,
             builder: (context, child) {
-              final scale = 1.0 + (_auraController.value * 0.15);
-              final opacity = (1.0 - _auraController.value) * 0.3;
+              final scale = 1.0 + (_auraController.value * 0.25);
+              final opacity = (1.0 - _auraController.value) * 0.4;
+              final blur = 8.0 * _auraController.value;
+              
               return Container(
                 width: size, height: size,
                 transform: Matrix4.identity()..scale(scale),
                 transformAlignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withOpacity(opacity),
+                      blurRadius: blur,
+                      spreadRadius: 1.0,
+                    ),
+                  ],
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(opacity),
-                    width: 1.5,
+                    color: accent.withOpacity(opacity * 0.5),
+                    width: 1.2,
                   ),
                 ),
               );

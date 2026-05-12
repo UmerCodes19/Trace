@@ -95,8 +95,8 @@ class CMSTimetableEntry {
           json['facultyName']?.toString() ?? '',
       shortFacultyName: eventData['shortFacultyMemberName']?.toString() ??
           json['shortFacultyName']?.toString() ?? '',
-      roomName: eventData['roomName']?.toString() ??
-          json['roomName']?.toString() ?? '',
+      roomName: _cleanRoom(eventData['roomName']?.toString() ??
+          json['roomName']?.toString() ?? ''),
       buildingName: eventData['buildingName']?.toString() ??
           json['buildingName']?.toString() ?? '',
       buildingAlias: eventData['buildingAlias']?.toString() ??
@@ -130,13 +130,21 @@ class CMSTimetableEntry {
       className: '',
       facultyName: '',
       shortFacultyName: '',
-      roomName: map['roomName'] as String? ?? '',
+      roomName: _cleanRoom(map['roomName'] as String? ?? ''),
       buildingName: map['buildingName'] as String? ?? '',
       buildingAlias: map['buildingName'] as String? ?? '',
       weekDay: map['day'] as int? ?? 1,
       timeFrom: map['timeFrom'] as String? ?? '',
       timeTo: map['timeTo'] as String? ?? '',
     );
+  }
+
+  static String _cleanRoom(String raw) {
+    if (raw.isEmpty) return raw;
+    // e.g., "E-201" or "C-202" -> Extracts "201", "202"
+    final RegExp digits = RegExp(r'\d{3,}'); 
+    final match = digits.firstMatch(raw);
+    return match != null ? match.group(0)! : raw;
   }
 }
 

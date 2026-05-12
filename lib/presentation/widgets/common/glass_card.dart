@@ -43,7 +43,17 @@ class GlassCard extends StatelessWidget {
             ? Colors.white.withOpacity(0.08)
             : Colors.white.withOpacity(0.8));
 
-    final card = Container(
+    final Widget content = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: fillColor,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: borderColor, width: 0.8),
+      ),
+      child: child,
+    );
+
+    final Widget card = Container(
       decoration: elevation > 0
           ? BoxDecoration(
               borderRadius: BorderRadius.circular(borderRadius),
@@ -60,18 +70,12 @@ class GlassCard extends StatelessWidget {
           : null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: fillColor,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(color: borderColor, width: 0.8),
-            ),
-            child: child,
-          ),
-        ),
+        child: blur > 0 
+          ? BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+              child: content,
+            )
+          : content, // Blazing fast zero-op pass-through
       ),
     );
 

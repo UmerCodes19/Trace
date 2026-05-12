@@ -24,6 +24,9 @@ class SimpleUserModel {
   final String? intakeSemester;
   final Map<String, dynamic>? privacySettings;
 
+  final bool isTwoFactorEnabled;
+  final String? twoFactorSecret;
+
   SimpleUserModel({
     required this.uid,
     required this.name,
@@ -48,9 +51,13 @@ class SimpleUserModel {
     this.permanentAddress,
     this.intakeSemester,
     this.privacySettings,
+    this.isTwoFactorEnabled = false,
+    this.twoFactorSecret,
   });
 
   factory SimpleUserModel.fromMap(Map<String, dynamic> map) {
+    final privacy = map['privacy_settings'] as Map<String, dynamic>? ?? {};
+    
     return SimpleUserModel(
       uid: (map['uid'] as String?) ?? '',
       name: (map['name'] as String?) ?? 'Unknown User',
@@ -74,7 +81,10 @@ class SimpleUserModel {
       currentAddress: map['currentAddress'] as String?,
       permanentAddress: map['permanentAddress'] as String?,
       intakeSemester: map['intakeSemester'] as String?,
-      privacySettings: map['privacy_settings'] as Map<String, dynamic>?,
+      privacySettings: privacy,
+      // Reconcile fields stored nested inside existing privacy settings JSON to prevent breaking server schema cache
+      isTwoFactorEnabled: (privacy['isTwoFactorEnabled'] as bool?) ?? (map['isTwoFactorEnabled'] as bool? ?? false),
+      twoFactorSecret: (privacy['twoFactorSecret'] as String?) ?? (map['twoFactorSecret'] as String?),
     );
   }
 
@@ -102,6 +112,8 @@ class SimpleUserModel {
     String? permanentAddress,
     String? intakeSemester,
     Map<String, dynamic>? privacySettings,
+    bool? isTwoFactorEnabled,
+    String? twoFactorSecret,
   }) {
     return SimpleUserModel(
       uid: uid ?? this.uid,
@@ -127,10 +139,18 @@ class SimpleUserModel {
       permanentAddress: permanentAddress ?? this.permanentAddress,
       intakeSemester: intakeSemester ?? this.intakeSemester,
       privacySettings: privacySettings ?? this.privacySettings,
+      isTwoFactorEnabled: isTwoFactorEnabled ?? this.isTwoFactorEnabled,
+      twoFactorSecret: twoFactorSecret ?? this.twoFactorSecret,
     );
   }
 
   Map<String, dynamic> toMap() {
+    // Inject 2FA data securely into the metadata JSON column that already exists,
+    // this circumvents forcing a schema migration on the cloud-hosted Postgres environment.
+    final fullPrivacy = Map<String, dynamic>.from(privacySettings ?? {});
+    fullPrivacy['isTwoFactorEnabled'] = isTwoFactorEnabled;
+    if (twoFactorSecret != null) fullPrivacy['twoFactorSecret'] = twoFactorSecret;
+
     return {
       'uid': uid,
       'name': name,
@@ -154,7 +174,7 @@ class SimpleUserModel {
       'currentAddress': currentAddress,
       'permanentAddress': permanentAddress,
       'intakeSemester': intakeSemester,
-      'privacy_settings': privacySettings,
+      'privacy_settings': fullPrivacy, // Merged map goes to DB
     };
   }
-}
+}

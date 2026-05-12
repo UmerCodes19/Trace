@@ -90,11 +90,11 @@ export default function LoginPage() {
       >
         <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[32px] p-10 md:p-12 shadow-2xl shadow-black/5">
           <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-jade-primary/10 rounded-2xl flex items-center justify-center mb-6">
-              <Shield className="w-8 h-8 text-jade-primary" />
+            <div className="w-20 h-20 bg-[var(--card-bg)] border-2 border-[var(--border-color)] p-3 rounded-2xl shadow-xl mb-6">
+               <img src="/images/branding/trace_logo.png" alt="Trace Logo" className="w-full h-full object-contain" />
             </div>
-            <h1 className="text-3xl font-black tracking-tighter uppercase text-[var(--foreground)]">Trace <span className="text-jade-primary">Admin</span></h1>
-            <p className="text-[10px] font-bold text-sage-secondary uppercase tracking-[0.3em] mt-3 text-center">Administrative Control Center</p>
+            <h1 className="text-3xl font-black tracking-tighter uppercase text-[var(--foreground)]">Trace <span className="text-jade-primary">Console</span></h1>
+            <p className="text-[10px] font-bold text-sage-secondary uppercase tracking-[0.3em] mt-3 text-center">Access Management Portal</p>
           </div>
 
           <form onSubmit={handleEmailLogin} className="space-y-6">

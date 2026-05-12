@@ -36,23 +36,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _checkProfileTour() async {
     if (!mounted) return;
-    final state = ref.read(activeTourStateProvider);
-    if (state != ActiveTourState.profile) return;
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    if (notifier.state != ActiveTourState.profile) return;
+    notifier.state = ActiveTourState.none; // Consume token immediately
 
     // Minor layout delay to ensure components settle
     await Future.delayed(const Duration(milliseconds: 1200));
     if (mounted) _launchProfileTour();
   }
 
-  void _launchProfileTour() {
+  Future<void> _launchProfileTour() async {
     final service = ref.read(tutorialServiceProvider);
+    if (await service.isFeatureTourCompleted('profile_tour')) return;
     final targets = <TargetFocus>[
       AppGuideOrchestrator.buildTarget(
         key: TutorialKeys.profileSectionKey,
         title: 'Your Identity',
         description: 'Manage your stats, setup account options, and verify your profile here.',
         stepLabel: 'Profile',
-        align: ContentAlign.top,
+        align: ContentAlign.bottom,
         radius: 24,
       ),
     ];
@@ -211,10 +213,7 @@ class _ProfileBody extends ConsumerWidget {
                 const SizedBox(height: 32),
                 _buildSectionTitle('Student Identity', isDarkMode),
                 const SizedBox(height: 16),
-                Container(
-                  key: TutorialKeys.profileSectionKey,
-                  child: _buildStudentCard(user, isDarkMode, accent, localSettings),
-                ),
+                _buildStudentCard(user, isDarkMode, accent, localSettings),
                 const SizedBox(height: 16),
                 _buildIdentityCard(context, user, isDarkMode, accent, localSettings),
                 const SizedBox(height: 32),
@@ -263,7 +262,9 @@ class _ProfileBody extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                Hero(
+                Container(
+                  key: TutorialKeys.profileSectionKey,
+                  child: Hero(
                   tag: 'profile_pic_${user.uid}',
                   child: Container(
                     padding: const EdgeInsets.all(4),
@@ -309,9 +310,10 @@ class _ProfileBody extends ConsumerWidget {
                     ),
                   ),
                 ),
+                ),
                 const SizedBox(height: 12),
                 Text(
-                  user.name,
+                  cleanCMSUsername(user.name),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -433,7 +435,7 @@ class _ProfileBody extends ConsumerWidget {
                 ),
                 const Spacer(),
                 Text(
-                  user.name.toUpperCase(),
+                  cleanCMSUsername(user.name).toUpperCase(),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,

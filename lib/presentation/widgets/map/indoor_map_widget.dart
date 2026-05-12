@@ -46,8 +46,14 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
     _initEngine();
     _transformationController.addListener(() {
       final scale = _transformationController.value.getMaxScaleOnAxis();
-      if ((scale - _currentScale).abs() > 0.02) {
+      // PERF: Only rebuild when crossing visibility thresholds, not on every minor delta.
+      // Labels toggle at 0.6, post previews at 0.8 — no need to rebuild between thresholds.
+      final bool crossedThreshold = (_currentScale > 0.6) != (scale > 0.6) ||
+                                     (_currentScale > 0.8) != (scale > 0.8);
+      if (crossedThreshold) {
         setState(() => _currentScale = scale);
+      } else {
+        _currentScale = scale; // Update value without rebuild
       }
     });
   }
@@ -71,7 +77,7 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
     super.dispose();
   }
 
-  void _handleTap(Offset localPos, Size mapSize) {
+  Future<void> _handleTap(Offset localPos, Size mapSize) async {
     if (!_engineReady) return;
     final normalizedPos = Offset(localPos.dx / mapSize.width, localPos.dy / mapSize.height);
     final room = MapEngineService.instance.detectRoomFromCoordinate(normalizedPos, widget.floor);
@@ -80,9 +86,11 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
 
     if (room != null) {
       final startId = widget.floor == 1 ? "liaquat_1_201" : "liaquat_${widget.floor}_201";
-      debugPrint('TRACE DEBUG: Calculating path from startId=$startId to endId=${room.id}');
-      final path = MapEngineService.instance.calculateAStarPath(startId, room.id);
-      debugPrint('TRACE DEBUG: Path calculation result length = ${path.length}, nodes = ${path.map((r) => r.roomNumber).toList()}');
+      debugPrint('TRACE DEBUG: Calculating path on background thread from startId=$startId to endId=${room.id}');
+      final path = await MapEngineService.instance.calculateAStarPath(startId, room.id);
+      debugPrint('TRACE DEBUG: Isolate result count = ${path.length}');
+      
+      if (!mounted) return;
       setState(() {
         _activePath = path;
       });
@@ -176,14 +184,16 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
                   ),
                 ),
 
-                  // Layer 5: Heatmaps
+                  // Layer 5: Heatmaps (wrapped in RepaintBoundary)
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _HeatmapPainter(
-                          posts: widget.posts,
-                          rooms: gisRooms,
-                          scale: _currentScale,
+                    child: RepaintBoundary(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _HeatmapPainter(
+                            posts: widget.posts,
+                            rooms: gisRooms,
+                            scale: _currentScale,
+                          ),
                         ),
                       ),
                     ),
@@ -338,17 +348,17 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
               translation: const Offset(-0.5, -1.0),
               child: GestureDetector(
                 onTap: () => widget.onPostTap?.call(post),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (showPreview)
-                      _MiniPostPreview(post: post).animate().scale(curve: Curves.easeOutBack),
-                    RepaintBoundary(
-                      child: _IndoorPin(
+                child: RepaintBoundary(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showPreview)
+                        _MiniPostPreview(post: post).animate().scale(curve: Curves.easeOutBack),
+                      _IndoorPin(
                         color: post.isLost ? AppColors.lost : AppColors.found,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -360,9 +370,11 @@ class _IndoorMapWidgetState extends State<IndoorMapWidget> {
           Positioned(
             left: widget.userPos!.dx * mapSize.width,
             top: widget.userPos!.dy * mapSize.height,
-            child: const FractionalTranslation(
-              translation: Offset(-0.5, -0.5),
-              child: _UserLocationRadar(),
+            child: const RepaintBoundary(
+              child: FractionalTranslation(
+                translation: Offset(-0.5, -0.5),
+                child: _UserLocationRadar(),
+              ),
             ),
           ),
       ],
@@ -621,7 +633,10 @@ class _HeatmapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _HeatmapPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _HeatmapPainter oldDelegate) =>
+      oldDelegate.posts.length != posts.length ||
+      oldDelegate.rooms.length != rooms.length ||
+      oldDelegate.scale != scale;
 }
 
 class _MiniPostPreview extends StatelessWidget {

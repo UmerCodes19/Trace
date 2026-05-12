@@ -11,12 +11,15 @@ import 'package:photo_view/photo_view_gallery.dart';
 
 import 'package:confetti/confetti.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
+import '../../../data/models/comment_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
+
 import '../../widgets/common/confetti_overlay.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/skeleton.dart';
@@ -292,26 +295,40 @@ class _PostDetailBody extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
       extendBodyBehindAppBar: true,
-      bottomNavigationBar: (!isOwner && post.isOpen)
-          ? SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-                child: _ClaimBottomBar(
-                  post: post,
-                  currentUid: currentUid ?? '',
-                  status: userClaimStatus,
-                  claimId: approvedClaimId,
-                ),
+      bottomNavigationBar: Container(
+        color: AppColors.card(context), // Solid backdrop
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. ALWAYS show Docked Social Interactions & Immediate Reply Toolbar
+              _DockedInteractionPanel(
+                post: post,
+                hasLiked: hasLiked,
+                onToggleLike: onToggleLike,
               ),
-            )
-          : (isOwner && post.isOpen)
-              ? SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-                    child: _ViewClaimsBottomBar(post: post),
+
+              // 2. CONDITIONALLY Append Claim Action Buttons Below the Toolbar
+              if (!isOwner && post.isOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: _ClaimBottomBar(
+                    post: post,
+                    currentUid: currentUid ?? '',
+                    status: userClaimStatus,
+                    claimId: approvedClaimId,
                   ),
                 )
-              : null,
+              else if (isOwner && post.isOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: _ViewClaimsBottomBar(post: post),
+                ),
+            ],
+          ),
+        ),
+      ),
+
       body: RepaintBoundary(
         child: CustomScrollView(
           slivers: [
@@ -560,48 +577,8 @@ class _PostDetailBody extends ConsumerWidget {
                     const SizedBox(height: 20),
                     Divider(color: AppColors.border(context)),
                     const SizedBox(height: 16),
-                    
-                    Row(
-                      children: [
-                        _SocialAction(
-                          icon: hasLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                          label: '${post.likesCount}',
-                          color: hasLiked ? Colors.redAccent : AppColors.textSecondary(context),
-                          onTap: onToggleLike,
-                        ),
-                        const SizedBox(width: 20),
-                        Row(
-                          children: [
-                            Icon(Icons.visibility_rounded, size: 20, color: AppColors.textHint(context)),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${post.viewCount}',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(),
-                        _SocialAction(
-                          icon: Icons.share_rounded,
-                          label: 'Share',
-                          color: accent,
-                          onTap: () {
-                            final text = 'Lost & Found: ${post.title}\\n'
-                                '${post.description}\\n'
-                                'Location: ${post.location.building}\\n'
-                                'Download the app to help: https://lostfound.campus.edu';
-                            Share.share(text);
-                          },
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    Divider(color: AppColors.border(context)),
+                    const SizedBox(height: 12),
+
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -617,7 +594,7 @@ class _PostDetailBody extends ConsumerWidget {
                               Text(
                                 post.posterName.isEmpty
                                     ? 'Anonymous'
-                                    : post.posterName,
+                                    : cleanCMSUsername(post.posterName),
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -678,7 +655,7 @@ class _PostDetailBody extends ConsumerWidget {
                     _PotentialMatchesSection(post: post),
                     const SizedBox(height: 32),
                     CommentsSection(postId: post.id),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 180), // Extended clear space for floating bottom bars
                   ],
                 ),
               ),
@@ -1307,7 +1284,11 @@ class _PostImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRemote = url.startsWith('http://') || url.startsWith('https://');
     if (isRemote) {
-      return CachedNetworkImage(imageUrl: url, fit: fit);
+      return CachedNetworkImage(
+        imageUrl: url, 
+        fit: fit,
+        memCacheHeight: 1200, // Caps absolute maximum memory scaling for ultra high res raw photos
+      );
     }
     return Image.file(
       File(url),
@@ -1608,4 +1589,221 @@ class _CarouselVideoPlayerState extends State<_CarouselVideoPlayer> {
     );
   }
 }
+
+class _DockedInteractionPanel extends ConsumerStatefulWidget {
+  const _DockedInteractionPanel({
+    required this.post,
+    required this.hasLiked,
+    required this.onToggleLike,
+  });
+  final SimplePostModel post;
+  final bool hasLiked;
+  final VoidCallback onToggleLike;
+
+  @override
+  ConsumerState<_DockedInteractionPanel> createState() => _DockedInteractionPanelState();
+}
+
+class _DockedInteractionPanelState extends ConsumerState<_DockedInteractionPanel> {
+  final _commentCtrl = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitComment() async {
+    final txt = _commentCtrl.text.trim();
+    if (txt.isEmpty) return;
+
+    setState(() => _isSubmitting = true);
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) return;
+
+    final activeReply = ref.read(activeReplyProvider);
+    
+    final comment = CommentModel(
+      id: const Uuid().v4(),
+      postId: widget.post.id,
+      userId: user.uid,
+      userName: user.name,
+      userAvatarUrl: user.photoURL ?? '',
+      text: txt,
+      parentId: activeReply?.commentId,
+      timestamp: DateTime.now(),
+    );
+
+
+    try {
+      await ref.read(apiServiceProvider).addComment(comment.toMap());
+      _commentCtrl.clear();
+      AppHaptics.medium();
+      FocusScope.of(context).unfocus();
+      // Clear global reply target context immediately
+      ref.read(activeReplyProvider.notifier).state = null;
+      // Force cache refetch on global reactive list
+      ref.invalidate(commentsProvider(widget.post.id));
+
+    } catch (e) {
+      showAppSnack(context, 'Failed to send comment', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final activeReply = ref.watch(activeReplyProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.only(top: 8, bottom: 12), // minimal vertical breathing room
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        border: Border(top: BorderSide(color: AppColors.border(context).withOpacity(0.5), width: 0.5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // SLEEK NATIVE REPLY CONTEXT (Swipe to Clear)
+          if (activeReply != null)
+            Dismissible(
+              key: Key('cancel_reply_${activeReply.commentId}'),
+              direction: DismissDirection.horizontal,
+              onDismissed: (_) => ref.read(activeReplyProvider.notifier).state = null,
+              background: Container(color: Colors.redAccent.withOpacity(0.1)),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                color: AppColors.surface(context),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3, height: 20,
+                      decoration: BoxDecoration(color: AppColors.jadePrimary, borderRadius: BorderRadius.circular(2)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Replying to ${activeReply.userName}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.jadePrimary,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => ref.read(activeReplyProvider.notifier).state = null,
+                      child: Icon(Icons.close_rounded, size: 16, color: AppColors.textSecondary(context)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+
+          // THE MAIN ROW (Super Clean Layout)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                // Small quick interact actions
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: widget.onToggleLike,
+                  icon: Icon(
+                    widget.hasLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    color: widget.hasLiked ? Colors.redAccent : AppColors.textSecondary(context),
+                  ),
+                  tooltip: 'Like',
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${widget.post.likesCount}',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppColors.textPrimary(context),
+                  ),
+                ),
+                
+                const SizedBox(width: 12),
+
+                // NATIVE APP-UI INPUT COMPONENT
+                Expanded(
+                  child: TextField(
+                    controller: _commentCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary(context)),
+                    decoration: InputDecoration(
+                      hintText: 'Share your thoughts...',
+                      hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint(context)),
+                      isDense: true,
+                      filled: true,
+                      fillColor: AppColors.surface(context),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(color: AppColors.border(context).withOpacity(0.5)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(color: AppColors.border(context).withOpacity(0.5)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide(color: AppColors.jadePrimary, width: 1.5),
+                      ),
+                      suffixIcon: _isSubmitting 
+                        ? const SizedBox(
+                            width: 20, height: 20, 
+                            child: Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : IconButton(
+                            onPressed: _submitComment,
+                            icon: Icon(Icons.send_rounded, size: 20, color: AppColors.jadePrimary),
+                          ),
+                    ),
+                    onSubmitted: (_) => _submitComment(),
+                  ),
+                ),
+
+              
+              const SizedBox(width: 8),
+              
+              IconButton(
+                onPressed: () {
+                  final typeHeader = widget.post.isLost ? '🔍 LOST ITEM' : '✨ FOUND ITEM';
+                  final shareText = '''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       $typeHeader
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 ${widget.post.title}
+📍 ${widget.post.location.building}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔗 VIEW ON TRACE:
+» https://trace-self.vercel.app/post/${widget.post.id}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━''';
+                  Share.share(shareText, subject: 'TRACE: ${widget.post.title}');
+                },
+
+                icon: Icon(Icons.share_rounded, color: AppColors.textSecondary(context), size: 20),
+                tooltip: 'Share',
+              ),
+            ],
+          ),
+          ), // Closes the Main Row Padding
+        ],
+      ),
+    );
+  }
+}
+
+
 

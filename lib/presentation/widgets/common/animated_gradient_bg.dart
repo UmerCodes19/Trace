@@ -18,12 +18,13 @@ class AnimatedGradientBg extends StatefulWidget {
 }
 
 class _AnimatedGradientBgState extends State<AnimatedGradientBg>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 8),
@@ -31,7 +32,17 @@ class _AnimatedGradientBgState extends State<AnimatedGradientBg>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_ctrl.isAnimating) _ctrl.repeat(reverse: true);
+    } else {
+      _ctrl.stop(); // Battery freeze
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ctrl.dispose();
     super.dispose();
   }
@@ -123,12 +134,13 @@ class AnimatedProfileGradient extends StatefulWidget {
 }
 
 class _AnimatedProfileGradientState extends State<AnimatedProfileGradient>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
@@ -136,7 +148,17 @@ class _AnimatedProfileGradientState extends State<AnimatedProfileGradient>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_ctrl.isAnimating) _ctrl.repeat(reverse: true);
+    } else {
+      _ctrl.stop();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ctrl.dispose();
     super.dispose();
   }

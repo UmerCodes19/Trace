@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 
 dotenv.config();
 
@@ -30,13 +32,30 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 }
 
 
+// Initialize Rate Limiters
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Limit each IP to 300 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 15, // strict limit on critical auth actions per IP
+  message: { error: 'Too many authentication attempts, please try again in an hour' }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+app.use(compression()); // Add GZIP compression for extreme response shrinking
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
+app.use('/api/', globalLimiter); // Apply basic threshold globally to ALL API endpoints
 
 // Routes placeholder
 app.get('/', (req, res) => {
@@ -52,6 +71,7 @@ const adminRoutes = require('./routes/admin');
 const claimLogRoutes = require('./routes/claim_logs');
 const claimRoutes = require('./routes/claims');
 const notificationRoutes = require('./routes/notifications');
+const securityRoutes = require('./routes/auth_security');
 const { verifyToken, checkRole } = require('./middleware/auth');
 
 
@@ -77,11 +97,12 @@ app.get('/api/debug-db', async (req, res) => {
 app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chats', verifyToken, chatRoutes);
-app.use('/api/cms', cmsRoutes);
+app.use('/api/cms', authLimiter, cmsRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/admin', verifyToken, checkRole(['admin', 'staff']), adminRoutes);
+app.use('/api/admin', authLimiter, verifyToken, checkRole(['admin', 'staff']), adminRoutes);
 app.use('/api/claim-logs', verifyToken, claimLogRoutes);
 app.use('/api/claims', claimRoutes);
+app.use('/api/security', securityRoutes);
 
 
 app.listen(PORT, () => {

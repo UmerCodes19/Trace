@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../utils/supabase');
 
+const { cache } = require('../middleware/cache');
+
 // Get public leaderboard
-router.get('/leaderboard', async (req, res) => {
+// Performance Optimization: 60-second ultra-cache for heavy user aggregation
+router.get('/leaderboard', cache(60), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')

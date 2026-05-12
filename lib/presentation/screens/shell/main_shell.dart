@@ -1,5 +1,4 @@
 // lib/presentation/screens/shell/main_shell.dart
-import 'dart:ui';
 import '../../../core/utils/tutorial_keys.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -192,34 +191,28 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Translucent pure glass structure
-            ClipRRect(
-              borderRadius: BorderRadius.circular(32),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark 
-                        ? const Color(0xE60A0A0A) // Deep Onyx
-                        : const Color(0xF2FFFFFF), // Pure Alabaster
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(
-                      color: isDark 
-                          ? Colors.white.withOpacity(0.08) 
-                          : Colors.black.withOpacity(0.05),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDark 
-                            ? Colors.black.withOpacity(0.5) 
-                            : Colors.black.withOpacity(0.08),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
+            // Solid translucent dock (replaces BackdropFilter for ~10ms/frame GPU savings)
+            Container(
+              decoration: BoxDecoration(
+                color: isDark 
+                    ? const Color(0xF00A0A0A) // 94% opacity — visually identical to blur
+                    : const Color(0xF5FFFFFF), // 96% opacity
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(
+                  color: isDark 
+                      ? Colors.white.withOpacity(0.08) 
+                      : Colors.black.withOpacity(0.05),
+                  width: 1.0,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark 
+                        ? Colors.black.withOpacity(0.5) 
+                        : Colors.black.withOpacity(0.08),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
             ),
 

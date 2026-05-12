@@ -21,6 +21,12 @@ import '../../../core/utils/tutorial_keys.dart';
 import '../../../core/utils/app_guide_orchestrator.dart';
 import '../../../core/services/tutorial_service.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:uuid/uuid.dart';
+import '../../../data/models/comment_model.dart';
+import '../../../data/services/auth_service.dart';
+
+
 
 class CampusReelsScreen extends ConsumerStatefulWidget {
   const CampusReelsScreen({super.key});
@@ -56,8 +62,9 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
 
   Future<void> _checkReelsTour() async {
     if (!mounted) return;
-    final state = ref.read(activeTourStateProvider);
-    if (state != ActiveTourState.reels) return;
+    final notifier = ref.read(activeTourStateProvider.notifier);
+    if (notifier.state != ActiveTourState.reels) return;
+    notifier.state = ActiveTourState.none; // Consume token immediately to lock out race conditions
 
     int retryCount = 0;
     while (_isLoading && mounted && retryCount < 30) {
@@ -71,8 +78,10 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
     }
   }
 
-  void _launchReelsTour() {
+  Future<void> _launchReelsTour() async {
     final service = ref.read(tutorialServiceProvider);
+    if (await service.isFeatureTourCompleted('reels_tour')) return;
+
     final targets = <TargetFocus>[
       AppGuideOrchestrator.buildTarget(
         key: TutorialKeys.reelsContentKey,
@@ -211,9 +220,13 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
               }
               final post = _reelPosts[index];
               final bool isActive = index == _currentIndex;
+              // Critical Mem Fix: Only initialize items adjacent to current view (max 3 loaded at once)
+              final bool shouldLoad = (index - _currentIndex).abs() <= 1;
+              
               return ReelPlayerItem(
                 post: post,
                 isActive: isActive,
+                shouldLoad: shouldLoad,
                 isDarkMode: isDarkMode,
               );
             },
@@ -224,7 +237,9 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
             top: MediaQuery.of(context).padding.top + 12,
             left: 20,
             right: 20,
-            child: Row(
+            child: Container(
+              key: TutorialKeys.reelsContentKey,
+              child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
@@ -237,7 +252,6 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
                   ),
                 ),
                 Container(
-                  key: TutorialKeys.reelsContentKey,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.12),
@@ -262,44 +276,77 @@ class _CampusReelsScreenState extends ConsumerState<CampusReelsScreen> {
               ],
             ),
           ),
+          ),
         ],
       ),
     );
   }
 }
 
-class ReelPlayerItem extends StatefulWidget {
-  final SimplePostModel post;
-  final bool isActive;
-  final bool isDarkMode;
-
+class ReelPlayerItem extends ConsumerStatefulWidget {
   const ReelPlayerItem({
     super.key,
     required this.post,
     required this.isActive,
+    required this.shouldLoad,
     required this.isDarkMode,
   });
 
+  final SimplePostModel post;
+  final bool isActive;
+  final bool shouldLoad;
+  final bool isDarkMode;
+
   @override
-  State<ReelPlayerItem> createState() => _ReelPlayerItemState();
+  ConsumerState<ReelPlayerItem> createState() => _ReelPlayerItemState();
 }
 
-class _ReelPlayerItemState extends State<ReelPlayerItem> {
+class _ReelPlayerItemState extends ConsumerState<ReelPlayerItem> {
+
   VideoPlayerController? _videoController;
   bool _isInitialized = false;
   bool _isLiked = false;
   bool _showHeartAnimation = false;
+  bool _isMuted = false; // Add explicit mute state controller
   int _localLikesCount = 0;
-  final List<String> _comments = [];
+  List<CommentModel> _comments = [];
 
   @override
   void initState() {
     super.initState();
     _localLikesCount = widget.post.likesCount;
-    // Placeholder comments removed
-    _comments.addAll([]);
-    _initializePlayer();
+    if (widget.shouldLoad) {
+      _initializePlayer();
+    }
+    // Proactive hydrate from real DB backend logic
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadInteractions();
+    });
   }
+
+  Future<void> _loadInteractions() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final currentUid = ref.read(authServiceProvider).currentUser?.uid;
+      
+      // 1. Load Like Status concurrently
+      if (currentUid != null) {
+         final hasLiked = await api.hasLikedPost(widget.post.id, currentUid);
+         if (mounted) setState(() => _isLiked = hasLiked);
+      }
+
+      // 2. Load Real Comments Array
+      final rawComments = await api.getCommentsForPost(widget.post.id);
+      if (mounted) {
+        setState(() {
+          _comments = rawComments.map((m) => CommentModel.fromMap(m)).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Reels interactions load failed: $e');
+    }
+  }
+
 
   Future<void> _initializePlayer() async {
     if (widget.post.videoUrl == null) return;
@@ -326,12 +373,33 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
   @override
   void didUpdateWidget(covariant ReelPlayerItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_videoController != null && _isInitialized) {
+    
+    // Condition A: Node transitioned into loading window
+    if (widget.shouldLoad && !oldWidget.shouldLoad && _videoController == null) {
+      _initializePlayer();
+    } 
+    // Condition B: Node scrolled out of loading window — Kill hardware resources immediately
+    else if (!widget.shouldLoad && oldWidget.shouldLoad) {
+      _disposeController();
+    }
+    // Condition C: Node is loaded and changed active state
+    else if (_videoController != null && _isInitialized) {
       if (widget.isActive) {
         _videoController!.play();
       } else {
         _videoController!.pause();
       }
+    }
+  }
+
+  void _disposeController() {
+    _videoController?.pause();
+    _videoController?.dispose();
+    _videoController = null;
+    if (mounted) {
+      setState(() {
+        _isInitialized = false;
+      });
     }
   }
 
@@ -341,23 +409,64 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
     super.dispose();
   }
 
-  void _handleDoubleTap() {
+  Future<void> _toggleLike({bool onlyLikeIfUnliked = false}) async {
+    final currentUid = ref.read(authServiceProvider).currentUser?.uid;
+    if (currentUid == null) return;
+    
+    if (onlyLikeIfUnliked && _isLiked) return; // prevent untoggling if double-tapping
+    
+    final oldLiked = _isLiked;
+    final oldLikesCount = _localLikesCount;
+
     HapticFeedback.mediumImpact();
     setState(() {
-      _showHeartAnimation = true;
-      if (!_isLiked) {
-        _isLiked = true;
-        _localLikesCount++;
-      }
+      _isLiked = !_isLiked;
+      _localLikesCount += _isLiked ? 1 : -1;
+      if (_isLiked) _showHeartAnimation = true;
     });
-    Future.delayed(const Duration(milliseconds: 800), () {
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      final result = await api.toggleLike(widget.post.id, currentUid);
       if (mounted) {
         setState(() {
-          _showHeartAnimation = false;
+          _isLiked = result['liked'] ?? _isLiked;
+          // If API returns a new count we use it, otherwise we trust local sync count!
+          if (result['likeCount'] != null) _localLikesCount = result['likeCount'];
         });
       }
-    });
+    } catch (_) {
+      // Revert on connection breakage
+      if (mounted) {
+        setState(() {
+          _isLiked = oldLiked;
+          _localLikesCount = oldLikesCount;
+        });
+      }
+    }
+
+    if (_showHeartAnimation) {
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) setState(() => _showHeartAnimation = false);
+      });
+    }
   }
+
+  void _handleDoubleTap() {
+    // On double tap, ONLY trigger if not already liked, else just play heart animation!
+    if (!_isLiked) {
+       _toggleLike(onlyLikeIfUnliked: true);
+    } else {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _showHeartAnimation = true;
+      });
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) setState(() => _showHeartAnimation = false);
+      });
+    }
+  }
+
 
   void _togglePlayPause() {
     if (_videoController == null || !_isInitialized) return;
@@ -469,35 +578,41 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                               padding: const EdgeInsets.all(24),
                               itemCount: _comments.length,
                               itemBuilder: (context, idx) {
+                                final c = _comments[idx];
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 20),
                                   child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        height: 36,
-                                        width: 36,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: const LinearGradient(
-                                            colors: [AppColors.jadePrimary, Colors.teal],
-                                          ),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: const Icon(Icons.person_rounded, color: Colors.white, size: 18),
-                                      ),
+                                      UserAvatar(photoURL: c.userAvatarUrl, radius: 18),
                                       const SizedBox(width: 14),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              'Campus Insider',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                color: isDark ? Colors.white : Colors.black87,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                              ),
+                                            Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    cleanCMSUsername(c.userName),
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      color: isDark ? Colors.white : Colors.black87,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                   AppDateUtils.timeAgo(c.timestamp),
+                                                   style: GoogleFonts.inter(
+                                                     color: isDark ? Colors.white30 : Colors.black38,
+                                                     fontSize: 10,
+                                                   ),
+                                                ),
+                                              ],
                                             ),
                                             const SizedBox(height: 4),
                                             Container(
@@ -511,7 +626,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                                                 ),
                                               ),
                                               child: Text(
-                                                _comments[idx],
+                                                c.text,
                                                 style: GoogleFonts.inter(
                                                   color: isDark ? Colors.white.withOpacity(0.9) : Colors.black87,
                                                   fontSize: 14,
@@ -565,14 +680,37 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                               ),
                               const SizedBox(width: 12),
                               GestureDetector(
-                                onTap: () {
-                                  if (textController.text.trim().isNotEmpty) {
-                                    HapticFeedback.lightImpact();
-                                    setState(() {
-                                      _comments.add(textController.text.trim());
-                                    });
-                                    setSheetState(() {});
-                                    textController.clear();
+                                onTap: () async {
+                                  final txt = textController.text.trim();
+                                  if (txt.isEmpty) return;
+                                  
+                                  final user = ref.read(authServiceProvider).currentUser;
+                                  if (user == null) return;
+
+                                  HapticFeedback.lightImpact();
+                                  textController.clear();
+
+                                  // Construct genuine domain model
+                                  final comment = CommentModel(
+                                    id: const Uuid().v4(),
+                                    postId: widget.post.id,
+                                    userId: user.uid,
+                                    userName: user.name,
+                                    userAvatarUrl: user.photoURL ?? '',
+                                    text: txt,
+                                    timestamp: DateTime.now(),
+                                  );
+
+                                  // Optimistic Local Push
+                                  setState(() {
+                                    _comments.insert(0, comment); // Add at TOP for instant feedback!
+                                  });
+                                  setSheetState(() {}); // Refresh Modal State immediately
+
+                                  try {
+                                    await ref.read(apiServiceProvider).addComment(comment.toMap());
+                                  } catch (e) {
+                                    debugPrint('Failed to propagate comment: $e');
                                   }
                                 },
                                 child: Container(
@@ -599,6 +737,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
       },
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -788,17 +927,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                   icon: _isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                   color: _isLiked ? Colors.redAccent : Colors.white,
                   label: '$_localLikesCount',
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() {
-                      _isLiked = !_isLiked;
-                      if (_isLiked) {
-                        _localLikesCount++;
-                      } else {
-                        _localLikesCount--;
-                      }
-                    });
-                  },
+                  onTap: () => _toggleLike(),
                 ),
                 const SizedBox(height: 18),
 
@@ -818,7 +947,27 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                   label: 'Share',
                   onTap: () {
                     HapticFeedback.mediumImpact();
-                    showAppSnack(context, 'Trace link copied to clipboard!');
+                    // Real share targeting deployment server!
+                    final text = 'Check out this Trace by ${widget.post.posterName.isNotEmpty ? widget.post.posterName : "Campus User"}:\n'
+                        '${widget.post.title}\n\n'
+                        'View details here: https://trace-self.vercel.app/post/${widget.post.id}';
+                    Share.share(text);
+                  },
+                ),
+
+                const SizedBox(height: 18),
+
+                // Volume / Mute Button
+                _buildActionItem(
+                  icon: _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                  color: Colors.white,
+                  label: _isMuted ? 'Muted' : 'Sound',
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _isMuted = !_isMuted;
+                      _videoController?.setVolume(_isMuted ? 0.0 : 1.0);
+                    });
                   },
                 ),
                 const SizedBox(height: 18),
@@ -837,6 +986,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem> {
                     size: 20,
                   ),
                 ),
+
               ],
             ),
           ),

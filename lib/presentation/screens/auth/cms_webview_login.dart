@@ -14,6 +14,7 @@ import '../../../data/services/cms_auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../../data/services/notification_service.dart';
+import '../../../data/services/cms_parser_service.dart';
 
 class CMSWebViewLogin extends ConsumerStatefulWidget {
   const CMSWebViewLogin({super.key});
@@ -30,9 +31,31 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
   bool _isExtracting = false;
   String? _error;
   String _loadingStatus = '';
+  
+  Map<String, dynamic>? _cachedProfileData;
+  bool _waitingForTimetable = false;
+  bool _isTimetableProcessing = false;
 
   final TextEditingController _enrollmentController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  List<Map<String, String>> _savedAccounts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedAccounts();
+  }
+
+  Future<void> _loadSavedAccounts() async {
+    final settings = ref.read(localSettingsProvider);
+    final accounts = await settings.getSavedCMSAccounts();
+    if (mounted) {
+      setState(() {
+        _savedAccounts = accounts;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -131,6 +154,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
           setState(() => _loadingStatus = 'Welcome back!');
           final localSettings = ref.read(localSettingsProvider);
           await localSettings.saveCMSAccount(enrollment, _passwordController.text.trim());
+          _loadSavedAccounts(); // Refresh list asynchronously
           await ref.read(authServiceProvider).setCurrentUserFromUid(enrollment);
           if (mounted) context.go('/home');
           return;
@@ -150,7 +174,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
     if (_isExtracting || _webViewController == null || !mounted) return;
     
     _isExtracting = true;
-    debugPrint('📥 Starting data extraction...');
+    debugPrint('📥 Starting phase 1: Profile extraction...');
 
     try {
       await Future.delayed(const Duration(seconds: 2));
@@ -197,9 +221,6 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
           if (emailEl && !data.universityEmail) data.universityEmail = emailEl.innerText.trim();
           if (usernameEl && !data.enrollment) data.enrollment = usernameEl.innerText.trim();
           
-          // Debug flag
-          data.isAtProfilePage = window.location.href.includes('Profile.aspx');
-          
           return JSON.stringify(data);
         })();
       ''',
@@ -209,9 +230,87 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       if (profileData != null && profileData is String && profileData.isNotEmpty) {
         data = jsonDecode(profileData);
       }
+      
+      _cachedProfileData = data;
 
+      // Advance to step 2: Timetable sync in the active session
+      debugPrint('📋 Profile step completed, routing to Timetable...');
+      setState(() {
+        _loadingStatus = 'Fetching Schedule...';
+        _waitingForTimetable = true;
+      });
+
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri("https://cms.bahria.edu.pk/Sys/Student/CourseRegistration/TimeTable.aspx")
+        )
+      );
+
+    } catch (e) {
+      debugPrint('❌ Profile Extraction Error: $e');
+      if (mounted) {
+        setState(() { 
+          _error = 'Details extraction failed: $e'; 
+          _isLoading = false; 
+          _isSyncing = false; 
+        });
+      }
+    } finally {
+      _isExtracting = false;
+    }
+  }
+
+  Future<void> _extractTimetableAndFinalize() async {
+    if (_isTimetableProcessing || _webViewController == null || !mounted) return;
+    
+    _isTimetableProcessing = true;
+    debugPrint('📥 Starting phase 2: Timetable Extraction...');
+    
+    try {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+
+      // Step 1: Scrape whole HTML directly from the logged-in WebView to leverage our existing parsers!
+      final rawHtml = await _webViewController?.evaluateJavascript(
+        source: "document.documentElement.outerHTML"
+      );
+
+      List<CMSTimetableEntry> timetable = [];
+
+      if (rawHtml != null && rawHtml is String) {
+        debugPrint('🔎 Sending HTML to CMSParserService...');
+        // Strategy 1: Hidden JSON field via existing parser
+        final jsonStr = CMSParserService.extractTimetableJson(rawHtml);
+        if (jsonStr != null) {
+          try {
+            final decoded = jsonDecode(jsonStr);
+            timetable = CMSParserService.parseTimetable(decoded);
+            debugPrint('📅 Found ${timetable.length} courses via dynamic extraction');
+          } catch (e) {
+             debugPrint('JSON parse error during sync: $e');
+          }
+        }
+        // Fallback to HTML table scraping via existing parser
+        if (timetable.isEmpty) {
+          debugPrint('⏳ Trying table fallback...');
+          final tableEntries = CMSParserService.extractTimetableFromTable(rawHtml);
+          if (tableEntries.isNotEmpty) {
+            timetable = tableEntries
+                .map((e) => CMSTimetableEntry.fromMap(e))
+                .toList();
+            debugPrint('📅 Found ${timetable.length} courses via table extraction');
+          }
+        }
+      }
+
+      // Step 2: Consolidate Profile & Save
+      final data = _cachedProfileData ?? {};
       final enrollment = data['enrollment'] ?? _enrollmentController.text.trim();
-      final name = data['name'] ?? 'CMS User';
+      
+      // TASK: Remove CMS User string mapping! Replace with enrollment number if found placeholder
+      final rawName = data['name']?.toString().trim() ?? '';
+      final name = rawName.isNotEmpty ? rawName : enrollment;
+
       final email = data['universityEmail'] ?? '$enrollment@student.bahria.edu.pk';
       final fatherName = data['fatherName'] ?? '';
       final phone = data['phone'] ?? '';
@@ -221,7 +320,6 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       final permAddr = data['permanentAddress'] ?? '';
       final intake = data['intakeSemester'] ?? '';
       
-      // Map program codes to full names
       String dept = program;
       if (program.contains('BSE')) dept = 'Software Engineering';
       else if (program.contains('BCE')) dept = 'Computer Engineering';
@@ -230,6 +328,8 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       else if (program.contains('BBA')) dept = 'Business Administration';
       else if (program.contains('BEE')) dept = 'Electrical Engineering';
 
+      setState(() => _loadingStatus = 'Finalizing Profile...');
+      
       final localSettings = ref.read(localSettingsProvider);
       await localSettings.setFatherName(fatherName);
       await localSettings.setRegistrationNo(regNo);
@@ -237,6 +337,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       await localSettings.setPermanentAddress(permAddr);
       await localSettings.setIntakeSemester(intake);
       await localSettings.saveCMSAccount(enrollment, _passwordController.text.trim());
+      _loadSavedAccounts(); // Refresh list asynchronously
 
       final api = ref.read(apiServiceProvider);
       await api.syncUser({
@@ -255,39 +356,31 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
         'intakeSemester': intake,
       });
 
-      // Timetable sync
-      try {
-        final cmsService = CMSAuthService();
-        final session = await cmsService.login(
-          enrollment: enrollment.toString(),
-          password: _passwordController.text.trim(),
-          instituteId: '2',
-          role: 'None',
-        );
-        if (session?.timetable != null) {
-          await api.saveTimetable(enrollment, session!.timetable!.map((e) => e.toMap()).toList());
-        }
-      } catch (_) {}
+      // Save final scraped timetable
+      if (timetable.isNotEmpty) {
+        debugPrint('💾 Persisting timetable to cloud store...');
+        await api.saveTimetable(enrollment, timetable.map((e) => e.toMap()).toList());
+      }
 
       await ref.read(authServiceProvider).setCurrentUserFromUid(enrollment);
-      
-      // Ensure notifications are registered
       await NotificationService().registerDevice(enrollment, name: name, email: email);
       
+      debugPrint('🎉 Done! Navigation underway...');
       if (mounted) {
         context.go('/home');
       }
+
     } catch (e) {
-      debugPrint('❌ Extraction Error: $e');
+      debugPrint('❌ Sync Error: $e');
       if (mounted) {
         setState(() { 
-          _error = 'Data extraction failed: $e'; 
+          _error = 'Final sync failed: $e'; 
           _isLoading = false; 
           _isSyncing = false; 
         });
       }
     } finally {
-      _isExtracting = false;
+      _isTimetableProcessing = false;
     }
   }
 
@@ -330,11 +423,14 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
                   ),
                   onWebViewCreated: (controller) => _webViewController = controller,
                   onLoadStop: (controller, url) async {
-                    debugPrint('🌐 WebView Loaded: $url');
-                    if (url?.toString().contains('Dashboard.aspx') == true) {
+                    final urlStr = url?.toString() ?? '';
+                    debugPrint('🌐 WebView Loaded: $urlStr');
+                    
+                    if (urlStr.contains('Dashboard.aspx')) {
                       debugPrint('✅ Login Success! Checking for existing profile...');
                       _checkExistingAndNavigate(controller);
-                    } else if (url?.toString().contains('Profile.aspx') == true) {
+                    } 
+                    else if (urlStr.contains('Profile.aspx')) {
                       debugPrint('📄 Profile page loaded, extracting deep data...');
                       setState(() { 
                         _loginSuccess = true; 
@@ -342,7 +438,12 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
                         _loadingStatus = 'Extracting Details...';
                       });
                       _extractAndSaveData();
-                    } else if (url?.toString().contains('Login.aspx') == true && _isLoading) {
+                    } 
+                    else if (urlStr.contains('TimeTable.aspx') && _waitingForTimetable) {
+                      debugPrint('📅 Timetable page ready! Proceeding to finalize...');
+                      _extractTimetableAndFinalize();
+                    }
+                    else if (urlStr.contains('Login.aspx') && _isLoading) {
                       debugPrint('📍 Still on login page, checking for errors...');
                       setState(() => _loadingStatus = 'Authenticating...');
                       final errorMsg = await controller.evaluateJavascript(source: "document.querySelector('.alert-danger')?.innerText");
@@ -436,8 +537,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
   }
 
   Widget _buildPresetsRow(BuildContext context) {
-    final settings = ref.read(localSettingsProvider);
-    final presets = settings.getSavedCMSAccounts();
+    final presets = _savedAccounts;
     if (presets.isEmpty) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = AppColors.textPrimary(context);
@@ -493,8 +593,8 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () async {
-                        await settings.deleteCMSAccount(enrollment);
-                        setState(() {});
+                        await ref.read(localSettingsProvider).deleteCMSAccount(enrollment);
+                        _loadSavedAccounts();
                       },
                       child: Icon(Icons.close_rounded, size: 14, color: subColor.withOpacity(0.6)),
                     ),
@@ -510,7 +610,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
   }
 }
 
-class _CustomField extends StatelessWidget {
+class _CustomField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String hint;
@@ -526,6 +626,19 @@ class _CustomField extends StatelessWidget {
   });
 
   @override
+  State<_CustomField> createState() => _CustomFieldState();
+}
+
+class _CustomFieldState extends State<_CustomField> {
+  late bool _obscureText;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscureText = widget.isPassword;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = AppColors.textPrimary(context);
@@ -534,16 +647,26 @@ class _CustomField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: subColor)),
+        Text(widget.label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: subColor)),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
-          obscureText: isPassword,
+          controller: widget.controller,
+          obscureText: _obscureText,
           style: TextStyle(color: textColor),
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: widget.hint,
             hintStyle: TextStyle(color: subColor.withOpacity(0.3)),
-            prefixIcon: Icon(icon, color: AppColors.jadePrimary, size: 20),
+            prefixIcon: Icon(widget.icon, color: AppColors.jadePrimary, size: 20),
+            suffixIcon: widget.isPassword 
+              ? IconButton(
+                  icon: Icon(
+                    _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                    color: AppColors.jadePrimary.withOpacity(0.7),
+                    size: 20,
+                  ),
+                  onPressed: () => setState(() => _obscureText = !_obscureText),
+                )
+              : null,
             filled: true,
             fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),

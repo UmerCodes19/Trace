@@ -16,20 +16,17 @@ class AnimatedFlutterAvatar extends StatefulWidget {
   State<AnimatedFlutterAvatar> createState() => _AnimatedFlutterAvatarState();
 }
 
-class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with SingleTickerProviderStateMixin {
+class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _controller;
   
-  // State variables for animation values
-  double _blinkPhase = 0.0;
-  double _swayPhase = 0.0;
   double _bounceScale = 1.0;
 
-  // We only run continuous animations if the avatar is large enough
   bool get _isMicro => widget.size <= 40;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
       duration: _getVibeDuration(widget.config.vibe),
@@ -37,7 +34,17 @@ class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with Sing
 
     if (!_isMicro) {
       _controller.repeat();
-      _controller.addListener(_updateAnimations);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isMicro) {
+      if (state == AppLifecycleState.resumed) {
+        if (!_controller.isAnimating) _controller.repeat();
+      } else {
+        _controller.stop(); // Battery hardener
+      }
     }
   }
 
@@ -45,10 +52,9 @@ class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with Sing
   void didUpdateWidget(AnimatedFlutterAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    // Update duration if vibe changes
     if (oldWidget.config.vibe != widget.config.vibe) {
       _controller.duration = _getVibeDuration(widget.config.vibe);
-      if (!_isMicro && _controller.isAnimating) {
+      if (!_isMicro) {
         _controller.repeat();
       }
     }
@@ -62,59 +68,18 @@ class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with Sing
 
   Duration _getVibeDuration(int vibe) {
     switch (vibe) {
-      case 1: return const Duration(milliseconds: 6000); // Calm: Very slow
-      case 2: return const Duration(milliseconds: 2500); // Chaotic: Fast
-      case 3: return const Duration(milliseconds: 5000); // Dreamcore: Slow & floaty
-      case 4: return const Duration(milliseconds: 4500); // Night Owl: Smooth
-      case 5: return const Duration(milliseconds: 3000); // Techwear: Sharp/Fast
-      default: return const Duration(milliseconds: 4000); // Balanced
+      case 1: return const Duration(milliseconds: 6000);
+      case 2: return const Duration(milliseconds: 2500);
+      case 3: return const Duration(milliseconds: 5000);
+      case 4: return const Duration(milliseconds: 4500);
+      case 5: return const Duration(milliseconds: 3000);
+      default: return const Duration(milliseconds: 4000);
     }
-  }
-
-  void _updateAnimations() {
-    final t = _controller.value;
-    final vibe = widget.config.vibe;
-    
-    // 1. Blinking
-    // Calm (1) blinks less often. Chaotic (2) blinks more frequently.
-    // Night Owl (4) sometimes does a rapid double blink.
-    bool isBlinking = false;
-    double blinkT = 0.0;
-
-    if (vibe == 2 && t > 0.45 && t < 0.50) {
-      // Chaotic: extra mid-cycle blink
-      blinkT = (t - 0.45) / 0.05;
-      isBlinking = true;
-    } else if (vibe == 4 && t > 0.85 && t < 0.95) {
-      // Night Owl: double blink
-      blinkT = ((t - 0.85) / 0.10) * 2.0; // goes 0->2
-      isBlinking = true;
-    } else if (vibe != 1 || t > 0.90) { // Calm skips some cycles, standard blink otherwise
-      if (t > 0.90 && t < 0.95) {
-        blinkT = (t - 0.90) / 0.05;
-        isBlinking = true;
-      }
-    }
-
-    if (isBlinking) {
-      _blinkPhase = math.sin(blinkT * math.pi).abs();
-    } else {
-      _blinkPhase = 0.0;
-    }
-
-    // 2. Sway
-    if (vibe == 5) {
-      // Techwear: linear, slight robotic sway
-      _swayPhase = (t < 0.5 ? t * 2 : 2 - t * 2) * 2 - 1.0;
-    } else {
-      _swayPhase = math.sin(t * math.pi * 2);
-    }
-
-    setState(() {});
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -136,55 +101,90 @@ class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with Sing
 
   @override
   Widget build(BuildContext context) {
-    // 3. Breathing (vertical translation)
-    final vibe = widget.config.vibe;
-    double floatAmp = 1.5;
-    double rawBreath = math.sin(_controller.value * math.pi * 2);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        final vibe = widget.config.vibe;
 
-    if (vibe == 1) floatAmp = 1.0;      // Calm
-    else if (vibe == 2) floatAmp = 2.5; // Chaotic
-    else if (vibe == 3) floatAmp = 3.0; // Dreamcore
-    else if (vibe == 4) floatAmp = 0.8; // Night Owl
+        // 1. Blinking Math
+        double blinkPhase = 0.0;
+        bool isBlinking = false;
+        double blinkT = 0.0;
 
-    if (vibe == 5) {
-      // Techwear: sharper, stepped curve
-      final curve = Curves.easeInOutCubic;
-      final t = _controller.value;
-      rawBreath = curve.transform(t < 0.5 ? t * 2 : 2 - (t * 2)) * 2 - 1;
-    }
+        if (vibe == 2 && t > 0.45 && t < 0.50) {
+          blinkT = (t - 0.45) / 0.05;
+          isBlinking = true;
+        } else if (vibe == 4 && t > 0.85 && t < 0.95) {
+          blinkT = ((t - 0.85) / 0.10) * 2.0;
+          isBlinking = true;
+        } else if (vibe != 1 || t > 0.90) {
+          if (t > 0.90 && t < 0.95) {
+            blinkT = (t - 0.90) / 0.05;
+            isBlinking = true;
+          }
+        }
+        
+        if (isBlinking) {
+          blinkPhase = math.sin(blinkT * math.pi).abs();
+        }
 
-    final double breathY = _isMicro ? 0.0 : rawBreath * floatAmp;
+        // 2. Sway Math
+        double swayPhase = 0.0;
+        if (vibe == 5) {
+          swayPhase = (t < 0.5 ? t * 2 : 2 - t * 2) * 2 - 1.0;
+        } else {
+          swayPhase = math.sin(t * math.pi * 2);
+        }
 
-    Widget avatar = SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: CustomPaint(
-        painter: AvatarPainter(
-          config: widget.config,
-          renderSize: widget.size,
-          blinkPhase: _blinkPhase,
-          swayPhase: _swayPhase,
-        ),
-      ),
-    );
+        // 3. Breathing (vertical translation)
+        double floatAmp = 1.5;
+        double rawBreath = math.sin(t * math.pi * 2);
 
-    if (!_isMicro) {
-      avatar = Transform.translate(
-        offset: Offset(0, breathY),
-        child: AnimatedScale(
-          scale: _bounceScale,
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOutBack,
-          child: GestureDetector(
-            onTapDown: _handleTapDown,
-            onTapUp: _handleTapUp,
-            onTapCancel: _handleTapCancel,
-            child: avatar,
+        if (vibe == 1) floatAmp = 1.0;
+        else if (vibe == 2) floatAmp = 2.5;
+        else if (vibe == 3) floatAmp = 3.0;
+        else if (vibe == 4) floatAmp = 0.8;
+
+        if (vibe == 5) {
+          const curve = Curves.easeInOutCubic;
+          rawBreath = curve.transform(t < 0.5 ? t * 2 : 2 - (t * 2)) * 2 - 1;
+        }
+
+        final double breathY = _isMicro ? 0.0 : rawBreath * floatAmp;
+
+        Widget avatar = SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: CustomPaint(
+            painter: AvatarPainter(
+              config: widget.config,
+              renderSize: widget.size,
+              blinkPhase: blinkPhase,
+              swayPhase: swayPhase,
+            ),
           ),
-        ),
-      );
-    }
+        );
 
-    return avatar;
+        if (!_isMicro) {
+          avatar = Transform.translate(
+            offset: Offset(0, breathY),
+            child: AnimatedScale(
+              scale: _bounceScale,
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOutBack,
+              child: GestureDetector(
+                onTapDown: _handleTapDown,
+                onTapUp: _handleTapUp,
+                onTapCancel: _handleTapCancel,
+                child: avatar,
+              ),
+            ),
+          );
+        }
+
+        return avatar;
+      },
+    );
   }
 }

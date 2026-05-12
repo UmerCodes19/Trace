@@ -88,10 +88,12 @@ class LostFoundApp extends ConsumerWidget {
     final isDarkMode = ref.watch(themeProvider);
     final accentInt = ref.watch(accentColorProvider);
     final accent = Color(accentInt);
+    final showPerf = ref.watch(performanceOverlayProvider);
 
     return MaterialApp.router(
       title: 'Trace - Bahria University',
       debugShowCheckedModeBanner: false,
+      showPerformanceOverlay: showPerf,
       theme: AppTheme.light(accent: accent),
       darkTheme: AppTheme.dark(accent: accent),
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
