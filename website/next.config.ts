@@ -11,6 +11,21 @@ const nextConfig: NextConfig = {
 
   // Output configuration
   output: 'standalone', // Better for Vercel deployment
+
+  // Allow popups for Firebase Auth
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

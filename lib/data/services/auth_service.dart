@@ -24,7 +24,10 @@ class AuthService extends ChangeNotifier {
 
   final ApiService apiService;
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb ? '924919259462-ckceoqkrftar1tpql5jn4ftn0h9rjqki.apps.googleusercontent.com' : null, 
+    scopes: ['email', 'profile']
+  );
   static const _storage = FlutterSecureStorage();
 
   SimpleUserModel? _currentUser;

@@ -29,9 +29,11 @@ void main() async {
   // Cloud-based architecture - no local DB init needed
 
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
     debugPrint('Firebase initialized successfully');
     
     // Initialize Notifications

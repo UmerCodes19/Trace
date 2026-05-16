@@ -29,12 +29,12 @@ class DefaultFirebaseOptions {
   //   flutterfire configure --project=your-firebase-project-id
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'YOUR_WEB_API_KEY',
-    appId: '1:000000000000:web:0000000000000000',
-    messagingSenderId: '000000000000',
-    projectId: 'your-project-id',
-    authDomain: 'your-project-id.firebaseapp.com',
-    storageBucket: 'your-project-id.appspot.com',
+    apiKey: 'AIzaSyAR0ajuuR1KAY6Nn4kvkxKJ_KdbcZrIuKI',
+    appId: '1:924919259462:web:a3b8add774d81b60d0c547',
+    messagingSenderId: '924919259462',
+    projectId: 'bahria-lost-found',
+    authDomain: 'bahria-lost-found.firebaseapp.com',
+    storageBucket: 'bahria-lost-found.appspot.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
