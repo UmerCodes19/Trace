@@ -1,265 +1,299 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowLeft, Map, Search, ShieldCheck, Smartphone, Download, HelpCircle, ChevronDown, Camera, CheckCircle, Star } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
-import { useRef, useState } from "react";
 
-function LuxuryGridBackground() {
-   return (
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
-         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--color-jade-primary)_0%,_transparent_80%)] opacity-20 mix-blend-overlay" />
-         <svg className="w-full h-full">
-            <pattern id="trace-grid" width="60" height="60" patternUnits="userSpaceOnUse">
-               <path d="M 60 0 L 0 0 0 60" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-jade-primary opacity-30" />
-               <circle cx="0" cy="0" r="1" fill="currentColor" className="text-jade-primary opacity-50" />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#trace-grid)" />
-         </svg>
-      </div>
-   );
-}
+gsap.registerPlugin(ScrollTrigger);
 
-function TraceFAQItem({ question, answer }: { question: string, answer: string }) {
-   const [isOpen, setIsOpen] = useState(false);
-   return (
-      <div className="border-b border-[var(--border-color)] py-6 transition-colors">
-         <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center text-left group">
-            <span className="text-sm md:text-base font-bold group-hover:text-jade-primary transition-colors pr-8 text-[var(--foreground)]">{question}</span>
-            <ChevronDown className={`w-4 h-4 text-sage-secondary transition-transform shrink-0 ${isOpen ? 'rotate-180 text-jade-primary' : ''}`} />
-         </button>
-         {isOpen && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }} 
-              animate={{ opacity: 1, y: 0 }} 
-              className="mt-4 text-sage-secondary text-sm leading-relaxed max-w-2xl"
+const FEATURES = [
+  { icon: "📸", title: "AI Image Analysis", desc: "Snap a photo and Gemini AI instantly identifies and categorizes your lost item with high accuracy." },
+  { icon: "🗺️", title: "Campus Map", desc: "Pin exact locations on detailed Bahria University floor maps. Never say 'somewhere near the cafeteria' again." },
+  { icon: "⛓️", title: "Blockchain Logging", desc: "Every claim is SHA-256 hashed and chained — tamper-proof audit trail for every handover." },
+  { icon: "📱", title: "QR Handover", desc: "Generate a secure QR code for item exchange. Scan to confirm — clean, contactless, verified." },
+  { icon: "🔔", title: "Real-time Alerts", desc: "Firebase push notifications the moment someone finds something matching your description." },
+  { icon: "🤖", title: "Discord Bot", desc: "Report lost/found items directly from Discord. /lost /found /claim — campus-wide reach." },
+];
+
+const STEPS = [
+  { num: "01", title: "Snap & Report", desc: "Take a photo. AI fills in the details. Post in under 30 seconds." },
+  { num: "02", title: "Smart Match", desc: "Our matching engine compares tags, location, and image similarity across all posts." },
+  { num: "03", title: "Secure Return", desc: "Chat in-app, verify ownership, scan QR to complete the handover. Done." },
+];
+
+const TECH = [
+  { name: "Flutter", role: "Mobile App" },
+  { name: "Node.js", role: "Backend API" },
+  { name: "Next.js", role: "Website" },
+  { name: "Supabase", role: "Database" },
+  { name: "Firebase", role: "Auth + FCM" },
+  { name: "Gemini AI", role: "Image Analysis" },
+  { name: "Cloudinary", role: "Image Storage" },
+  { name: "Vercel", role: "Deployment" },
+];
+
+const FAQS = [
+  { q: "Is Trace only for Bahria University?", a: "Currently yes — built specifically for Bahria University Karachi campus with its floor maps and CMS integration. Other campuses coming soon." },
+  { q: "How does ownership verification work?", a: "The claimant must describe unique details about the item. Once matched, a QR code is generated for physical exchange — logged on the blockchain." },
+  { q: "Is my data safe?", a: "All data is stored on Supabase (PostgreSQL) with Firebase Auth. Claim logs are blockchain-secured and tamper-proof." },
+  { q: "Can I use it without the app?", a: "Yes! The web version lets you browse and report items. The mobile app gives you push notifications and camera access." },
+];
+
+export default function TracePage() {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [tryMode, setTryMode] = useState(false);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(titleRef.current, { y: 80, opacity: 0, duration: 1.2, ease: "power4.out" });
+      gsap.from(".hero-sub", { y: 40, opacity: 0, duration: 1, delay: 0.3, ease: "power3.out" });
+      gsap.from(".hero-badge", { y: 20, opacity: 0, stagger: 0.1, delay: 0.5, duration: 0.6 });
+      gsap.from(".hero-btn", { y: 20, opacity: 0, stagger: 0.15, delay: 0.7, duration: 0.6 });
+
+      gsap.from(".feature-card", {
+        scrollTrigger: { trigger: featuresRef.current, start: "top 80%" },
+        y: 60, opacity: 0, stagger: 0.12, duration: 0.8, ease: "power3.out",
+      });
+
+      gsap.from(".step-item", {
+        scrollTrigger: { trigger: stepsRef.current, start: "top 75%" },
+        x: -50, opacity: 0, stagger: 0.2, duration: 0.9, ease: "power3.out",
+      });
+
+      gsap.to(".orb", { y: -30, duration: 3, repeat: -1, yoyo: true, ease: "sine.inOut" });
+    });
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] overflow-x-hidden">
+
+      {/* Nav */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 h-16 border-b border-[var(--border-color)] bg-[var(--background)]/80 backdrop-blur-md">
+        <Link href="/" className="text-xs font-bold text-sage-secondary hover:text-jade-primary transition-colors">
+          Back to Home
+        </Link>
+        <span className="text-sm font-black tracking-widest text-[var(--foreground)]">TRACE</span>
+        <a href="/trace.apk" download className="px-4 py-1.5 bg-jade-primary text-white text-xs font-bold rounded-full hover:bg-jade-deep transition-all">
+          Download APK
+        </a>
+      </nav>
+
+      {/* Hero */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-16 overflow-hidden">
+        <div className="orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-jade-primary/10 blur-[120px] rounded-full pointer-events-none" />
+        <div
+          className="absolute inset-0 opacity-10 pointer-events-none"
+          style={{
+            backgroundImage: "linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)",
+            backgroundSize: "60px 60px",
+          }}
+        />
+
+        <div className="relative z-10 space-y-8 max-w-4xl">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-jade-primary/30 bg-jade-primary/10 rounded-full text-jade-primary text-xs font-bold uppercase tracking-widest">
+            <span className="w-2 h-2 bg-jade-primary rounded-full animate-pulse" />
+            Bahria University Karachi
+          </div>
+
+          <h1 ref={titleRef} className="text-7xl md:text-[10rem] font-black tracking-tighter leading-[0.85] text-[var(--foreground)]">
+            TRACE<span className="text-jade-primary">.</span>
+          </h1>
+
+          <p className="hero-sub text-lg md:text-2xl text-sage-secondary font-medium max-w-2xl mx-auto leading-relaxed">
+            The AI-powered lost and found system for your campus. Report, match, and recover items in minutes.
+          </p>
+
+          <div className="flex flex-wrap justify-center gap-2">
+            {["AI Image Analysis", "Blockchain Logging", "QR Handover", "Campus Maps", "Discord Bot"].map((b) => (
+              <span key={b} className="hero-badge px-3 py-1 border border-[var(--border-color)] bg-[var(--card-bg)] text-xs font-bold rounded-full text-[var(--foreground)]">
+                {b}
+              </span>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4 pt-2">
+            <button
+              onClick={() => setTryMode(true)}
+              className="hero-btn px-8 py-4 bg-jade-primary text-white font-bold text-sm rounded-xl hover:bg-jade-deep transition-all shadow-lg active:scale-95"
             >
-               {answer}
-            </motion.div>
-         )}
-      </div>
-   );
-}
+              Try Web Version
+            </button>
+            <a
+              href="/trace.apk"
+              download
+              className="hero-btn px-8 py-4 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] font-bold text-sm rounded-xl hover:border-jade-primary transition-all active:scale-95"
+            >
+              Download Android APK
+            </a>
+          </div>
+        </div>
 
-export default function TraceProductPage() {
-   const containerRef = useRef<HTMLDivElement>(null);
-   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
-   const heroOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
-   const heroY = useTransform(scrollYProgress, [0, 0.15], [0, -20]);
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-sage-secondary text-xs font-bold animate-bounce">
+          <span>SCROLL</span>
+          <span>↓</span>
+        </div>
+      </section>
 
-   return (
-      <div ref={containerRef} className="min-h-screen bg-[var(--background)] text-[var(--foreground)] transition-colors selection:bg-jade-primary/30 overflow-x-hidden font-sans">
-         
-         {/* Top Context Nav */}
-         <div className="relative pt-20 z-40 px-4 md:px-10">
-            <div className="max-w-7xl mx-auto h-16 flex justify-between items-center border-b border-[var(--border-color)]">
-               <Link href="/" className="group flex items-center gap-2 text-xs font-bold text-sage-secondary hover:text-jade-primary transition-colors">
-                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Home
-               </Link>
-               <div className="px-4 py-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] text-[10px] font-bold text-jade-primary rounded-full uppercase tracking-wider shadow-sm">
-                  Available for Android
-               </div>
+      {/* Try Web Modal */}
+      {tryMode && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl h-[80vh] bg-[var(--card-bg)] rounded-3xl border border-[var(--border-color)] overflow-hidden flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
+              <span className="font-black text-sm tracking-widest">TRACE — Web Version</span>
+              <div className="flex items-center gap-4">
+                <a
+                  href="https://trace-self.vercel.app"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-bold text-jade-primary hover:underline"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  onClick={() => setTryMode(false)}
+                  className="text-sage-secondary hover:text-[var(--foreground)] font-bold text-lg transition-colors"
+                >
+                  X
+                </button>
+              </div>
             </div>
-         </div>
+            <iframe src="https://trace-self.vercel.app" className="flex-1 w-full" title="Trace Web App" />
+          </div>
+        </div>
+      )}
 
-         {/* Premium Hero Section */}
-         <section className="relative min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center text-center px-6 overflow-hidden">
-            <LuxuryGridBackground />
-            
-            {/* Soft Ambient Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-jade-primary/10 blur-[140px] rounded-full pointer-events-none" />
+      {/* Features */}
+      <section className="py-32 px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-20 space-y-4">
+          <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">What it does</span>
+          <h2 className="text-4xl md:text-6xl font-black tracking-tight text-[var(--foreground)]">Built different.</h2>
+          <p className="text-sage-secondary max-w-xl mx-auto text-sm">
+            Not just a notice board. A full-stack lost and found ecosystem with AI, blockchain, and real-time everything.
+          </p>
+        </div>
 
-            <motion.div style={{ opacity: heroOpacity, y: heroY }} className="relative z-10 space-y-8 max-w-4xl">
-               <div className="space-y-6 flex flex-col items-center">
-                  <motion.div 
-                     initial={{ scale: 0.9, opacity: 0 }} 
-                     animate={{ scale: 1, opacity: 1 }}
-                     className="w-20 h-20 bg-[var(--card-bg)] border-2 border-[var(--border-color)] p-2 rounded-2xl shadow-xl mb-4"
+        <div ref={featuresRef} className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {FEATURES.map((f, i) => (
+            <div
+              key={i}
+              className="feature-card group p-8 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl hover:border-jade-primary/50 transition-all hover:-translate-y-1 cursor-default"
+            >
+              <div className="text-4xl mb-4">{f.icon}</div>
+              <h3 className="text-lg font-black text-[var(--foreground)] mb-2">{f.title}</h3>
+              <p className="text-sage-secondary text-sm leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="py-32 px-6 bg-[var(--card-bg)] border-y border-[var(--border-color)]">
+        <div ref={stepsRef} className="max-w-4xl mx-auto space-y-20">
+          <div className="text-center space-y-4">
+            <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">Simple process</span>
+            <h2 className="text-4xl md:text-6xl font-black tracking-tight text-[var(--foreground)]">3 steps. That is it.</h2>
+          </div>
+
+          <div className="space-y-8">
+            {STEPS.map((s, i) => (
+              <div
+                key={i}
+                className="step-item flex items-start gap-8 p-8 bg-[var(--background)] rounded-3xl border border-[var(--border-color)] hover:border-jade-primary/30 transition-all"
+              >
+                <span className="text-5xl font-black text-jade-primary/30 leading-none shrink-0">{s.num}</span>
+                <div>
+                  <h3 className="text-xl font-black text-[var(--foreground)] mb-2">{s.title}</h3>
+                  <p className="text-sage-secondary text-sm leading-relaxed">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Tech Stack */}
+      <section className="py-32 px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-16 space-y-4">
+          <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">Under the hood</span>
+          <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)]">Serious tech stack.</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {TECH.map((t, i) => (
+            <div
+              key={i}
+              className="p-6 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl text-center hover:border-jade-primary/40 transition-all"
+            >
+              <div className="font-black text-[var(--foreground)] text-sm">{t.name}</div>
+              <div className="text-sage-secondary text-xs mt-1">{t.role}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-32 px-6 bg-[var(--card-bg)] border-t border-[var(--border-color)]">
+        <div className="max-w-3xl mx-auto space-y-12">
+          <div className="text-center">
+            <h2 className="text-4xl font-black tracking-tight text-[var(--foreground)]">Questions?</h2>
+          </div>
+          <div className="space-y-2">
+            {FAQS.map((f, i) => (
+              <div key={i} className="border border-[var(--border-color)] rounded-2xl overflow-hidden">
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex justify-between items-center px-6 py-5 text-left hover:bg-[var(--background)] transition-colors"
+                >
+                  <span className="font-bold text-sm text-[var(--foreground)]">{f.q}</span>
+                  <span
+                    className="text-jade-primary font-black text-lg transition-transform duration-300"
+                    style={{ display: "inline-block", transform: openFaq === i ? "rotate(45deg)" : "rotate(0deg)" }}
                   >
-                     <img src="/images/branding/trace_logo.png" alt="Trace App Logo" className="w-full h-full object-contain" />
-                  </motion.div>
-
-                  <motion.h1 
-                     initial={{ opacity: 0, y: 30 }} 
-                     animate={{ opacity: 1, y: 0 }} 
-                     className="text-5xl md:text-8xl font-black tracking-tight leading-[0.9] text-[var(--foreground)]"
-                  >
-                     Trace<span className="text-jade-primary">.</span>
-                  </motion.h1>
-                  <p className="text-lg md:text-xl font-medium text-sage-secondary max-w-2xl mx-auto">
-                     The modern lost and found app for your university campus. Find missing items instantly.
-                  </p>
-               </div>
-
-               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="flex flex-wrap justify-center gap-3">
-                  {["Visual Search", "Campus Maps", "Safety Rewards", "Realtime Chat"].map(f => (
-                     <span key={f} className="px-4 py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] text-xs font-bold text-[var(--foreground)] rounded-full shadow-sm">
-                        {f}
-                     </span>
-                  ))}
-               </motion.div>
-
-               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
-                  <a href="#" className="px-8 py-4 bg-jade-primary text-white font-bold text-sm rounded-xl flex items-center justify-center gap-3 hover:bg-jade-deep transition-all shadow-lg shadow-jade-primary/20 active:scale-95">
-                     <Download className="w-5 h-5" /> Get the App
-                  </a>
-                  <a href="#" className="px-8 py-4 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] font-bold text-sm rounded-xl flex items-center justify-center gap-3 hover:border-jade-primary transition-all active:scale-95">
-                     <Smartphone className="w-5 h-5" /> View Screens
-                  </a>
-               </motion.div>
-            </motion.div>
-         </section>
-
-         {/* Problem Statement Section */}
-         <section className="py-24 px-6 bg-[var(--card-bg)] border-y border-[var(--border-color)]">
-            <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-               <div className="space-y-6">
-                  <h2 className="text-3xl md:text-4xl font-black tracking-tight text-[var(--foreground)]">Why we built Trace</h2>
-                  <p className="text-sage-secondary font-medium leading-relaxed text-base">
-                     Losing something important on campus is stressful. Posting notices on social media or walking between buildings usually leads nowhere. 
-                  </p>
-                  <p className="text-sage-secondary font-medium leading-relaxed text-base">
-                     Trace was created to solve this. It's one centralized place to report lost belongings, track found items, and securely connect users for a smooth return.
-                  </p>
-               </div>
-               <div className="grid grid-cols-1 gap-4">
-                  {[
-                     "No more scrolling through messy social media groups.",
-                     "Real-time push notifications when your item is found.",
-                     "Secure reward systems that prevent false claims."
-                  ].map((item, i) => (
-                     <div key={i} className="flex items-center gap-4 p-5 bg-[var(--background)] rounded-2xl border border-[var(--border-color)] shadow-sm">
-                        <div className="w-8 h-8 bg-jade-primary/10 rounded-full flex items-center justify-center shrink-0">
-                           <CheckCircle className="w-5 h-5 text-jade-primary" />
-                        </div>
-                        <span className="font-bold text-sm text-[var(--foreground)]">{item}</span>
-                     </div>
-                  ))}
-               </div>
-            </div>
-         </section>
-
-         {/* Product Mockup Preview */}
-         <section className="py-24 px-6 relative overflow-hidden">
-            <div className="max-w-6xl mx-auto aspect-video bg-jade-primary/5 rounded-3xl border border-[var(--border-color)] flex items-center justify-center relative overflow-hidden shadow-2xl group">
-               <div className="absolute inset-0 bg-[url('/images/branding/trace_main_jade.png')] bg-cover bg-center opacity-60 transition-transform duration-1000 group-hover:scale-105" />
-               <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-[var(--background)]/20" />
-               <div className="relative z-10 flex flex-col items-center text-center gap-4">
-                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-xl text-white">
-                     <Smartphone className="w-8 h-8" />
+                    +
+                  </span>
+                </button>
+                {openFaq === i && (
+                  <div className="px-6 pb-5 text-sage-secondary text-sm leading-relaxed border-t border-[var(--border-color)] pt-4">
+                    {f.a}
                   </div>
-                  <span className="text-lg font-bold text-white bg-black/40 px-6 py-2 rounded-full backdrop-blur-sm">Visual Preview</span>
-               </div>
-            </div>
-         </section>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-         {/* User Flow - How it works */}
-         <section className="py-32 px-6 max-w-7xl mx-auto">
-            <div className="text-center mb-20 space-y-4">
-               <h3 className="text-sm font-bold text-jade-primary uppercase tracking-widest">Simple 3-Step Flow</h3>
-               <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)]">How Trace Works.</h2>
-            </div>
+      {/* Final CTA */}
+      <section className="py-40 px-6 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-jade-primary/5 pointer-events-none" />
+        <div className="relative z-10 max-w-3xl mx-auto space-y-10">
+          <h2 className="text-5xl md:text-8xl font-black tracking-tighter text-[var(--foreground)]">
+            Never lose<br />
+            <span className="text-jade-primary">again.</span>
+          </h2>
+          <p className="text-sage-secondary text-lg">Available now for Bahria University Karachi students.</p>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button
+              onClick={() => setTryMode(true)}
+              className="px-10 py-5 bg-jade-primary text-white rounded-2xl font-bold text-base hover:bg-jade-deep transition-all shadow-lg active:scale-95"
+            >
+              Try Now — Web Version
+            </button>
+            <a
+              href="/trace.apk"
+              download
+              className="px-10 py-5 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-2xl font-bold text-base hover:border-jade-primary transition-all active:scale-95"
+            >
+              Download Android APK
+            </a>
+          </div>
+        </div>
+      </section>
 
-            <div className="grid md:grid-cols-3 gap-8 relative">
-               {/* Connector Line hidden on mobile */}
-               <div className="hidden md:block absolute top-14 left-[15%] right-[15%] h-0.5 bg-[var(--border-color)] border-t border-dashed border-sage-secondary/30 -z-10" />
-               
-               {[
-                  { icon: Camera, title: "1. Snap & Post", desc: "Found or lost something? Just snap a quick photo and post it in 30 seconds." },
-                  { icon: Map, title: "2. Map the Spot", desc: "Use internal floor maps to pin the exact location you found or lost the item." },
-                  { icon: ShieldCheck, title: "3. Secure Return", desc: "Chat securely inside the app to coordinate handover and scan QR to finish." }
-               ].map((step, i) => (
-                  <div key={i} className="flex flex-col items-center text-center space-y-6 bg-[var(--card-bg)] p-10 rounded-3xl border border-[var(--border-color)] shadow-md hover:border-jade-primary/30 transition-all">
-                     <div className="w-16 h-16 bg-jade-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-jade-primary/20">
-                        <step.icon className="w-8 h-8" />
-                     </div>
-                     <h4 className="text-xl font-bold text-[var(--foreground)]">{step.title}</h4>
-                     <p className="text-sage-secondary text-sm font-medium leading-relaxed">{step.desc}</p>
-                  </div>
-               ))}
-            </div>
-         </section>
-
-         {/* Visual Tech Section (Map preview) */}
-         <section className="py-24 px-6 bg-[var(--card-bg)] border-y border-[var(--border-color)]">
-            <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-               <div className="space-y-8 order-2 lg:order-1">
-                  <div className="space-y-4">
-                     <span className="text-jade-primary font-bold text-sm uppercase tracking-wider">Internal Navigation</span>
-                     <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)] leading-[1.1]">Never get lost looking for your stuff.</h2>
-                     <p className="text-sage-secondary text-base font-medium leading-relaxed">
-                        Finding a specific floor or room can be confusing. Trace includes detailed floorplans of the building so you can drop a pin exactly where you stand.
-                     </p>
-                  </div>
-                  
-                  <ul className="space-y-4">
-                     {[
-                        "Multi-floor navigation selector.",
-                        "Precise indoor room tags.",
-                        "Real-time route calculation on arrival."
-                     ].map((text, idx) => (
-                        <li key={idx} className="flex items-center gap-3 text-sm font-bold text-[var(--foreground)]">
-                           <Star className="w-4 h-4 text-jade-primary" fill="currentColor" /> {text}
-                        </li>
-                     ))}
-                  </ul>
-               </div>
-
-               {/* The Jade Map Image Container */}
-               <div className="aspect-square rounded-3xl border border-[var(--border-color)] relative shadow-2xl overflow-hidden bg-[var(--background)] order-1 lg:order-2">
-                  <div className="absolute inset-0 bg-[url('/images/branding/trace_map_jade.png')] bg-cover bg-center opacity-80 group-hover:scale-105 transition-transform duration-[2s]" />
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--background)]/60" />
-                  <div className="absolute bottom-6 left-6 right-6 bg-[var(--card-bg)]/90 backdrop-blur-md border border-[var(--border-color)] p-5 rounded-2xl flex items-center justify-between shadow-xl">
-                     <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 bg-jade-primary rounded-full animate-pulse" />
-                        <span className="font-bold text-sm text-[var(--foreground)]">Campus Live Map</span>
-                     </div>
-                     <div className="text-xs font-bold text-jade-primary">Ready</div>
-                  </div>
-               </div>
-            </div>
-         </section>
-
-         {/* Simplified FAQ */}
-         <section className="py-32 px-6">
-            <div className="max-w-3xl mx-auto space-y-12">
-               <div className="text-center">
-                  <HelpCircle className="w-8 h-8 text-jade-primary mx-auto mb-4" />
-                  <h3 className="text-3xl md:text-4xl font-black tracking-tight text-[var(--foreground)]">Got Questions?</h3>
-               </div>
-               <div className="px-2">
-                  <TraceFAQItem 
-                     question="How do I prove an item belongs to me?"
-                     answer="The original owner must describe structural details or unique keys. Once coordinated, the finder generates a secure QR code that is verified on physical exchange."
-                  />
-                  <TraceFAQItem 
-                     question="Can I reward the finder?"
-                     answer="Yes! Trace includes a gesture and ranking system to reward honest community users for helping returns."
-                  />
-                  <TraceFAQItem 
-                     question="Is campus mapping accurate?"
-                     answer="We build precise, layered structural floorplans for every university department covered by the system."
-                  />
-               </div>
-            </div>
-         </section>
-
-         {/* Final CTA */}
-         <section className="py-32 px-6 text-center bg-jade-primary/5 border-t border-[var(--border-color)]">
-            <div className="max-w-3xl mx-auto space-y-10">
-               <h2 className="text-4xl md:text-7xl font-black tracking-tight text-[var(--foreground)] leading-tight">Start tracing <br /><span className="text-jade-primary">today.</span></h2>
-               <div className="flex flex-col sm:flex-row justify-center gap-4">
-                  <a href="#" className="px-10 py-5 bg-jade-primary text-white rounded-2xl font-bold text-base hover:bg-jade-deep transition-all shadow-lg shadow-jade-primary/20 active:scale-95">
-                     Download for Android
-                  </a>
-                  <Link href="/" className="px-10 py-5 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-2xl font-bold text-base hover:border-jade-primary transition-all active:scale-95">
-                     Back to Website
-                  </Link>
-               </div>
-            </div>
-         </section>
-
-      </div>
-   );
+    </div>
+  );
 }
-
