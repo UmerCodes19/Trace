@@ -1,5 +1,10 @@
 const supabase = require('../utils/supabase');
 const NotificationService = require('./notification_service');
+const AIService = require('./ai_service');
+const NodeCache = require('node-cache');
+
+// Cache matches for 1 hour to keep "For You" feed efficient
+const matchCache = new NodeCache({ stdTTL: 3600 });
 
 class MatchmakerService {
   /**
@@ -7,6 +12,7 @@ class MatchmakerService {
    * @param {Object} newPost - The post object that was just created/updated
    */
   static async runMatching(newPost) {
+    console.log(`[Matchmaker] Running matching for post: ${newPost.id} ("${newPost.title}")`);
     if (newPost.status === 'resolved') return;
     const oppositeType = newPost.type === 'lost' ? 'found' : 'lost';
 
@@ -16,66 +22,113 @@ class MatchmakerService {
       .eq('type', oppositeType)
       .neq('status', 'resolved');
 
-    if (error || !potentialMatches) return;
+    if (error || !potentialMatches) {
+      console.error('[Matchmaker] Error fetching candidates:', error);
+      return;
+    }
 
-    const matchesFound = [];
+    console.log(`[Matchmaker] Found ${potentialMatches.length} potential ${oppositeType} candidates.`);
 
-    for (const match of potentialMatches) {
+    // Phase 1: Efficiency Layer (Heuristic Pre-filtering)
+    const filteredCandidates = potentialMatches.filter(match => {
       let score = 0;
-
-      // 1. Exact Category Match (Weight: 30%)
-      if (newPost.category && match.category && newPost.category.toLowerCase() === match.category.toLowerCase()) {
-        score += 30;
-      }
-
-      // 2. Title Keyword Similarity (Weight: 25%)
+      if (newPost.category && match.category && newPost.category.toLowerCase() === match.category.toLowerCase()) score += 30;
+      if (newPost.buildingName && match.buildingName && newPost.buildingName.toLowerCase() === match.buildingName.toLowerCase()) score += 20;
+      
       const titleSim = this.calculateTitleSimilarity(newPost.title, match.title);
-      score += titleSim * 25;
+      score += titleSim * 30;
 
-      // 3. AI Tags Overlap Intersection-over-Union (Weight: 25%)
-      const tagIoU = this.calculateTagOverlap(newPost.aiTags, match.aiTags);
-      score += tagIoU * 25;
+      const passed = score >= 20; // Lowered threshold to be more inclusive
+      if (passed) console.log(`[Matchmaker] Candidate "${match.title}" passed heuristic with score: ${score}`);
+      return passed;
+    }).slice(0, 10); // Increase to 10 candidates
 
-      // 4. Spatiotemporal & Location Closeness (Weight: 20%)
-      let geoScore = 0;
-      if (newPost.buildingName && match.buildingName && newPost.buildingName.toLowerCase() === match.buildingName.toLowerCase()) {
-        geoScore += 10;
-        if (newPost.floor === match.floor) {
-          geoScore += 5;
-        }
-        if (newPost.location_room && match.location_room && newPost.location_room.toLowerCase() === match.location_room.toLowerCase()) {
-          geoScore += 5;
-        }
-      }
-      score += geoScore;
-
-      // Check if threshold met (Score >= 75%)
-      if (score >= 75) {
-        matchesFound.push({ post: match, score: Math.round(score) });
-      }
+    if (filteredCandidates.length === 0) {
+      console.log('[Matchmaker] No candidates passed the heuristic filter.');
+      return;
     }
 
-    // Sort descending by match score
-    matchesFound.sort((a, b) => b.score - a.score);
-    const topMatches = matchesFound.slice(0, 3);
+    console.log(`[Matchmaker] Sending ${filteredCandidates.length} candidates to AI for deep evaluation...`);
 
-    for (const m of topMatches) {
-      // Notify current post owner
-      await NotificationService.sendToUser(newPost.userId, {
-        title: '🔍 Proactive AI Match Detected!',
-        body: `We found a ${m.score}% match for your post "${newPost.title}" with "${m.post.title}".`,
-        type: 'match',
-        data: { postId: newPost.id, matchPostId: m.post.id, score: String(m.score) }
+    // Phase 2: AI Deep Dive
+    const aiMatches = await AIService.comparePosts(newPost, filteredCandidates);
+    console.log(`[Matchmaker] AI returned ${aiMatches.length} results.`);
+    
+    const finalMatches = aiMatches
+      .filter(m => m.score >= 50) // Lowered confidence threshold for testing
+      .map(m => {
+        const fullPost = filteredCandidates.find(c => c.id === m.candidateId);
+        return { ...m, post: fullPost };
       });
 
-      // Notify matched post owner
-      await NotificationService.sendToUser(m.post.userId, {
-        title: '🔍 Proactive AI Match Detected!',
-        body: `We found a ${m.score}% match for your post "${m.post.title}" with "${newPost.title}".`,
-        type: 'match',
-        data: { postId: m.post.id, matchPostId: newPost.id, score: String(m.score) }
-      });
+    console.log(`[Matchmaker] ${finalMatches.length} matches met the confidence threshold.`);
+
+    // Phase 3: Persistence & Notification
+    if (finalMatches.length > 0) {
+      this.saveMatchesToCache(newPost.userId, newPost.id, finalMatches);
+      console.log(`[Matchmaker] Saved matches to cache for user ${newPost.userId}`);
+
+      for (const m of finalMatches) {
+        // Notify current post owner
+        await NotificationService.sendToUser(newPost.userId, {
+          title: 'AI Match Detected',
+          body: `High match (${m.score}%) for "${newPost.title}". Reason: ${m.reason}`,
+          type: 'match',
+          data: { 
+            postId: newPost.id, 
+            matchPostId: m.post.id, 
+            score: String(m.score),
+            reason: m.reason 
+          }
+        });
+
+        // Notify matched post owner (inverse)
+        this.saveMatchesToCache(m.post.userId, m.post.id, [{ ...m, post: newPost }]);
+        await NotificationService.sendToUser(m.post.userId, {
+          title: 'AI Match Detected',
+          body: `High match (${m.score}%) for your item "${m.post.title}".`,
+          type: 'match',
+          data: { 
+            postId: m.post.id, 
+            matchPostId: newPost.id, 
+            score: String(m.score),
+            reason: m.reason 
+          }
+        });
+      }
     }
+  }
+
+  static saveMatchesToCache(userId, postId, matches) {
+    const key = `matches_${userId}`;
+    const existing = matchCache.get(key) || {};
+    existing[postId] = matches;
+    matchCache.set(key, existing);
+  }
+
+  static async getMatchesForUser(userId) {
+    const key = `matches_${userId}`;
+    let userMatches = matchCache.get(key);
+
+    if (!userMatches) {
+      console.log(`[Matchmaker] Cache empty for user ${userId}. Triggering proactive scan...`);
+      // Trigger matching for all of this user's posts
+      const { data: userPosts } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('userId', userId)
+        .neq('status', 'resolved');
+
+      if (userPosts && userPosts.length > 0) {
+        for (const post of userPosts) {
+          await this.runMatching(post);
+        }
+      }
+      userMatches = matchCache.get(key) || {};
+    }
+
+    // Flatten all matches for all user posts into a single list
+    return Object.values(userMatches).flat();
   }
 
   static calculateTitleSimilarity(titleA, titleB) {
@@ -87,30 +140,6 @@ class MatchmakerService {
     const intersection = wordsA.filter(w => wordsB.includes(w)).length;
     const union = new Set([...wordsA, ...wordsB]).size;
     return union === 0 ? 0 : intersection / union;
-  }
-
-  static calculateTagOverlap(tagsA, tagsB) {
-    const listA = this.parseTags(tagsA);
-    const listB = this.parseTags(tagsB);
-    if (listA.length === 0 || listB.length === 0) return 0;
-
-    const intersection = listA.filter(t => listB.includes(t)).length;
-    const union = new Set([...listA, ...listB]).size;
-    return union === 0 ? 0 : intersection / union;
-  }
-
-  static parseTags(tagsInput) {
-    if (!tagsInput) return [];
-    if (Array.isArray(tagsInput)) return tagsInput.map(t => String(t).toLowerCase());
-    if (typeof tagsInput === 'string') {
-      try {
-        const parsed = JSON.parse(tagsInput);
-        if (Array.isArray(parsed)) return parsed.map(t => String(t).toLowerCase());
-      } catch (_) {
-        return tagsInput.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-      }
-    }
-    return [];
   }
 }
 

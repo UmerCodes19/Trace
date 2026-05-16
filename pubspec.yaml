@@ -77,6 +77,7 @@ dependencies:
   audio_session: ^0.1.21
   file_picker: ^11.0.2
   just_waveform: ^0.0.7
+  flutter_compass: ^0.8.1
 
 
 dev_dependencies:

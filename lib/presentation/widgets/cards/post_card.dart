@@ -121,7 +121,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     try {
       await ApiService().reportPost(widget.post.id);
       if (mounted) {
-        showAppSnack(context, '🚨 Post reported. Thank you for keeping Bahria safe!');
+        showAppSnack(context, 'Post reported. Thank you for helping keep the campus safe.');
       }
     } catch (e) {
       if (mounted) showAppSnack(context, 'Error reporting post: $e', isError: true);
@@ -136,7 +136,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       await ApiService().updatePost(widget.post.id, {'status': 'resolved'});
       if (mounted) {
         ref.invalidate(postsProvider);
-        showAppSnack(context, '🎉 Awesome! Post marked as resolved.');
+        showAppSnack(context, 'Post marked as resolved.');
       }
     } catch (e) {
       if (mounted) {
@@ -195,14 +195,14 @@ class _PostCardState extends ConsumerState<PostCard> {
       
       if (mounted) {
         ref.invalidate(postsProvider);
-        showAppSnack(context, '✅ Post deleted successfully!');
+        showAppSnack(context, 'Post deleted successfully.');
       }
     } catch (e) {
       // If server deletion fails, we already removed locally and optimized, 
       // but let's just notify successful removal anyway!
       if (mounted) {
         ref.invalidate(postsProvider);
-        showAppSnack(context, '✅ Post removed locally!');
+        showAppSnack(context, 'Post removed locally.');
       }
     }
   }

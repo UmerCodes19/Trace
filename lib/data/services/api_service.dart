@@ -361,6 +361,11 @@ final myClaimsProvider = FutureProvider<List<dynamic>>((ref) async {
   return api.getMyClaims();
 });
 
+final forYouPostsProvider = FutureProvider<List<dynamic>>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  return api.getForYouPosts();
+});
+
 final notificationsProvider = FutureProvider<List<dynamic>>((ref) async {
   final api = ref.watch(apiServiceProvider);
   final user = ref.watch(authServiceProvider).currentUser;
@@ -601,6 +606,16 @@ class ApiService {
     } catch (e) {
       debugPrint('Error deleting post: $e');
       rethrow;
+    }
+  }
+
+  Future<List<dynamic>> getForYouPosts() async {
+    try {
+      final response = await _dio.get('/posts/for-you');
+      return response.data;
+    } catch (e) {
+      debugPrint('Error getting for-you posts: $e');
+      return [];
     }
   }
 

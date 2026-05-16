@@ -43,7 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     
     // Trigger check after frame mounts
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -570,6 +570,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                     unselectedLabelColor: AppColors.textSecondary(context),
                     labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
                     tabs: const [
+                      Tab(text: 'For You'),
                       Tab(text: 'All'),
                       Tab(text: 'Lost'),
                       Tab(text: 'Found'),
@@ -584,6 +585,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           body: TabBarView(
             controller: _tabController,
             children: [
+              const _ForYouFeed(),
               _PostFeed(query: _searchQuery, filter: 'all', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
               _PostFeed(query: _searchQuery, filter: 'lost', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
               _PostFeed(query: _searchQuery, filter: 'found', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
@@ -1277,6 +1279,213 @@ class _MyClaimsFeed extends ConsumerWidget {
                 .fadeIn(delay: (index * 30).ms)
                 .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart);
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _ForYouFeed extends ConsumerWidget {
+  const _ForYouFeed();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final forYouAsync = ref.watch(forYouPostsProvider);
+
+    return forYouAsync.when(
+      loading: () => const _LoadingFeed(),
+      error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.grey))),
+      data: (matches) {
+        if (matches.isEmpty) {
+          return const LottieEmptyStateWidget(
+            lottieAsset: 'assets/animations/empty_feed.json',
+            fallbackIcon: Icons.auto_awesome_outlined,
+            title: 'No Matches Yet',
+            subtitle: 'Report your lost items, and our AI will suggest potential matches here.',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async => ref.refresh(forYouPostsProvider),
+          color: AppColors.jadePrimary,
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 140),
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            itemCount: matches.length,
+            itemBuilder: (context, index) {
+              final match = matches[index];
+              return _AIMatchCard(match: match)
+                  .animate()
+                  .fadeIn(delay: (index * 50).ms)
+                  .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuart);
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AIMatchCard extends StatefulWidget {
+  final Map<String, dynamic> match;
+  const _AIMatchCard({required this.match});
+
+  @override
+  State<_AIMatchCard> createState() => _AIMatchCardState();
+}
+
+class _AIMatchCardState extends State<_AIMatchCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final postMap = widget.match['post'];
+    if (postMap == null) return const SizedBox.shrink();
+    final post = SimplePostModel.fromMap(postMap);
+    final int score = widget.match['score'] ?? 0;
+    final String reason = widget.match['reason'] ?? 'AI identification based on item details and location proximity.';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border(context), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Column(
+          children: [
+            // Top Section: Basic Info
+            InkWell(
+              onTap: () => context.push('/post/${post.id}'),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Item Image
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                          image: DecorationImage(
+                            image: NetworkImage(post.imageUrls.isNotEmpty ? post.imageUrls[0] : ''),
+                            fit: BoxFit.cover,
+                          ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Item Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.jadePrimary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'AI Match: $score%',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.jadePrimary,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                post.type.toUpperCase(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: post.type == 'lost' ? AppColors.lostAlert : AppColors.jadePrimary,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            post.title,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary(context),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${post.location.building} • ${post.location.room}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Expandable Reason Section
+            const Divider(height: 1),
+            InkWell(
+              onTap: () => setState(() => _isExpanded = !_isExpanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.jadePrimary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _isExpanded ? 'AI Reasoning' : 'View AI Analysis',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary(context),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_isExpanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  reason,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: AppColors.textSecondary(context),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

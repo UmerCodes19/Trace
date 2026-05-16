@@ -29,7 +29,7 @@ class NotificationService {
         .from('users')
         .select('fcm_token, chatNotificationsEnabled, proximityAlertsEnabled')
         .eq('uid', userId)
-        .single();
+        .maybeSingle();
 
       if (error || !user || !user.fcm_token) {
         console.warn(`Skipping push notification: No token found for user ${userId}`);

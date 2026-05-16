@@ -25,7 +25,7 @@ router.get('/user/:uid', async (req, res) => {
     const { data, error } = await supabase
       .from('chats')
       .select('*')
-      .contains('participants', [req.params.uid])
+      .filter('participants', 'cs', JSON.stringify([req.params.uid]))
       .order('lastMessageTime', { ascending: false });
 
     if (error) throw error;
@@ -152,9 +152,19 @@ router.post('/messages', async (req, res) => {
       if (!chatError && chat) {
         const recipientId = chat.participants.find(p => p !== message.senderId);
         if (recipientId) {
+          // Fetch sender's name for personalized notification
+          const { data: sender } = await supabase
+            .from('users')
+            .select('name')
+            .eq('uid', message.senderId)
+            .single();
+            
+          const senderName = sender ? sender.name : 'Someone';
+          
           await NotificationService.sendToUser(recipientId, {
-            title: 'New Message',
-            body: message.text || message.content || 'You received an image',
+            title: `Message from ${senderName}`,
+            body: message.text || message.content || 'Sent an image',
+            type: 'chat',
             data: { 
               chatId: message.chatId, 
               senderId: message.senderId,

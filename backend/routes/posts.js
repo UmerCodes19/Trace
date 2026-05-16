@@ -372,4 +372,15 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
+// Get personalized AI matches for the user
+router.get('/for-you', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const matches = await MatchmakerService.getMatchesForUser(userId);
+    res.json(matches);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

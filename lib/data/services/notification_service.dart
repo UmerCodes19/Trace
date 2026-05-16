@@ -74,33 +74,45 @@ class NotificationService {
   Future<void> registerDevice(String userId, {String? name, String? email}) async {
     debugPrint('🔍 [NotificationService] Starting registration for $userId...');
     try {
-      // Add a timeout to prevent hanging on devices with bad connectivity/no Play Services
-      debugPrint('🔍 [NotificationService] Requesting FCM token...');
       String? token = await _fcm.getToken().timeout(
         const Duration(seconds: 10),
-        onTimeout: () {
-          debugPrint('⏳ [NotificationService] FCM token request timed out after 10s');
-          return null;
-        },
+        onTimeout: () => null,
       );
       
       if (token == null) {
-        debugPrint('⚠️ [NotificationService] No FCM Token received (NULL). Push notifications disabled.');
+        debugPrint('⚠️ [NotificationService] No FCM Token received.');
         return;
       }
 
-      debugPrint('🎟️ [NotificationService] FCM Token: ${token.substring(0, 10)}...');
+      debugPrint('🎟️ [NotificationService] Syncing token for $userId');
       
-      await _apiService.syncUser({
-        'uid': userId,
-        'fcm_token': token,
-        if (name != null) 'name': name,
-        if (email != null) 'email': email,
+      // CRITICAL FIX: To prevent "User 1 receiving User 2 notifications" on the same device,
+      // we tell the backend to ensure this token ONLY belongs to THIS userId.
+      await _apiService.dio.post('/api/users/sync-token', data: {
+        'userId': userId,
+        'token': token,
+        'name': name,
+        'email': email,
       });
-      debugPrint('✅ [NotificationService] Token successfully synced to database.');
+      
+      debugPrint('✅ [NotificationService] Token successfully synced.');
       
     } catch (e) {
       debugPrint('❌ [NotificationService] Error: $e');
+    }
+  }
+
+  Future<void> unregisterDevice(String userId) async {
+    debugPrint('📤 [NotificationService] Unregistering device for $userId...');
+    try {
+      // Clear token from DB
+      await _apiService.syncUser({
+        'uid': userId,
+        'fcm_token': null,
+      });
+      debugPrint('✅ [NotificationService] Token cleared from database.');
+    } catch (e) {
+      debugPrint('❌ [NotificationService] Error during unregister: $e');
     }
   }
 }

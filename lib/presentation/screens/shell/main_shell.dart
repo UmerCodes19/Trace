@@ -250,6 +250,7 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(widget.tabs.length, (index) {
                   final isSelected = widget.currentIndex == index;
                   final tab = widget.tabs[index];
