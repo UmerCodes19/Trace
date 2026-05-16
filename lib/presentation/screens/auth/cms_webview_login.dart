@@ -14,6 +14,7 @@ import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../data/services/cms_parser_service.dart';
+import '../../widgets/common/mesh_glow_background.dart';
 
 class CMSWebViewLogin extends ConsumerStatefulWidget {
   const CMSWebViewLogin({super.key});
@@ -402,7 +403,7 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: FallingPatternBackground(
+      body: MeshGlowBackground(
         child: Stack(
         children: [
           // Background WebView (Positioned off-screen so it is 100% invisible but fully active in the widget tree)

@@ -105,12 +105,16 @@ class NotificationService {
   Future<void> unregisterDevice(String userId) async {
     debugPrint('📤 [NotificationService] Unregistering device for $userId...');
     try {
-      // Clear token from DB
+      // 1. Clear token from DB
       await _apiService.syncUser({
         'uid': userId,
         'fcm_token': null,
       });
-      debugPrint('✅ [NotificationService] Token cleared from database.');
+
+      // 2. IMPORTANT: Delete token on device to force a fresh identity on next login
+      await _fcm.deleteToken();
+      
+      debugPrint('✅ [NotificationService] Token cleared and deleted from device.');
     } catch (e) {
       debugPrint('❌ [NotificationService] Error during unregister: $e');
     }

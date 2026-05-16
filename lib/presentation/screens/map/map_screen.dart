@@ -16,6 +16,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:camera/camera.dart';
+import 'package:dio/dio.dart';
 
 import '../../../data/models/map/campus_gis_models.dart';
 import '../../../core/utils/tutorial_keys.dart';
@@ -57,6 +58,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   LatLng? _userLatLng;
   StreamSubscription<Position>? _geolocatorSubscription;
   SimplePostModel? _navigatingTo;
+  List<LatLng> _roadPoints = [];
+  DateTime? _lastOsrmRequestTime;
 
   @override
   void initState() {
@@ -96,6 +99,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         // Auto-check geofencing if not in indoor mode
         if (!_isIndoorMode) {
           _checkGeofencing(_userLatLng!);
+          
+          // Continuous Path Update: If navigating, refresh the road path
+          if (_navigatingTo != null) {
+            _getRoadPath(_userLatLng!, _getPostLatLng(_navigatingTo!));
+          }
         }
       }
     });
@@ -207,13 +215,63 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         },
         onTrack: () {
           Navigator.pop(context);
-          setState(() => _navigatingTo = post);
-          if (!_isIndoorMode) {
-            _mapController.move(_getPostLatLng(post), 18);
-          }
+          _startTracking(post);
         },
       ),
     );
+  }
+
+  void _startTracking(SimplePostModel post) async {
+    setState(() {
+      _navigatingTo = post;
+      _roadPoints = [];
+      _lastOsrmRequestTime = null; // Reset throttle for new target
+    });
+    
+    if (!_isIndoorMode) {
+      _mapController.move(_getPostLatLng(post), 18);
+      if (_userLatLng != null) {
+        await _getRoadPath(_userLatLng!, _getPostLatLng(post));
+      }
+    }
+  }
+
+  Future<void> _getRoadPath(LatLng source, LatLng dest) async {
+    // Throttle requests to once every 3 seconds to avoid OSRM rate limits
+    if (_lastOsrmRequestTime != null && 
+        DateTime.now().difference(_lastOsrmRequestTime!).inSeconds < 3) {
+      return;
+    }
+
+    try {
+      _lastOsrmRequestTime = DateTime.now();
+      final dio = Dio();
+      
+      // router.project-osrm.org uses 'walking', 'driving', 'cycling'
+      String url = 'https://router.project-osrm.org/route/v1/walking/${source.longitude},${source.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson';
+      var response = await dio.get(url);
+      
+      bool foundRoute = false;
+      if (response.statusCode == 200 && response.data['routes'] != null && (response.data['routes'] as List).isNotEmpty) {
+        foundRoute = true;
+      } else {
+        // Fallback to driving if walking fails
+        url = 'https://router.project-osrm.org/route/v1/driving/${source.longitude},${source.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson';
+        response = await dio.get(url);
+        if (response.statusCode == 200 && response.data['routes'] != null && (response.data['routes'] as List).isNotEmpty) {
+          foundRoute = true;
+        }
+      }
+
+      if (foundRoute && mounted) {
+        final List<dynamic> coordinates = response.data['routes'][0]['geometry']['coordinates'];
+        setState(() {
+          _roadPoints = coordinates.map((c) => LatLng(c[1], c[0])).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('OSRM Error: $e');
+    }
   }
 
   Future<void> _enterBuilding(BuildingModel building) async {
@@ -647,17 +705,26 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       );
                     }).toList(),
                   ),
-                  // Navigation Path (Polyline)
-                  if (!_isIndoorMode && _navigatingTo != null && _userLatLng != null)
+                  // Navigation Path (Road-based)
+                  if (!_isIndoorMode && _navigatingTo != null && _roadPoints.isNotEmpty)
                     PolylineLayer(
                       polylines: <Polyline>[
                         Polyline(
-                          points: [
-                            _userLatLng!,
-                            _getPostLatLng(_navigatingTo!),
-                          ],
+                          points: _roadPoints,
+                          strokeWidth: 6,
+                          color: AppColors.jadePrimary.withOpacity(0.8),
+                          strokeCap: StrokeCap.round,
+                        ),
+                      ],
+                    ),
+                  if (!_isIndoorMode && _navigatingTo != null && _roadPoints.isEmpty && _userLatLng != null)
+                    PolylineLayer(
+                      polylines: <Polyline>[
+                        Polyline(
+                          points: [_userLatLng!, _getPostLatLng(_navigatingTo!)],
                           strokeWidth: 4,
-                          color: AppColors.jadePrimary,
+                          color: AppColors.jadePrimary.withOpacity(0.4),
+                          strokeCap: StrokeCap.round,
                         ),
                       ],
                     ),
@@ -1130,8 +1197,9 @@ class _PinPreviewSheet extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
       child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         decoration: BoxDecoration(
           color: AppColors.pageBg(context),
@@ -1179,7 +1247,16 @@ class _PinPreviewSheet extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(post.title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context))),
+                    Text(
+                      post.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.w800, 
+                        color: AppColors.textPrimary(context)
+                      )
+                    ),
                     Text('${post.location.building} • ${AppDateUtils.timeAgo(post.timestamp)}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context))),
                   ],
                 ),
@@ -1384,7 +1461,7 @@ class _NavigationOverlay extends StatelessWidget {
     final itemColor = post.isLost ? AppColors.lost : AppColors.found;
 
     return Positioned(
-      bottom: 120,
+      bottom: 160,
       left: 16,
       right: 16,
       child: Container(
@@ -1496,8 +1573,7 @@ class _NavigationOverlay extends StatelessWidget {
                       GestureDetector(
                         onTap: () {
                           HapticFeedback.mediumImpact();
-                          Navigator.push(
-                            context,
+                          Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute(
                               builder: (_) => ARNavigationScreen(post: post, userLoc: userLocation),
                             ),
