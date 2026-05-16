@@ -1,22 +1,12 @@
 {
   "info": {
+    "_postman_id": "8b0b16d4-1655-45a1-a448-995ff6348535",
     "name": "Trace API",
-    "_postman_id": "trace-lost-found-api-collection",
     "description": "Complete API collection for TRACE — Cloud-Based Lost & Found System\nBahria University Karachi\n\nBase URL: https://trace-self.vercel.app/api\nLocal URL: http://localhost:5000/api",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "54003254",
+    "_collection_link": "https://go.postman.co/collection/54003254-8b0b16d4-1655-45a1-a448-995ff6348535?source=collection_link"
   },
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "https://trace-self.vercel.app/api",
-      "type": "string"
-    },
-    {
-      "key": "local_url",
-      "value": "http://localhost:5000/api",
-      "type": "string"
-    }
-  ],
   "item": [
     {
       "name": "Posts",
@@ -28,8 +18,12 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/posts",
-              "host": ["{{base_url}}"],
-              "path": ["posts"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts"
+              ]
             },
             "description": "Retrieve all lost and found posts with pagination"
           },
@@ -42,11 +36,21 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/posts?type=lost&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["posts"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts"
+              ],
               "query": [
-                { "key": "type", "value": "lost" },
-                { "key": "limit", "value": "10" }
+                {
+                  "key": "type",
+                  "value": "lost"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
               ]
             },
             "description": "Filter posts by type=lost with limit of 10"
@@ -60,11 +64,21 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/posts?type=found&limit=10",
-              "host": ["{{base_url}}"],
-              "path": ["posts"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts"
+              ],
               "query": [
-                { "key": "type", "value": "found" },
-                { "key": "limit", "value": "10" }
+                {
+                  "key": "type",
+                  "value": "found"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
               ]
             },
             "description": "Filter posts by type=found"
@@ -78,11 +92,21 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/posts?search=laptop&building=LIAQUAT BLOCK",
-              "host": ["{{base_url}}"],
-              "path": ["posts"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts"
+              ],
               "query": [
-                { "key": "search", "value": "laptop" },
-                { "key": "building", "value": "LIAQUAT BLOCK" }
+                {
+                  "key": "search",
+                  "value": "laptop"
+                },
+                {
+                  "key": "building",
+                  "value": "LIAQUAT BLOCK"
+                }
               ]
             },
             "description": "Search posts by keyword and building"
@@ -96,8 +120,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/posts/0bacf743-74e9-45a7-9c8b-729697d82952",
-              "host": ["{{base_url}}"],
-              "path": ["posts", "0bacf743-74e9-45a7-9c8b-729697d82952"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts",
+                "0bacf743-74e9-45a7-9c8b-729697d82952"
+              ]
             },
             "description": "Get a single post by ID"
           },
@@ -108,8 +137,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -117,8 +152,12 @@
             },
             "url": {
               "raw": "{{base_url}}/posts",
-              "host": ["{{base_url}}"],
-              "path": ["posts"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts"
+              ]
             },
             "description": "Create a new lost or found post (requires auth token)"
           },
@@ -129,8 +168,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -138,8 +183,13 @@
             },
             "url": {
               "raw": "{{base_url}}/posts/0bacf743-74e9-45a7-9c8b-729697d82952",
-              "host": ["{{base_url}}"],
-              "path": ["posts", "0bacf743-74e9-45a7-9c8b-729697d82952"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts",
+                "0bacf743-74e9-45a7-9c8b-729697d82952"
+              ]
             },
             "description": "Update an existing post by ID"
           },
@@ -150,12 +200,20 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/posts/0bacf743-74e9-45a7-9c8b-729697d82952",
-              "host": ["{{base_url}}"],
-              "path": ["posts", "0bacf743-74e9-45a7-9c8b-729697d82952"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "posts",
+                "0bacf743-74e9-45a7-9c8b-729697d82952"
+              ]
             },
             "description": "Delete a post by ID (owner or admin only)"
           },
@@ -171,12 +229,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/users/02-131232-090",
-              "host": ["{{base_url}}"],
-              "path": ["users", "02-131232-090"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "02-131232-090"
+              ]
             },
             "description": "Get a user's profile by their UID"
           },
@@ -187,8 +253,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -196,8 +268,13 @@
             },
             "url": {
               "raw": "{{base_url}}/users/sync",
-              "host": ["{{base_url}}"],
-              "path": ["users", "sync"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "sync"
+              ]
             },
             "description": "Create or update a user record after Firebase login"
           },
@@ -210,8 +287,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/users/leaderboard",
-              "host": ["{{base_url}}"],
-              "path": ["users", "leaderboard"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "leaderboard"
+              ]
             },
             "description": "Get karma/points leaderboard for all users"
           },
@@ -227,8 +309,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -236,8 +324,13 @@
             },
             "url": {
               "raw": "{{base_url}}/claims/request",
-              "host": ["{{base_url}}"],
-              "path": ["claims", "request"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "claims",
+                "request"
+              ]
             },
             "description": "Submit a claim request for a lost/found item"
           },
@@ -248,8 +341,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -257,8 +356,14 @@
             },
             "url": {
               "raw": "{{base_url}}/claims/respond/claim-id-here",
-              "host": ["{{base_url}}"],
-              "path": ["claims", "respond", "claim-id-here"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "claims",
+                "respond",
+                "claim-id-here"
+              ]
             },
             "description": "Approve or reject a claim. Status: approved or rejected"
           },
@@ -269,8 +374,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -278,8 +389,14 @@
             },
             "url": {
               "raw": "{{base_url}}/claims/handshake/verify",
-              "host": ["{{base_url}}"],
-              "path": ["claims", "handshake", "verify"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "claims",
+                "handshake",
+                "verify"
+              ]
             },
             "description": "Verify QR code during physical item handover"
           },
@@ -295,12 +412,19 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/claim-logs",
-              "host": ["{{base_url}}"],
-              "path": ["claim-logs"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "claim-logs"
+              ]
             },
             "description": "Get all blockchain-logged claim records with hash chain"
           },
@@ -311,12 +435,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/claim-logs/verify",
-              "host": ["{{base_url}}"],
-              "path": ["claim-logs", "verify"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "claim-logs",
+                "verify"
+              ]
             },
             "description": "Validate that the entire blockchain claim log chain is intact and untampered"
           },
@@ -332,12 +464,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/admin/stats",
-              "host": ["{{base_url}}"],
-              "path": ["admin", "stats"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "stats"
+              ]
             },
             "description": "Get platform statistics — total posts, users, claims, resolved items"
           },
@@ -353,12 +493,21 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/chats/user/02-131232-090",
-              "host": ["{{base_url}}"],
-              "path": ["chats", "user", "02-131232-090"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chats",
+                "user",
+                "02-131232-090"
+              ]
             },
             "description": "Get all chat conversations for a specific user"
           },
@@ -369,8 +518,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -378,8 +533,13 @@
             },
             "url": {
               "raw": "{{base_url}}/chats/messages",
-              "host": ["{{base_url}}"],
-              "path": ["chats", "messages"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chats",
+                "messages"
+              ]
             },
             "description": "Send a message in a chat conversation"
           },
@@ -395,12 +555,20 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/notifications/02-131232-090",
-              "host": ["{{base_url}}"],
-              "path": ["notifications", "02-131232-090"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "02-131232-090"
+              ]
             },
             "description": "Get all notifications for a specific user"
           },
@@ -416,18 +584,36 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/security/setup",
-              "host": ["{{base_url}}"],
-              "path": ["security", "setup"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "setup"
+              ]
             },
             "description": "Get 2FA TOTP setup details and QR code for Google Authenticator"
           },
           "response": []
         }
       ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://trace-self.vercel.app/api"
+    },
+    {
+      "key": "local_url",
+      "value": "http://localhost:5000/api"
     }
   ]
 }
