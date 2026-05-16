@@ -51,3 +51,8 @@ Flutter App → Firebase Auth → Node.js Backend → Supabase (PostgreSQL)
 3. Create `.env.local` with required keys
 4. `npm run dev`
 5. Opens at `http://localhost:3000`
+
+## Team
+- **Umer Qureshi** — Lead Developer
+- **Maria Khan** — Design Lead
+-**Muhammad Umer** - backend
