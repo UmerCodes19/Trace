@@ -202,7 +202,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28.0),
-                child: Column(
+                child: SingleChildScrollView(
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -244,6 +245,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                     ).animate().fadeIn(delay: 100.ms, duration: 350.ms),
                     const SizedBox(height: 16),
                   ],
+                ),
                 ),
               ),
             ),
