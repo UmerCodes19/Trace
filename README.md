@@ -56,3 +56,10 @@ Flutter App → Firebase Auth → Node.js Backend → Supabase (PostgreSQL)
 - **Umer Qureshi** — Lead Developer
 - **Maria Khan** — Design Lead
 -**Muhammad Umer** - backend
+
+## License
+University Project — Bahria University Karachi
+
+## Contributing
+This project is developed as part of a university course. 
+All contributions are managed via GitHub branches and pull requests.
