@@ -45,7 +45,6 @@ export default function TracePage() {
   const featuresRef = useRef<HTMLDivElement>(null);
   const stepsRef = useRef<HTMLDivElement>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [tryMode, setTryMode] = useState(false);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -53,17 +52,14 @@ export default function TracePage() {
       gsap.from(".hero-sub", { y: 40, opacity: 0, duration: 1, delay: 0.3, ease: "power3.out" });
       gsap.from(".hero-badge", { y: 20, opacity: 0, stagger: 0.1, delay: 0.5, duration: 0.6 });
       gsap.from(".hero-btn", { y: 20, opacity: 0, stagger: 0.15, delay: 0.7, duration: 0.6 });
-
       gsap.from(".feature-card", {
         scrollTrigger: { trigger: featuresRef.current, start: "top 80%" },
         y: 60, opacity: 0, stagger: 0.12, duration: 0.8, ease: "power3.out",
       });
-
       gsap.from(".step-item", {
         scrollTrigger: { trigger: stepsRef.current, start: "top 75%" },
         x: -50, opacity: 0, stagger: 0.2, duration: 0.9, ease: "power3.out",
       });
-
       gsap.to(".orb", { y: -30, duration: 3, repeat: -1, yoyo: true, ease: "sine.inOut" });
     });
     return () => ctx.revert();
@@ -78,134 +74,140 @@ export default function TracePage() {
           Back to Home
         </Link>
         <span className="text-sm font-black tracking-widest text-[var(--foreground)]">TRACE</span>
-        <a href="/trace.apk" download className="px-4 py-1.5 bg-jade-primary text-white text-xs font-bold rounded-full hover:bg-jade-deep transition-all">
+        <a
+          href="/trace.apk"
+          download
+          className="px-4 py-1.5 bg-jade-primary text-white text-xs font-bold rounded-full hover:opacity-90 transition-all"
+        >
           Download APK
         </a>
       </nav>
 
       {/* Hero */}
       <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-16 overflow-hidden">
-        <div className="orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-jade-primary/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-jade-primary/10 blur-[140px] rounded-full pointer-events-none" />
         <div
-          className="absolute inset-0 opacity-10 pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
             backgroundSize: "60px 60px",
           }}
         />
 
-        <div className="relative z-10 space-y-8 max-w-4xl">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-jade-primary/30 bg-jade-primary/10 rounded-full text-jade-primary text-xs font-bold uppercase tracking-widest">
-            <span className="w-2 h-2 bg-jade-primary rounded-full animate-pulse" />
+        <div className="relative z-10 flex flex-col items-center gap-8 max-w-5xl w-full">
+
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-5 py-2 border border-jade-primary/40 bg-jade-primary/10 rounded-full text-jade-primary text-xs font-bold uppercase tracking-widest">
+            <span className="w-2 h-2 bg-jade-primary rounded-full animate-pulse inline-block" />
             Bahria University Karachi
           </div>
 
-          <h1 ref={titleRef} className="text-7xl md:text-[10rem] font-black tracking-tighter leading-[0.85] text-[var(--foreground)]">
+          {/* Title */}
+          <h1
+            ref={titleRef}
+            className="text-8xl md:text-[11rem] font-black tracking-tighter leading-none text-[var(--foreground)]"
+          >
             TRACE<span className="text-jade-primary">.</span>
           </h1>
 
-          <p className="hero-sub text-lg md:text-2xl text-sage-secondary font-medium max-w-2xl mx-auto leading-relaxed">
+          {/* Subtitle */}
+          <p className="hero-sub text-base md:text-xl text-sage-secondary font-medium max-w-2xl leading-relaxed">
             The AI-powered lost and found system for your campus. Report, match, and recover items in minutes.
           </p>
 
+          {/* Feature Badges */}
           <div className="flex flex-wrap justify-center gap-2">
             {["AI Image Analysis", "Blockchain Logging", "QR Handover", "Campus Maps", "Discord Bot"].map((b) => (
-              <span key={b} className="hero-badge px-3 py-1 border border-[var(--border-color)] bg-[var(--card-bg)] text-xs font-bold rounded-full text-[var(--foreground)]">
+              <span
+                key={b}
+                className="hero-badge px-4 py-1.5 border border-[var(--border-color)] bg-[var(--card-bg)] text-xs font-semibold rounded-full text-[var(--foreground)]"
+              >
                 {b}
               </span>
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4 pt-2">
-            <button
-              onClick={() => setTryMode(true)}
-              className="hero-btn px-8 py-4 bg-jade-primary text-white font-bold text-sm rounded-xl hover:bg-jade-deep transition-all shadow-lg active:scale-95"
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-md">
+            <a
+              href="https://trace-self.vercel.app"
+              target="_blank"
+              rel="noreferrer"
+              className="hero-btn w-full sm:w-auto px-8 py-4 bg-jade-primary text-white font-black text-sm rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-jade-primary/30 active:scale-95 text-center"
             >
               Try Web Version
-            </button>
+            </a>
             <a
               href="/trace.apk"
               download
-              className="hero-btn px-8 py-4 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] font-bold text-sm rounded-xl hover:border-jade-primary transition-all active:scale-95"
+              className="hero-btn w-full sm:w-auto px-8 py-4 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] font-black text-sm rounded-2xl hover:border-jade-primary transition-all active:scale-95 text-center"
             >
-              Download Android APK
+              Download APK
             </a>
+          </div>
+
+          {/* Stats Row */}
+          <div className="grid grid-cols-3 gap-8 pt-4 w-full max-w-lg border-t border-[var(--border-color)]">
+            {[
+              { val: "AI", label: "Powered Matching" },
+              { val: "QR", label: "Secure Handover" },
+              { val: "⛓️", label: "Blockchain Logged" },
+            ].map((s, i) => (
+              <div key={i} className="text-center pt-4">
+                <div className="text-2xl font-black text-jade-primary">{s.val}</div>
+                <div className="text-xs text-sage-secondary mt-1">{s.label}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-sage-secondary text-xs font-bold animate-bounce">
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-sage-secondary text-xs font-bold animate-bounce">
           <span>SCROLL</span>
           <span>↓</span>
         </div>
       </section>
 
-      {/* Try Web Modal */}
-      {tryMode && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl h-[80vh] bg-[var(--card-bg)] rounded-3xl border border-[var(--border-color)] overflow-hidden flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
-              <span className="font-black text-sm tracking-widest">TRACE — Web Version</span>
-              <div className="flex items-center gap-4">
-                <a
-                  href="https://trace-self.vercel.app"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-bold text-jade-primary hover:underline"
-                >
-                  Open in new tab
-                </a>
-                <button
-                  onClick={() => setTryMode(false)}
-                  className="text-sage-secondary hover:text-[var(--foreground)] font-bold text-lg transition-colors"
-                >
-                  X
-                </button>
-              </div>
-            </div>
-            <iframe src="https://trace-self.vercel.app" className="flex-1 w-full" title="Trace Web App" />
-          </div>
-        </div>
-      )}
-
       {/* Features */}
-      <section className="py-32 px-6 max-w-7xl mx-auto">
-        <div className="text-center mb-20 space-y-4">
-          <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">What it does</span>
-          <h2 className="text-4xl md:text-6xl font-black tracking-tight text-[var(--foreground)]">Built different.</h2>
-          <p className="text-sage-secondary max-w-xl mx-auto text-sm">
-            Not just a notice board. A full-stack lost and found ecosystem with AI, blockchain, and real-time everything.
-          </p>
-        </div>
+      <section className="py-32 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20 space-y-4">
+            <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">What it does</span>
+            <h2 className="text-4xl md:text-6xl font-black tracking-tight text-[var(--foreground)]">Built different.</h2>
+            <p className="text-sage-secondary max-w-xl mx-auto text-sm leading-relaxed">
+              Not just a notice board. A full-stack lost and found ecosystem with AI, blockchain, and real-time everything.
+            </p>
+          </div>
 
-        <div ref={featuresRef} className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {FEATURES.map((f, i) => (
-            <div
-              key={i}
-              className="feature-card group p-8 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl hover:border-jade-primary/50 transition-all hover:-translate-y-1 cursor-default"
-            >
-              <div className="text-4xl mb-4">{f.icon}</div>
-              <h3 className="text-lg font-black text-[var(--foreground)] mb-2">{f.title}</h3>
-              <p className="text-sage-secondary text-sm leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
+          <div ref={featuresRef} className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {FEATURES.map((f, i) => (
+              <div
+                key={i}
+                className="feature-card p-8 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl hover:border-jade-primary/50 transition-all hover:-translate-y-1 cursor-default"
+              >
+                <div className="text-3xl mb-5">{f.icon}</div>
+                <h3 className="text-base font-black text-[var(--foreground)] mb-2">{f.title}</h3>
+                <p className="text-sage-secondary text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* How it works */}
       <section className="py-32 px-6 bg-[var(--card-bg)] border-y border-[var(--border-color)]">
-        <div ref={stepsRef} className="max-w-4xl mx-auto space-y-20">
-          <div className="text-center space-y-4">
+        <div ref={stepsRef} className="max-w-4xl mx-auto">
+          <div className="text-center mb-20 space-y-4">
             <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">Simple process</span>
             <h2 className="text-4xl md:text-6xl font-black tracking-tight text-[var(--foreground)]">3 steps. That is it.</h2>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-6">
             {STEPS.map((s, i) => (
               <div
                 key={i}
                 className="step-item flex items-start gap-8 p-8 bg-[var(--background)] rounded-3xl border border-[var(--border-color)] hover:border-jade-primary/30 transition-all"
               >
-                <span className="text-5xl font-black text-jade-primary/30 leading-none shrink-0">{s.num}</span>
+                <span className="text-5xl font-black text-jade-primary/20 leading-none shrink-0 select-none">{s.num}</span>
                 <div>
                   <h3 className="text-xl font-black text-[var(--foreground)] mb-2">{s.title}</h3>
                   <p className="text-sage-secondary text-sm leading-relaxed">{s.desc}</p>
@@ -217,21 +219,23 @@ export default function TracePage() {
       </section>
 
       {/* Tech Stack */}
-      <section className="py-32 px-6 max-w-7xl mx-auto">
-        <div className="text-center mb-16 space-y-4">
-          <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">Under the hood</span>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)]">Serious tech stack.</h2>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {TECH.map((t, i) => (
-            <div
-              key={i}
-              className="p-6 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl text-center hover:border-jade-primary/40 transition-all"
-            >
-              <div className="font-black text-[var(--foreground)] text-sm">{t.name}</div>
-              <div className="text-sage-secondary text-xs mt-1">{t.role}</div>
-            </div>
-          ))}
+      <section className="py-32 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16 space-y-4">
+            <span className="text-jade-primary text-xs font-bold uppercase tracking-widest">Under the hood</span>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-[var(--foreground)]">Serious tech stack.</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {TECH.map((t, i) => (
+              <div
+                key={i}
+                className="p-6 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl text-center hover:border-jade-primary/40 hover:bg-jade-primary/5 transition-all"
+              >
+                <div className="font-black text-[var(--foreground)] text-sm">{t.name}</div>
+                <div className="text-sage-secondary text-xs mt-1">{t.role}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -248,10 +252,10 @@ export default function TracePage() {
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex justify-between items-center px-6 py-5 text-left hover:bg-[var(--background)] transition-colors"
                 >
-                  <span className="font-bold text-sm text-[var(--foreground)]">{f.q}</span>
+                  <span className="font-bold text-sm text-[var(--foreground)] pr-4">{f.q}</span>
                   <span
-                    className="text-jade-primary font-black text-lg transition-transform duration-300"
-                    style={{ display: "inline-block", transform: openFaq === i ? "rotate(45deg)" : "rotate(0deg)" }}
+                    className="text-jade-primary font-black text-xl shrink-0 inline-block transition-transform duration-300"
+                    style={{ transform: openFaq === i ? "rotate(45deg)" : "rotate(0deg)" }}
                   >
                     +
                   </span>
@@ -270,23 +274,26 @@ export default function TracePage() {
       {/* Final CTA */}
       <section className="py-40 px-6 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-jade-primary/5 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-jade-primary/10 blur-[100px] rounded-full pointer-events-none" />
         <div className="relative z-10 max-w-3xl mx-auto space-y-10">
-          <h2 className="text-5xl md:text-8xl font-black tracking-tighter text-[var(--foreground)]">
+          <h2 className="text-5xl md:text-8xl font-black tracking-tighter text-[var(--foreground)] leading-none">
             Never lose<br />
             <span className="text-jade-primary">again.</span>
           </h2>
-          <p className="text-sage-secondary text-lg">Available now for Bahria University Karachi students.</p>
+          <p className="text-sage-secondary text-base">Available now for Bahria University Karachi students.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <button
-              onClick={() => setTryMode(true)}
-              className="px-10 py-5 bg-jade-primary text-white rounded-2xl font-bold text-base hover:bg-jade-deep transition-all shadow-lg active:scale-95"
+            <a
+              href="https://trace-self.vercel.app"
+              target="_blank"
+              rel="noreferrer"
+              className="px-10 py-5 bg-jade-primary text-white rounded-2xl font-black text-base hover:opacity-90 transition-all shadow-lg shadow-jade-primary/20 active:scale-95"
             >
               Try Now — Web Version
-            </button>
+            </a>
             <a
               href="/trace.apk"
               download
-              className="px-10 py-5 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-2xl font-bold text-base hover:border-jade-primary transition-all active:scale-95"
+              className="px-10 py-5 border border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-2xl font-black text-base hover:border-jade-primary transition-all active:scale-95"
             >
               Download Android APK
             </a>
