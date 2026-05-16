@@ -12,3 +12,23 @@ TRACE is a cloud-based lost and found system that helps students and staff repor
 - 🛡️ Admin dashboard with full control
 - 🤖 Discord bot integration
 - 🗺️ Campus map with location tagging
+
+## Tech Stack
+- **Mobile:** Flutter (Dart)
+- **Backend:** Node.js + Express
+- **Website:** Next.js (React)
+- **Database:** Supabase (PostgreSQL)
+- **Auth:** Firebase Auth
+- **Storage:** Cloudinary
+- **AI:** Google Gemini
+- **Notifications:** Firebase Cloud Messaging
+- **Deployment:** Vercel, GitHub Actions (CI/CD)
+
+## Architecture
+```
+Flutter App → Firebase Auth → Node.js Backend → Supabase (PostgreSQL)
+                                     ↓
+                    Cloudinary (Images) + Gemini AI (Analysis)
+                                     ↓
+                         Vercel (Deployment) + FCM (Notifications)
+```
