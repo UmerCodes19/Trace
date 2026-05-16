@@ -15,9 +15,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../data/models/map/campus_gis_models.dart';
 import '../../../core/utils/tutorial_keys.dart';
-import '../../../core/utils/app_guide_orchestrator.dart';
-import '../../../core/services/tutorial_service.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../../../data/services/map/map_engine_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -548,8 +545,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   initialZoom: 17,
                   maxZoom: 19,
                   onPositionChanged: (pos, hasGesture) {
-                    if (hasGesture && pos.center != null) {
-                      _checkGeofencing(pos.center!);
+                    if (hasGesture) {
+                      _checkGeofencing(pos.center);
                     }
                   },
                 ),

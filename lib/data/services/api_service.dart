@@ -8,7 +8,6 @@ import 'package:flutter/foundation.dart';
 import '../models/simple_post_model.dart';
 import './auth_service.dart';
 import './offline/sync_manager.dart';
-import 'package:flutter/foundation.dart';
 
 /// Configuration class for Riverpod caching and memoized filtering
 class FeedFilterConfig {

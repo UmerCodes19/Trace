@@ -771,7 +771,7 @@ class _ClaimBottomSheetState extends ConsumerState<_ClaimBottomSheet> {
         left: 24,
         right: 24,
         top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24 + MediaQuery.of(context).padding.bottom,
       ),
       child: SingleChildScrollView(
         child: Column(

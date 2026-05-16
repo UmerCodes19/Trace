@@ -12,8 +12,8 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/offline/sync_manager.dart';
-import '../profile/avatar_builder_screen.dart'; // To reuse UserAvatar or similar if available
-import '../../widgets/profile/flutter_avatar.dart'; // Direct access to UserAvatar / AvatarConfig
+// To reuse UserAvatar or similar if available
+// Direct access to UserAvatar / AvatarConfig
 import '../../widgets/common/user_avatar.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../widgets/common/skeleton.dart';

@@ -15,7 +15,6 @@ import '../../presentation/screens/home/home_screen.dart';
 import '../../presentation/screens/home/leaderboard_screen.dart';
 import '../../presentation/screens/map/map_screen.dart';
 import '../../presentation/screens/map/isometric_campus_screen.dart';
-import '../../presentation/screens/notifications/notification_list_screen.dart';
 import '../../presentation/screens/post/create_post_screen.dart';
 import '../../presentation/screens/post/post_detail_screen.dart';
 import '../../presentation/screens/post/claim_request_screen.dart';

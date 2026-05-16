@@ -9,7 +9,6 @@ import '../../../data/models/simple_user_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../widgets/common/glass_card.dart';
-import '../../widgets/common/pressable_scale.dart';
 import '../../widgets/common/user_avatar.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
@@ -185,7 +184,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
             subtitle: Text(user.email),
             trailing: Switch(
               value: user.isBanned,
-              activeColor: Colors.red,
+              activeThumbColor: Colors.red,
               onChanged: (val) => _toggleBan(user.uid, val),
                     ),
           ),

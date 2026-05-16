@@ -891,7 +891,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
 
 
-    final entries = (timetableData as List).map<CMSTimetableEntry>((e) => CMSTimetableEntry.fromMap(e as Map<String, dynamic>)).toList();
+    final entries = (timetableData).map<CMSTimetableEntry>((e) => CMSTimetableEntry.fromMap(e as Map<String, dynamic>)).toList();
 
     final predictor = LocationPredictionService(entries);
 
@@ -2124,7 +2124,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               child: DropdownButtonFormField<String>(
                 menuMaxHeight: 180,
                 isExpanded: true,
-                value: MapEngineService.instance.isInitialized && MapEngineService.instance.getRoomsOnFloor(1).any((r) => r.roomNumber == _roomCtrl.text) ? _roomCtrl.text : null,
+                initialValue: MapEngineService.instance.isInitialized && MapEngineService.instance.getRoomsOnFloor(1).any((r) => r.roomNumber == _roomCtrl.text) ? _roomCtrl.text : null,
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.surface(context),

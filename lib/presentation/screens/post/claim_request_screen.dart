@@ -6,7 +6,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
-import '../../../data/services/auth_service.dart';
 
 class ClaimRequestScreen extends ConsumerStatefulWidget {
   const ClaimRequestScreen({super.key, required this.post});

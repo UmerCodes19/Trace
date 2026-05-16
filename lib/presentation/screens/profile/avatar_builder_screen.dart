@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +14,6 @@ import '../../widgets/common/glass_card.dart';
 import '../../avatar_engine/models/avatar_config.dart';
 import '../../avatar_engine/ui/interactive_avatar.dart';
 import '../../avatar_engine/audio/music_sync_engine.dart';
-import '../../avatar_engine/audio/music_state.dart';
 import '../../avatar_engine/core/avatar_engine.dart';
 import '../../avatar_engine/models/engine_state.dart';
 
@@ -42,7 +40,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
   List<PaintStroke> _customStrokes = [];
   List<Offset> _currentStrokePoints = [];
   String _brushColor = '#E53E3E';
-  double _brushWidth = 4.0;
+  final double _brushWidth = 4.0;
   final List<String> _brushColors = ['#E53E3E', '#FF9500', '#FFCC00', '#4CD964', '#007AFF', '#5856D6', '#FFFFFF', '#000000'];
 
   // Tab controller
@@ -776,7 +774,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
         final double durMs = music.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
         final double progress = (posMs / durMs).clamp(0.0, 1.0);
 
-        String _fmt(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2,'0')}';
+        String fmt(Duration d) => '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2,'0')}';
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
@@ -867,7 +865,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Text(_fmt(music.position), style: GoogleFonts.robotoMono(fontSize: 9, color: AppColors.textSecondary(context))),
+                            Text(fmt(music.position), style: GoogleFonts.robotoMono(fontSize: 9, color: AppColors.textSecondary(context))),
                             Expanded(
                               child: SliderTheme(
                                 data: SliderThemeData(
@@ -881,7 +879,7 @@ class _AvatarBuilderScreenState extends ConsumerState<AvatarBuilderScreen> with 
                                 ),
                               ),
                             ),
-                            Text(_fmt(music.duration), style: GoogleFonts.robotoMono(fontSize: 9, color: AppColors.textSecondary(context))),
+                            Text(fmt(music.duration), style: GoogleFonts.robotoMono(fontSize: 9, color: AppColors.textSecondary(context))),
                           ],
                         ),
                         const SizedBox(height: 6),

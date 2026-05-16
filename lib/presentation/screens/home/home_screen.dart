@@ -1,6 +1,5 @@
 // lib/presentation/screens/home/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -15,9 +14,7 @@ import '../../../data/models/simple_post_model.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../widgets/cards/post_card.dart';
-import '../../widgets/common/status_chip.dart';
 import '../../widgets/common/lottie_empty_state.dart';
-import '../../widgets/common/trace_logo.dart';
 import '../../widgets/common/skeleton.dart';
 import '../../widgets/search/visual_search_sheet.dart';
 
@@ -222,7 +219,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           builder: (context, scrollController) {
             return StatefulBuilder(
               builder: (context, setSheetState) {
-                Widget _buildFilterChip({
+                Widget buildFilterChip({
                   required String label,
                   required bool isSelected,
                   required VoidCallback onTap,
@@ -258,7 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                   controller: scrollController,
                   physics: const BouncingScrollPhysics(),
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+                    padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 24 + MediaQuery.of(context).padding.bottom),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -325,7 +322,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _buildFilterChip(
+                            buildFilterChip(
                               label: 'All Buildings',
                               isSelected: _selectedBuilding == null,
                               onTap: () {
@@ -333,7 +330,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                                 setState(() {});
                               },
                             ),
-                            ...buildings.map((b) => _buildFilterChip(
+                            ...buildings.map((b) => buildFilterChip(
                               label: b,
                               isSelected: _selectedBuilding == b,
                               onTap: () {
@@ -360,7 +357,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _buildFilterChip(
+                            buildFilterChip(
                               label: 'All Categories',
                               isSelected: _selectedCategory == null,
                               onTap: () {
@@ -368,7 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                                 setState(() {});
                               },
                             ),
-                            ...categories.map((c) => _buildFilterChip(
+                            ...categories.map((c) => buildFilterChip(
                               label: c,
                               isSelected: _selectedCategory == c,
                               onTap: () {
@@ -395,7 +392,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _buildFilterChip(
+                            buildFilterChip(
                               label: 'All Time',
                               isSelected: _selectedRecency == null,
                               onTap: () {
@@ -403,7 +400,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                                 setState(() {});
                               },
                             ),
-                            ...recencyOptions.map((r) => _buildFilterChip(
+                            ...recencyOptions.map((r) => buildFilterChip(
                               label: r,
                               isSelected: _selectedRecency == r,
                               onTap: () {

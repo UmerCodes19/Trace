@@ -118,11 +118,11 @@ Transcript: "$transcript"
 
 Return a JSON object strictly following this structure (keep values null if they are not mentioned or unidentifiable):
 {
-  "title": "A concise title of the item (e.g. \'Keys\', \'Black Laptop\')",
-  "type": "either \'lost\' or \'found\' based on the user\'s intent",
-  "buildingName": "Identify the building if mentioned (strictly one of: \'Liaquat Block\', \'Engineering Block\', \'Main Library\', \'Quaid Block\', \'Iqbal Block\')",
+  "title": "A concise title of the item (e.g. 'Keys', 'Black Laptop')",
+  "type": "either 'lost' or 'found' based on the user's intent",
+  "buildingName": "Identify the building if mentioned (strictly one of: 'Liaquat Block', 'Engineering Block', 'Main Library', 'Quaid Block', 'Iqbal Block')",
   "floor": 0, // an integer representing the floor (0 for ground floor, 1 for first floor, etc. if mentioned)
-  "location_room": "Specify room or lab if mentioned (e.g. \'Software Application Lab\', \'Room 201\')",
+  "location_room": "Specify room or lab if mentioned (e.g. 'Software Application Lab', 'Room 201')",
   "description": "Elaborate physical details or context parsed from the voice transcript"
 }
 ''';

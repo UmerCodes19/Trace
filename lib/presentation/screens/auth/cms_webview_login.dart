@@ -10,7 +10,6 @@ import 'login_screen.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/cms_models.dart';
 import '../../../data/services/auth_service.dart';
-import '../../../data/services/cms_auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../../data/services/notification_service.dart';
@@ -321,8 +320,9 @@ class _CMSWebViewLoginState extends ConsumerState<CMSWebViewLogin> {
       final intake = data['intakeSemester'] ?? '';
       
       String dept = program;
-      if (program.contains('BSE')) dept = 'Software Engineering';
-      else if (program.contains('BCE')) dept = 'Computer Engineering';
+      if (program.contains('BSE')) {
+        dept = 'Software Engineering';
+      } else if (program.contains('BCE')) dept = 'Computer Engineering';
       else if (program.contains('BCS')) dept = 'Computer Science';
       else if (program.contains('BIT')) dept = 'Information Technology';
       else if (program.contains('BBA')) dept = 'Business Administration';

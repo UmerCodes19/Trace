@@ -42,7 +42,7 @@ class SimplePostModel {
   });
 
   factory SimplePostModel.fromMap(Map<String, dynamic> map) {
-    List<String> _parseList(dynamic data) {
+    List<String> parseList(dynamic data) {
       if (data == null) return [];
       if (data is List) return data.cast<String>();
       if (data is String) {
@@ -77,7 +77,7 @@ class SimplePostModel {
       type: map['type'] as String? ?? 'lost',
       title: map['title'] as String? ?? '',
       description: cleanDesc,
-      imageUrls: _parseList(map['imageUrl']), // Supabase column is imageUrl
+      imageUrls: parseList(map['imageUrl']), // Supabase column is imageUrl
       location: SimplePostLocation(
         name: map['location_name'] as String? ?? '',
         building: map['location_building'] as String? ?? map['buildingName'] as String? ?? '',
@@ -94,7 +94,7 @@ class SimplePostModel {
               : DateTime.parse(map['timestamp'].toString()))
           : DateTime.now(),
       status: map['status'] as String? ?? 'open',
-      aiTags: _parseList(map['aiTags']),
+      aiTags: parseList(map['aiTags']),
       reportCount: map['reportCount'] as int? ?? 0,
       viewCount: map['viewCount'] as int? ?? 0,
       likesCount: map['likesCount'] as int? ?? map['likeCount'] as int? ?? 0,

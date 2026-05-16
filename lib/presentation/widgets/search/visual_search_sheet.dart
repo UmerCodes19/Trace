@@ -226,7 +226,7 @@ class _VisualSearchSheetState extends ConsumerState<VisualSearchSheet> with Sing
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 20 + MediaQuery.of(context).padding.bottom),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

@@ -58,4 +58,4 @@ app.*.map.json
 **/.env.local
 **/.env.*
 # Documentation folder
-docs/
+# docs/

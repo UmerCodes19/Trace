@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/material.dart';
 import 'campus_map_service.dart';
 
 enum PositioningMode { wifi, sensors, manual, mock }

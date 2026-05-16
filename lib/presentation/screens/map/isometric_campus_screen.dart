@@ -330,7 +330,7 @@ class _IsometricCampusScreenState extends ConsumerState<IsometricCampusScreen> {
                               ),
                             ),
                             Text(
-                              'Route: ' + _activeNavigationPath!.map((r) => r.roomNumber).join(' → '),
+                              'Route: ${_activeNavigationPath!.map((r) => r.roomNumber).join(' → ')}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.inter(

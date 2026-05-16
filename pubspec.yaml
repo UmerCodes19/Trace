@@ -1,5 +1,5 @@
-name: lostfound_android
-description: "A new Flutter project."
+name: trace
+description: "Trace - A Modern Lost & Found Ecosystem"
 publish_to: 'none'
 
 version: 1.0.0+1

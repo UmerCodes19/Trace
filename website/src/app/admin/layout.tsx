@@ -26,7 +26,7 @@ export default function AdminLayout({
       setTheme(savedTheme);
       document.documentElement.setAttribute("data-theme", savedTheme);
     }
-    
+
     document.documentElement.setAttribute("data-scroll-behavior", "smooth");
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -94,21 +94,21 @@ export default function AdminLayout({
       <MobileNav onOpenSidebar={() => setIsSidebarOpen(true)} />
 
       {/* Sidebar - Fixed on mobile (slide-over), static on desktop */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-      
+
       {/* Main Content Area - Scrollable */}
       <div className="flex-1 min-h-screen relative overflow-x-hidden">
         {/* Animated Background Gradients */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
-           <div className="absolute -top-[10%] -right-[5%] w-[40vw] h-[40vw] bg-jade-primary/10 blur-[100px] rounded-full"></div>
-           <div className="absolute -bottom-[10%] -left-[5%] w-[30vw] h-[30vw] bg-sage-secondary/10 blur-[100px] rounded-full"></div>
+          <div className="absolute -top-[10%] -right-[5%] w-[40vw] h-[40vw] bg-jade-primary/10 blur-[100px] rounded-full"></div>
+          <div className="absolute -bottom-[10%] -left-[5%] w-[30vw] h-[30vw] bg-sage-secondary/10 blur-[100px] rounded-full"></div>
         </div>
-        
+
         {/* Content Wrapper */}
         <div className="p-4 md:p-12 lg:p-16 max-w-7xl mx-auto relative z-10">
           {children}
