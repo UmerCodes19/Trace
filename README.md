@@ -44,3 +44,10 @@ Flutter App → Firebase Auth → Node.js Backend → Supabase (PostgreSQL)
 1. `flutter pub get`
 2. Create `.env` file with required API keys
 3. `flutter run`
+
+### Website
+1. `cd website`
+2. `npm install`
+3. Create `.env.local` with required keys
+4. `npm run dev`
+5. Opens at `http://localhost:3000`
