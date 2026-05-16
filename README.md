@@ -32,3 +32,11 @@ Flutter App → Firebase Auth → Node.js Backend → Supabase (PostgreSQL)
                                      ↓
                          Vercel (Deployment) + FCM (Notifications)
 ```
+## Setup Instructions
+
+### Backend
+1. `cd backend`
+2. `npm install`
+3. Copy `.env.example` to `.env` and fill in the values
+4. `node index.js`
+5. Server runs at `http://localhost:3000`
