@@ -107,8 +107,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
 
   Future<void> _finishOnboarding() async {
     const storage = FlutterSecureStorage();
-    if (!devForceOnboarding) {
-      await storage.write(key: 'has_seen_onboarding', value: 'true');
+    try {
+      if (!devForceOnboarding) {
+        await storage.write(key: 'has_seen_onboarding', value: 'true');
+      }
+    } catch (e) {
+      debugPrint('Onboarding: Error writing onboarding status: $e');
     }
     if (mounted) context.go('/login');
   }
