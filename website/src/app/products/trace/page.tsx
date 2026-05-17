@@ -283,7 +283,7 @@ export default function TracePage() {
           <p className="text-sage-secondary text-base">Available now for Bahria University Karachi students.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a
-              href="https://trace-app-gilt.vercel.app"
+              href="https://trace-app-chi.vercel.app"
               target="_blank"
               rel="noreferrer"
               className="px-10 py-5 bg-jade-primary text-white rounded-2xl font-black text-base hover:opacity-90 transition-all shadow-lg shadow-jade-primary/20 active:scale-95"
