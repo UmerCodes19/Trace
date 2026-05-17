@@ -441,160 +441,514 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
       },
     );
   }
-
-  @override
+  @override
   Widget build(BuildContext context) {
     final user = ref.watch(authServiceProvider).currentUser;
     final accent = Theme.of(context).colorScheme.primary;
+    final isDesktop = MediaQuery.of(context).size.width >= 1150;
 
     return Scaffold(
       endDrawer: const NotificationDrawer(),
       backgroundColor: AppColors.pageBg(context),
       body: SafeArea(
         bottom: false,
-        child: NestedScrollView(
-          headerSliverBuilder: (context, _) => [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Premium Header Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Left: Greeting
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: NestedScrollView(
+                headerSliverBuilder: (context, _) => [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Premium Header Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                timeGreeting(), 
-                                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary(context)),
+                              // Left: Greeting
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      timeGreeting(), 
+                                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary(context)),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        cleanCMSUsername(user?.name ?? 'Guest'), 
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 26, 
+                                          fontWeight: FontWeight.w800, 
+                                          color: AppColors.textPrimary(context), 
+                                          letterSpacing: -0.5
+                                        ),
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 2),
-                              FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  cleanCMSUsername(user?.name ?? 'Guest'), 
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 26, 
-                                    fontWeight: FontWeight.w800, 
-                                    color: AppColors.textPrimary(context), 
-                                    letterSpacing: -0.5
+                              // Right: Actions (Leaderboard & Notifications)
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => context.push('/leaderboard'),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.card(context),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: AppColors.border(context), width: 1),
+                                      ),
+                                      child: Icon(
+                                        Icons.workspace_premium_rounded, 
+                                        color: Colors.amber.shade600, 
+                                        size: 23
+                                      ),
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                ),
-                              ),
-
-                            ],
-                          ),
-                        ),
-                        // Right: Actions (Leaderboard & Notifications)
-                        Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () => context.push('/leaderboard'),
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: AppColors.card(context),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: AppColors.border(context), width: 1),
-                                ),
-                                child: Icon(
-                                  Icons.workspace_premium_rounded, 
-                                  color: Colors.amber.shade600, 
-                                  size: 23
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Builder(
-                              builder: (ctx) => GestureDetector(
-                                onTap: () => Scaffold.of(ctx).openEndDrawer(),
-                                child: Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.card(context),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: AppColors.border(context), width: 1),
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      Icon(Icons.notifications_none_rounded, color: AppColors.textPrimary(context), size: 22),
-                                      // We can add a red dot if unread here, for now it's static
-                                      Positioned(
-                                        right: 0,
-                                        top: 2,
-                                        child: Container(
-                                          width: 8,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.lostAlert,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: AppColors.card(context), width: 1.5),
-                                          ),
+                                  const SizedBox(width: 12),
+                                  Builder(
+                                    builder: (ctx) => GestureDetector(
+                                      onTap: () => Scaffold.of(ctx).openEndDrawer(),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.card(context),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: AppColors.border(context), width: 1),
+                                        ),
+                                        child: Stack(
+                                          children: [
+                                            Icon(Icons.notifications_none_rounded, color: AppColors.textPrimary(context), size: 22),
+                                            Positioned(
+                                              right: 0,
+                                              top: 2,
+                                              child: Container(
+                                                width: 8,
+                                                height: 8,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.lostAlert,
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(color: AppColors.card(context), width: 1.5),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          
+                          // Search Bar & Filters
+                          _buildPremiumSearchBar(context),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _SliverAppBarDelegate(
+                      child: Container(
+                        color: AppColors.pageBg(context),
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TabBar(
+                          controller: _tabController,
+                          indicatorColor: accent,
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          labelColor: AppColors.textPrimary(context),
+                          unselectedLabelColor: AppColors.textSecondary(context),
+                          labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                          tabs: const [
+                            Tab(text: 'All'),
+                            Tab(text: 'Lost'),
+                            Tab(text: 'Found'),
+                            Tab(text: 'Resolved'),
+                            Tab(text: 'My Claims'),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 24),
-                    
-                    // Search Bar & Filters
-                    _buildPremiumSearchBar(context),
+                  ),
+                ],
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _PostFeed(query: _searchQuery, filter: 'all', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
+                    _PostFeed(query: _searchQuery, filter: 'lost', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
+                    _PostFeed(query: _searchQuery, filter: 'found', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
+                    _PostFeed(query: _searchQuery, filter: 'resolved', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
+                    _MyClaimsFeed(query: _searchQuery, building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
                   ],
                 ),
               ),
             ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _SliverAppBarDelegate(
-                child: Container(
-                  color: AppColors.pageBg(context),
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicatorColor: accent,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    labelColor: AppColors.textPrimary(context),
-                    unselectedLabelColor: AppColors.textSecondary(context),
-                    labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
-                    tabs: const [
-                      Tab(text: 'All'),
-                      Tab(text: 'Lost'),
-                      Tab(text: 'Found'),
-                      Tab(text: 'Resolved'),
-                      Tab(text: 'My Claims'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-          body: TabBarView(
-            controller: _tabController,
-            children: [
-              _PostFeed(query: _searchQuery, filter: 'all', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
-              _PostFeed(query: _searchQuery, filter: 'lost', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
-              _PostFeed(query: _searchQuery, filter: 'found', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
-              _PostFeed(query: _searchQuery, filter: 'resolved', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
-              _MyClaimsFeed(query: _searchQuery, building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
+            if (isDesktop) ...[
+              _buildDesktopRightPanel(context),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopRightPanel(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = Theme.of(context).colorScheme.primary;
+
+    final buildings = ['Library', 'Science Block', 'Hostel', 'Main Café', 'Admin Office', 'Engineering Dept'];
+    final categories = ['Electronics', 'Keys & Cards', 'Bags & Wallets', 'Documents', 'Books & Stationery', 'Others'];
+    final recencyOptions = ['Today', 'Last 3 Days', 'This Week', 'This Month'];
+
+    final hasActiveFilter = _selectedBuilding != null || _selectedCategory != null || _selectedRecency != null;
+
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0C0E17) : Colors.white,
+        border: Border(
+          left: BorderSide(
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08),
+            width: 1,
           ),
         ),
+      ),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Title
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Dashboard Hub',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary(context),
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (hasActiveFilter)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedBuilding = null;
+                        _selectedCategory = null;
+                        _selectedRecency = null;
+                      });
+                    },
+                    child: Text(
+                      'Reset Filters',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.jadePrimary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Inline Filters Box
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'REFINED CONTROLS',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.jadePrimary,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildDesktopDropdown<String>(
+                    label: 'Campus Block',
+                    value: _selectedBuilding,
+                    placeholder: 'All Buildings',
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Buildings')),
+                      ...buildings.map((b) => DropdownMenuItem(value: b, child: Text(b))),
+                    ],
+                    onChanged: (val) => setState(() => _selectedBuilding = val),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildDesktopDropdown<String>(
+                    label: 'Category',
+                    value: _selectedCategory,
+                    placeholder: 'All Categories',
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Categories')),
+                      ...categories.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                    ],
+                    onChanged: (val) => setState(() => _selectedCategory = val),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildDesktopDropdown<String>(
+                    label: 'Date Range',
+                    value: _selectedRecency,
+                    placeholder: 'All Time',
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All Time')),
+                      ...recencyOptions.map((r) => DropdownMenuItem(value: r, child: Text(r))),
+                    ],
+                    onChanged: (val) => setState(() => _selectedRecency = val),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // AI Scanner Promo Card
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark 
+                      ? [AppColors.jadePrimary.withOpacity(0.15), Colors.transparent]
+                      : [AppColors.jadePrimary.withOpacity(0.08), Colors.transparent],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.jadePrimary.withOpacity(0.2),
+                ),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.jadePrimary.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.center_focus_weak_rounded,
+                          color: AppColors.jadePrimary,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'AI Scanner',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Lost an item? Upload or take a picture of your belonging. Our AI scanner matches features instantly against all campus found entries.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.textSecondary(context),
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => const VisualSearchSheet(),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.jadePrimary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Launch AI Scanner',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Statistics Hub
+            Text(
+              'CAMPUS STATUS SUMMARY',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                color: AppColors.textSecondary(context),
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildStatHubRow(
+              icon: Icons.radar_rounded,
+              title: 'Active Lost Items',
+              value: '12 Reports',
+              color: AppColors.lost,
+            ),
+            const SizedBox(height: 10),
+            _buildStatHubRow(
+              icon: Icons.handshake_rounded,
+              title: 'Recovered Belongings',
+              value: '84 Claims',
+              color: AppColors.found,
+            ),
+            const SizedBox(height: 10),
+            _buildStatHubRow(
+              icon: Icons.emoji_events_rounded,
+              title: 'Leaderboard Karma',
+              value: 'Level 4 (Elite)',
+              color: Colors.amber.shade600,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopDropdown<T>({
+    required String label,
+    required T? value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+    required String placeholder,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textSecondary(context),
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: AppColors.card(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border(context)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              items: items,
+              onChanged: onChanged,
+              hint: Text(
+                placeholder,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: AppColors.textSecondary(context),
+                ),
+              ),
+              isExpanded: true,
+              dropdownColor: AppColors.card(context),
+              borderRadius: BorderRadius.circular(14),
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.textPrimary(context),
+                size: 20,
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatHubRow({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border(context)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1035,52 +1389,61 @@ class _PostFeedState extends ConsumerState<_PostFeed> {
         return RefreshIndicator(
           onRefresh: () async => ref.refresh(paginatedFeedProvider(config)),
           color: AppColors.jadePrimary,
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.64,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final post = state.posts[index];
-                      return PostCard(post: post)
-                          .animate()
-                          .fadeIn(delay: (index % 10 * 40).ms)
-                          .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuart);
-                    },
-                    childCount: state.posts.length,
-                  ),
-                ),
-              ),
-              
-              // Loading more indicator at very bottom
-              if (state.isLoadingMore)
-                SliverToBoxAdapter(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    alignment: Alignment.center,
-                    child: const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.jadePrimary),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final gridWidth = constraints.maxWidth;
+              final crossCount = gridWidth > 1150 
+                  ? 4 
+                  : (gridWidth > 800 ? 3 : (gridWidth > 480 ? 2 : 1));
+
+              return CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossCount,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 0.64,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final post = state.posts[index];
+                          return PostCard(post: post)
+                              .animate()
+                              .fadeIn(delay: (index % 10 * 40).ms)
+                              .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuart);
+                        },
+                        childCount: state.posts.length,
                       ),
                     ),
                   ),
-                ),
+                  
+                  // Loading more indicator at very bottom
+                  if (state.isLoadingMore)
+                    SliverToBoxAdapter(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        alignment: Alignment.center,
+                        child: const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.jadePrimary),
+                          ),
+                        ),
+                      ),
+                    ),
 
-              // Extra bottom buffer padding to account for bottom nav bars
-              const SliverToBoxAdapter(child: SizedBox(height: 140)),
-            ],
+                  // Extra bottom buffer padding to account for bottom nav bars
+                  const SliverToBoxAdapter(child: SizedBox(height: 140)),
+                ],
+              );
+            },
           ),
         );
       },
@@ -1093,16 +1456,25 @@ class _LoadingFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.64,
-      ),
-      itemCount: 6,
-      itemBuilder: (_, __) => const SkeletonPostCard(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gridWidth = constraints.maxWidth;
+        final crossCount = gridWidth > 1150 
+            ? 4 
+            : (gridWidth > 800 ? 3 : (gridWidth > 480 ? 2 : 1));
+
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.64,
+          ),
+          itemCount: 6,
+          itemBuilder: (_, __) => const SkeletonPostCard(),
+        );
+      },
     );
   }
 }
@@ -1256,29 +1628,38 @@ class _MyClaimsFeed extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(myClaimsProvider),
       child: RepaintBoundary(
-        child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 140),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.64,
-          ),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) {
-            final claim = filtered[index];
-            final postMap = claim['posts'];
-            if (postMap == null) return const SizedBox.shrink();
-            final postModel = SimplePostModel.fromMap(postMap);
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final gridWidth = constraints.maxWidth;
+            final crossCount = gridWidth > 1150 
+                ? 4 
+                : (gridWidth > 800 ? 3 : (gridWidth > 480 ? 2 : 1));
 
-            final status = claim['status']?.toString();
-            return PostCard(
-              post: postModel,
-              statusOverride: status,
-            )
-                .animate()
-                .fadeIn(delay: (index * 30).ms)
-                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart);
+            return GridView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 140),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossCount,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.64,
+              ),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final claim = filtered[index];
+                final postMap = claim['posts'];
+                if (postMap == null) return const SizedBox.shrink();
+                final postModel = SimplePostModel.fromMap(postMap);
+
+                final status = claim['status']?.toString();
+                return PostCard(
+                  post: postModel,
+                  statusOverride: status,
+                )
+                    .animate()
+                    .fadeIn(delay: (index * 30).ms)
+                    .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart);
+              },
+            );
           },
         ),
       ),

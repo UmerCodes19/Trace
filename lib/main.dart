@@ -9,6 +9,8 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'data/services/notification_service.dart';
+import 'presentation/widgets/common/responsive_web_wrapper.dart';
+
 
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -100,6 +102,9 @@ class LostFoundApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(accent: accent),
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       routerConfig: router,
+      builder: (context, child) {
+        return ResponsiveWebWrapper(child: child!);
+      },
     );
   }
 }

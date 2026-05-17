@@ -706,7 +706,6 @@ class _InputBarState extends State<_InputBar> {
             right: 12,
             top: 10,
             bottom:
-                MediaQuery.of(context).viewInsets.bottom +
                 MediaQuery.of(context).padding.bottom +
                 10,
           ),

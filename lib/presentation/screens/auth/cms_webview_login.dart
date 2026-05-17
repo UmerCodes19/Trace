@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'; // Added for kIsWeb
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'login_screen.dart';
+import '../../widgets/common/falling_pattern_background.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/cms_models.dart';

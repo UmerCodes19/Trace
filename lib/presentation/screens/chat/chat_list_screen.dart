@@ -277,10 +277,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             )
           else if (_uid.isEmpty)
             const SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(child: Text('Login required')),
             )
           else if (_chats.isEmpty)
             SliverFillRemaining(
+              hasScrollBody: false,
               child: LottieEmptyStateWidget(
                 lottieAsset: 'assets/lottie/empty_chats.json',
                 fallbackIcon: Icons.forum_outlined,
