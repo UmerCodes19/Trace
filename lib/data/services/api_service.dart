@@ -604,7 +604,9 @@ class ApiService {
 
   Future<Map<String, dynamic>> createPost(Map<String, dynamic> postData) async {
     try {
-      final response = await _dio.post('/posts', data: postData);
+      final payload = Map<String, dynamic>.from(postData);
+      payload.remove('imageUrls'); // Remove temporary multi-image payload to prevent backend schema errors
+      final response = await _dio.post('/posts', data: payload);
       return response.data;
     } catch (e) {
       debugPrint('Error creating post: $e');

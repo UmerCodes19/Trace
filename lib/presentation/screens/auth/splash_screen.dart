@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/models/simple_user_model.dart';
 import '../../widgets/common/trace_logo.dart';
 import 'onboarding_screen.dart';
 
@@ -50,38 +51,62 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   }
 
   Future<void> _runStartupFlow() async {
-    // 1. Initial Beat
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    
-    // 2. Start Reveal
-    _logoController.forward();
-    setState(() => _loadingMessage = 'Connecting to campus network');
+    try {
+      // 1. Initial Beat
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      
+      // 2. Start Reveal
+      _logoController.forward();
+      setState(() => _loadingMessage = 'Connecting to campus network');
 
-    await Future.delayed(const Duration(milliseconds: 1000));
-    if (!mounted) return;
-    
-    final authService = ref.read(authServiceProvider);
-    final userFuture = authService.getCurrentUser();
-    
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 1000));
+      if (!mounted) return;
+      
+      SimpleUserModel? user;
+      try {
+        final authService = ref.read(authServiceProvider);
+        user = await authService.getCurrentUser();
+      } catch (e) {
+        debugPrint('Splash: Error getting current user: $e');
+        // Treat as guest / unauthenticated if error occurs
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
 
-    final user = await userFuture;
-    const storage = FlutterSecureStorage();
-    final hasSeenOnboarding = await storage.read(key: 'has_seen_onboarding');
+      String? hasSeenOnboarding;
+      const storage = FlutterSecureStorage();
+      try {
+        hasSeenOnboarding = await storage.read(key: 'has_seen_onboarding');
+      } catch (e) {
+        debugPrint('Splash: Error reading onboarding status: $e');
+        // Secure storage might be corrupted. Try to clean up key to prevent future failures.
+        try {
+          await storage.delete(key: 'has_seen_onboarding');
+        } catch (_) {}
+      }
 
-    // 4. Smooth Exit
-    setState(() => _screenOpacity = 0.0);
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
+      // 4. Smooth Exit
+      setState(() => _screenOpacity = 0.0);
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
 
-    if (devForceOnboarding || hasSeenOnboarding != 'true') {
-      context.go('/onboarding');
-    } else if (user != null) {
-      context.go('/home');
-    } else {
-      context.go('/login');
+      if (devForceOnboarding || hasSeenOnboarding != 'true') {
+        context.go('/onboarding');
+      } else if (user != null) {
+        context.go('/home');
+      } else {
+        context.go('/login');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Splash: Critical error in startup flow: $e');
+      debugPrint('Stack trace: $stackTrace');
+      
+      // Defensively transition out of splash screen no matter what!
+      if (mounted) {
+        context.go('/onboarding');
+      }
     }
   }
 

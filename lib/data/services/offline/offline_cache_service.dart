@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -14,13 +15,31 @@ class OfflineCacheService {
 
   Future<String> _getOrGenerateKey() async {
     if (_cachedKey != null) return _cachedKey!;
-    String? key = await _storage.read(key: _keyName);
-    if (key == null) {
-      key = '${DateTime.now().microsecondsSinceEpoch}_trace_secure_key';
-      await _storage.write(key: _keyName, value: key);
+    try {
+      String? key = await _storage.read(key: _keyName);
+      if (key == null) {
+        key = '${DateTime.now().microsecondsSinceEpoch}_trace_secure_key';
+        await _storage.write(key: _keyName, value: key);
+      }
+      _cachedKey = key;
+      return key;
+    } catch (e) {
+      debugPrint('OfflineCacheService: Keystore error when getting/generating key: $e');
+      // If keystore is corrupted or throws, try deleting the old key and generating a fresh one
+      try {
+        await _storage.delete(key: _keyName);
+        final key = '${DateTime.now().microsecondsSinceEpoch}_trace_secure_key_recovered';
+        await _storage.write(key: _keyName, value: key);
+        _cachedKey = key;
+        return key;
+      } catch (innerError) {
+        debugPrint('OfflineCacheService: Critical Keystore error, using non-persistent in-memory fallback key: $innerError');
+        // Absolute fallback to prevent app crashes/hangs: in-memory key
+        final key = 'in_memory_fallback_${DateTime.now().microsecondsSinceEpoch}';
+        _cachedKey = key;
+        return key;
+      }
     }
-    _cachedKey = key;
-    return key;
   }
 
   /// Optimized lightweight key-based XOR cryptography with zero library overhead.

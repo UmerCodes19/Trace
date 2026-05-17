@@ -99,21 +99,33 @@ class SimplePostModel {
       }
     }
 
-    final imageUrlVal = map['imageUrl'] ?? map['image_url'];
+    // Parse [imageUrls:...] (Multiple images serialized inside the description field)
+    List<String> extractedImageUrls = [];
+    if (cleanDesc.contains('[imageUrls:')) {
+      final startIndex = cleanDesc.indexOf('[imageUrls:');
+      final endIndex = cleanDesc.indexOf(']', startIndex);
+      if (endIndex != -1) {
+        final urlsStr = cleanDesc.substring(startIndex + 11, endIndex).trim();
+        extractedImageUrls = urlsStr.split(',').map((u) => u.trim()).where((u) => u.isNotEmpty).toList();
+        cleanDesc = (cleanDesc.substring(0, startIndex) + cleanDesc.substring(endIndex + 1)).trim();
+      }
+    }
+
+    final imageUrlVal = map['imageUrl'] ?? map['image_url'] ?? map['imageurl'];
     final mainImageUrl = imageUrlVal?.toString() ?? '';
     final isVideoUrl = mainImageUrl.endsWith('.mp4') || mainImageUrl.contains('.mp4?');
 
     return SimplePostModel(
       id: map['id'] as String,
-      userId: (map['userId'] ?? map['user_id']) as String? ?? '',
+      userId: (map['userId'] ?? map['user_id'] ?? map['userid']) as String? ?? '',
       type: map['type'] as String? ?? 'lost',
       title: map['title'] as String? ?? '',
       description: cleanDesc,
-      imageUrls: parseList(imageUrlVal),
+      imageUrls: extractedImageUrls.isNotEmpty ? extractedImageUrls : parseList(imageUrlVal),
       location: SimplePostLocation(
         name: map['location_name'] as String? ?? '',
         building: map['location_building'] as String? ?? map['buildingName'] as String? ?? '',
-        floor: map['location_floor'] as int? ?? map['floor'] as int? ?? 0,
+        floor: (map['location_floor'] as num? ?? map['floor'] as num? ?? 0).toInt(),
         room: map['location_room'] as String?,
         latitude: (map['location_latitude'] as num? ?? map['location_lat'] as num? ?? 0.0).toDouble(),
         longitude: (map['location_longitude'] as num? ?? map['location_lng'] as num? ?? 0.0).toDouble(),
@@ -126,16 +138,16 @@ class SimplePostModel {
               : DateTime.parse(map['timestamp'].toString()))
           : DateTime.now(),
       status: map['status'] as String? ?? 'open',
-      aiTags: parseList(map['aiTags'] ?? map['ai_tags']),
-      reportCount: (map['reportCount'] ?? map['report_count']) as int? ?? 0,
-      viewCount: (map['viewCount'] ?? map['view_id'] ?? map['view_count']) as int? ?? 0,
-      likesCount: (map['likesCount'] ?? map['likeCount'] ?? map['like_count']) as int? ?? 0,
-      posterName: (map['posterName'] ?? map['poster_name']) as String? ?? '',
-      posterAvatarUrl: (map['posterAvatarUrl'] ?? map['poster_avatar_url']) as String? ?? '',
-      secretDetailQuestion: extractedSecretQuestion ?? (map['secretQuestion'] as String? ?? map['secret_detail_question'] as String? ?? map['secretQuestionText'] as String?),
+      aiTags: parseList(map['aiTags'] ?? map['ai_tags'] ?? map['aitags']),
+      reportCount: (map['reportCount'] as num? ?? map['report_count'] as num? ?? map['reportcount'] as num? ?? 0).toInt(),
+      viewCount: (map['viewCount'] as num? ?? map['view_id'] as num? ?? map['view_count'] as num? ?? map['viewcount'] as num? ?? 0).toInt(),
+      likesCount: (map['likesCount'] as num? ?? map['likeCount'] as num? ?? map['like_count'] as num? ?? map['likecount'] as num? ?? 0).toInt(),
+      posterName: (map['posterName'] ?? map['poster_name'] ?? map['postername']) as String? ?? '',
+      posterAvatarUrl: (map['posterAvatarUrl'] ?? map['poster_avatar_url'] ?? map['posteravatarurl']) as String? ?? '',
+      secretDetailQuestion: extractedSecretQuestion ?? (map['secretQuestion'] as String? ?? map['secret_detail_question'] as String? ?? map['secretQuestionText'] as String? ?? map['secretquestion'] as String?),
       custodyLocation: extractedCustody,
       videoUrl: () {
-        final rawUrl = extractedVideoUrl ?? (isVideoUrl ? mainImageUrl : (map['videoUrl'] as String? ?? map['video_url'] as String?));
+        final rawUrl = extractedVideoUrl ?? (isVideoUrl ? mainImageUrl : (map['videoUrl'] as String? ?? map['video_url'] as String? ?? map['videourl'] as String?));
         if (rawUrl == null) return null;
         final trimmed = rawUrl.trim();
         if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -199,6 +211,9 @@ class SimplePostModel {
     if (secretDetailQuestion != null && secretDetailQuestion!.isNotEmpty) {
       finalDesc = '$finalDesc\n[SecretQuestion:$secretDetailQuestion]';
     }
+    if (imageUrls.length > 1) {
+      finalDesc = '$finalDesc\n[imageUrls:${imageUrls.join(',')}]';
+    }
     return {
       'id': id,
       'userId': userId,
@@ -206,6 +221,7 @@ class SimplePostModel {
       'title': title,
       'description': finalDesc,
       'imageUrl': imageUrls.isNotEmpty ? imageUrls[0] : null,
+      'imageUrls': imageUrls, // Retain raw list locally for offline sync
       'location_name': location.name,
       'buildingName': location.building,
       'floor': location.floor,

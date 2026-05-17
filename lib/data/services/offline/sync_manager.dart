@@ -95,7 +95,7 @@ class SyncManager {
           uploadData.remove('videoUrl');
         }
         
-        // Upload queued local images to Cloudinary first
+        // Upload queued local images/videos to Cloudinary first
         if (uploadData['imageUrls'] != null) {
           final List<dynamic> localUrls = uploadData['imageUrls'];
           final List<String> uploadedUrls = [];
@@ -104,8 +104,11 @@ class SyncManager {
           for (var img in localUrls) {
             final pathStr = img.toString();
             if (!pathStr.startsWith('http') && File(pathStr).existsSync()) {
-              debugPrint('TRACE SYNC: Uploading queued local image to Cloudinary: $pathStr');
-              final cloudUrl = await StorageService().uploadPostImage(File(pathStr), userId);
+              debugPrint('TRACE SYNC: Uploading queued local asset to Cloudinary: $pathStr');
+              final isVideo = pathStr.endsWith('.mp4') || pathStr.contains('.mp4?');
+              final cloudUrl = isVideo
+                  ? await StorageService().uploadPostVideo(File(pathStr), userId)
+                  : await StorageService().uploadPostImage(File(pathStr), userId);
               uploadedUrls.add(cloudUrl);
             } else {
               uploadedUrls.add(pathStr);
@@ -118,11 +121,41 @@ class SyncManager {
         if (uploadData['imageUrl'] != null) {
           final pathStr = uploadData['imageUrl'].toString();
           if (!pathStr.startsWith('http') && File(pathStr).existsSync()) {
-            debugPrint('TRACE SYNC: Uploading singular local image to Cloudinary: $pathStr');
+            debugPrint('TRACE SYNC: Uploading singular local asset to Cloudinary: $pathStr');
             final String userId = uploadData['userId'] ?? 'anonymous';
-            final cloudUrl = await StorageService().uploadPostImage(File(pathStr), userId);
+            final isVideo = pathStr.endsWith('.mp4') || pathStr.contains('.mp4?');
+            final cloudUrl = isVideo
+                ? await StorageService().uploadPostVideo(File(pathStr), userId)
+                : await StorageService().uploadPostImage(File(pathStr), userId);
             uploadData['imageUrl'] = cloudUrl;
           }
+        }
+
+        // Update description paths with uploaded remote Cloudinary URLs!
+        if (uploadData['description'] != null) {
+          String desc = uploadData['description'].toString();
+          
+          // Rewrite [imageUrls:...] tag with remote Cloudinary URLs
+          if (desc.contains('[imageUrls:')) {
+            final startIndex = desc.indexOf('[imageUrls:');
+            final endIndex = desc.indexOf(']', startIndex);
+            if (endIndex != -1 && uploadData['imageUrls'] != null) {
+              final List<dynamic> urlsList = uploadData['imageUrls'];
+              desc = desc.substring(0, startIndex) + '[imageUrls:${urlsList.join(',')}]' + desc.substring(endIndex + 1);
+            }
+          }
+
+          // Rewrite [video:...] tag with remote Cloudinary URL
+          if (desc.contains('[video:')) {
+            final startIndex = desc.indexOf('[video:');
+            final endIndex = desc.indexOf(']', startIndex);
+            if (endIndex != -1 && uploadData['imageUrl'] != null) {
+              final String videoCloudUrl = uploadData['imageUrl'].toString();
+              desc = desc.substring(0, startIndex) + '[video:$videoCloudUrl]' + desc.substring(endIndex + 1);
+            }
+          }
+
+          uploadData['description'] = desc;
         }
 
         // Strip out the temp pending ID before sending to server so Vercel can generate real DB UUIDs

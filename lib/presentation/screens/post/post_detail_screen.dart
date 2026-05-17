@@ -332,8 +332,7 @@ class _PostDetailBody extends ConsumerWidget {
         ),
       ),
 
-      body: RepaintBoundary(
-        child: CustomScrollView(
+      body: CustomScrollView(
           slivers: [
             SliverAppBar(
               expandedHeight: (post.imageUrls.isNotEmpty || (post.videoUrl != null && post.videoUrl!.isNotEmpty)) ? 400 : 0,
@@ -458,8 +457,8 @@ class _PostDetailBody extends ConsumerWidget {
                         fit: StackFit.expand,
                         children: [
                           _PostMediaCarousel(post: post),
-                          IgnorePointer(
-                            child: Positioned.fill(
+                          Positioned.fill(
+                            child: IgnorePointer(
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
@@ -675,8 +674,7 @@ class _PostDetailBody extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   void _openGallery(BuildContext context, int initialIndex) {
@@ -1390,7 +1388,36 @@ class _PostImage extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: url, 
         fit: fit,
-        memCacheHeight: 1200, // Caps absolute maximum memory scaling for ultra high res raw photos
+        placeholder: (context, url) => Container(
+          color: AppColors.cardBg(context),
+          alignment: Alignment.center,
+          child: const CircularProgressIndicator.adaptive(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.jadePrimary),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: AppColors.cardBg(context),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.broken_image_outlined,
+                color: AppColors.textHint(context),
+                size: 40,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Failed to load media',
+                style: TextStyle(
+                  color: AppColors.textHint(context),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
     return Image.file(
@@ -1494,6 +1521,9 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
   void initState() {
     super.initState();
     _pageCtrl = PageController();
+    debugPrint('TRACE DETAIL MEDIA: Initializing carousel for post ID: ${widget.post.id}');
+    debugPrint('TRACE DETAIL MEDIA: parsed videoUrl: "${widget.post.videoUrl}"');
+    debugPrint('TRACE DETAIL MEDIA: parsed imageUrls: ${widget.post.imageUrls}');
     if (widget.post.videoUrl != null && widget.post.videoUrl!.isNotEmpty) {
       _media.add({'type': 'video', 'url': widget.post.videoUrl!});
     }
@@ -1502,6 +1532,7 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
         _media.add({'type': 'image', 'url': url.trim()});
       }
     }
+    debugPrint('TRACE DETAIL MEDIA: Constructed media list size: ${_media.length}');
   }
 
   @override
@@ -1549,12 +1580,9 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
             }
             return GestureDetector(
               onTap: () => _openGalleryView(i),
-              child: Hero(
-                tag: 'post_image_${item['url']}',
-                child: _PostImage(
-                  url: item['url']!,
-                  fit: BoxFit.cover,
-                ),
+              child: _PostImage(
+                url: item['url']!,
+                fit: BoxFit.cover,
               ),
             );
           },

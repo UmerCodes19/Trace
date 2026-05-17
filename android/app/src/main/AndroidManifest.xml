@@ -9,6 +9,9 @@
         android:label="Trace"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
