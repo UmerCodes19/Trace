@@ -58,15 +58,30 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'code, discord_id, and discord_name are required' });
     }
 
-    const data = activeLinkCodes[code];
-    if (!data || Date.now() > data.expiresAt) {
+    let data = activeLinkCodes[code];
+    let userId = data?.userId;
+
+    // Database-backed fallback for verification code to survive serverless/container restarts
+    if (!userId) {
+      const { data: dbData, error: dbError } = await supabase
+        .from('cms_timetable')
+        .select('*')
+        .eq('enrollment', `link_code:${code}`)
+        .single();
+
+      if (!dbError && dbData) {
+        userId = dbData.courseCode;
+      }
+    }
+
+    if (!userId) {
       return res.status(400).json({ error: 'Invalid or expired code. Generate a new code in the Trace app.' });
     }
 
     // Safe mapping without string/BigInt parsing into the 'day' integer column
     const entry = {
       enrollment: `discord:${discord_id}`,
-      courseCode: data.userId,
+      courseCode: userId,
       courseTitle: discord_name,
       roomName: discord_id,
       buildingName: '#discord_link',
@@ -85,9 +100,14 @@ router.post('/verify', async (req, res) => {
 
     if (error) throw error;
 
+    // Clean up both caches
     delete activeLinkCodes[code];
+    await supabase
+      .from('cms_timetable')
+      .delete()
+      .eq('enrollment', `link_code:${code}`);
 
-    res.json({ message: 'Linked successfully!', user_id: data.userId });
+    res.json({ message: 'Linked successfully!', user_id: userId });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
