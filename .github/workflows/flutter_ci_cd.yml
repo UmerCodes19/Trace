@@ -28,6 +28,9 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Create Placeholder Environment File
+        run: touch .env
+
       - name: Install Flutter Dependencies
         run: flutter pub get
 
