@@ -435,6 +435,20 @@ class _ReelPlayerItemState extends ConsumerState<ReelPlayerItem> {
           if (result['likeCount'] != null) _localLikesCount = result['likeCount'];
         });
       }
+
+      final postOwnerId = widget.post.userId;
+      if (result['liked'] == true && currentUid != postOwnerId) {
+        final currentUserName = ref.read(authServiceProvider).currentUser?.name ?? 'Someone';
+        await api.sendNotification(
+          userId: postOwnerId,
+          title: 'New Reel Like ❤️',
+          body: '$currentUserName liked your reel: "${widget.post.title}"',
+          type: 'general',
+          data: {
+            'postId': widget.post.id,
+          },
+        );
+      }
     } catch (_) {
       // Revert on connection breakage
       if (mounted) {
@@ -708,7 +722,21 @@ class _ReelPlayerItemState extends ConsumerState<ReelPlayerItem> {
                                   setSheetState(() {}); // Refresh Modal State immediately
 
                                   try {
-                                    await ref.read(apiServiceProvider).addComment(comment.toMap());
+                                    final api = ref.read(apiServiceProvider);
+                                    await api.addComment(comment.toMap());
+
+                                    final postOwnerId = widget.post.userId;
+                                    if (user.uid != postOwnerId) {
+                                      await api.sendNotification(
+                                        userId: postOwnerId,
+                                        title: 'New Comment 💬',
+                                        body: '${cleanCMSUsername(user.name)} commented on your reel: "$txt"',
+                                        type: 'general',
+                                        data: {
+                                          'postId': widget.post.id,
+                                        },
+                                      );
+                                    }
                                   } catch (e) {
                                     debugPrint('Failed to propagate comment: $e');
                                   }

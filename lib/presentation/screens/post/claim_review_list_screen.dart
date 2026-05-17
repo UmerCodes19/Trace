@@ -131,9 +131,34 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                     const SizedBox(height: 4),
                     Expanded(
                       child: SingleChildScrollView(
-                        child: Text(
-                          claim['proof_text'] ?? 'No proof',
-                          style: GoogleFonts.inter(fontSize: 12, height: 1.4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              claim['proof_text'] ?? 'No proof',
+                              style: GoogleFonts.inter(fontSize: 12, height: 1.4),
+                            ),
+                            if (claim['proof_image_url'] != null && claim['proof_image_url'].toString().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: () {
+                                  _showFullscreenProofImage(context, claim['proof_image_url'].toString());
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    claim['proof_image_url'].toString(),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      height: 80,
+                                      color: AppColors.surface(context),
+                                      child: const Center(child: Icon(Icons.broken_image_outlined)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
@@ -160,6 +185,40 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
+      ),
+    );
+  }
+
+  void _showFullscreenProofImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(Icons.broken_image_outlined, color: Colors.white, size: 64),
+                ),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -296,6 +355,29 @@ class _ClaimReviewListScreenState extends ConsumerState<ClaimReviewListScreen> {
                                   claim['proof_text'] ?? 'No proof provided',
                                   style: GoogleFonts.inter(fontSize: 14, height: 1.5),
                                 ),
+                                if (claim['proof_image_url'] != null && claim['proof_image_url'].toString().isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  GestureDetector(
+                                    onTap: () {
+                                      _showFullscreenProofImage(context, claim['proof_image_url'].toString());
+                                    },
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: SizedBox(
+                                        height: 120,
+                                        width: double.infinity,
+                                        child: Image.network(
+                                          claim['proof_image_url'].toString(),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Container(
+                                            color: AppColors.surface(context),
+                                            child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 if (status == 'pending') ...[
                                   const SizedBox(height: 20),
                                   Row(

@@ -272,81 +272,121 @@ class SkeletonDetailScreen extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: AppColors.shimmerBaseColor(context),
       highlightColor: AppColors.shimmerHighColor(context),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image placeholder
-            Container(
-              width: double.infinity,
-              height: 250,
-              decoration: BoxDecoration(
+      child: CustomScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 400,
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
                 color: AppColors.shimmerBaseColor(context),
-                borderRadius: BorderRadius.circular(20),
               ),
             ),
-            const SizedBox(height: 20),
-            // Badges
-            Row(
-              children: [
-                Container(
-                  width: 80,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: AppColors.shimmerBaseColor(context),
-                    borderRadius: BorderRadius.circular(13),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: AppColors.shimmerBaseColor(context),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 60,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: AppColors.shimmerBaseColor(context),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 60,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: AppColors.shimmerBaseColor(context),
-                    borderRadius: BorderRadius.circular(13),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: 250,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.shimmerBaseColor(context),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Title
-            Container(
-              width: 250,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBaseColor(context),
-                borderRadius: BorderRadius.circular(14),
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < 3; i++) ...[
+                    Container(
+                      width: i == 2 ? 180 : double.infinity,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: AppColors.shimmerBaseColor(context),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  const SizedBox(height: 24),
+                  for (int i = 0; i < 3; i++) ...[
+                    Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.shimmerBaseColor(context),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppColors.shimmerBaseColor(context),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: AppColors.shimmerBaseColor(context),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            width: 80,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: AppColors.shimmerBaseColor(context),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            // Description lines
-            for (int i = 0; i < 3; i++) ...[
-              Container(
-                width: i == 2 ? 180 : double.infinity,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: AppColors.shimmerBaseColor(context),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-              ),
-              const SizedBox(height: 6),
-            ],
-            const SizedBox(height: 16),
-            // Info cards
-            for (int i = 0; i < 2; i++) ...[
-              Container(
-                width: double.infinity,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.shimmerBaseColor(context),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

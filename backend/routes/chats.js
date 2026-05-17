@@ -183,4 +183,32 @@ router.post('/messages', async (req, res) => {
   }
 });
 
+// Delete chat and all associated messages
+router.delete('/:chatId', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    // 1. Delete all messages associated with the chat room
+    const { error: msgError } = await supabase
+      .from('messages')
+      .delete()
+      .eq('chatId', chatId);
+
+    if (msgError) throw msgError;
+
+    // 2. Delete the chat room itself
+    const { error: chatError } = await supabase
+      .from('chats')
+      .delete()
+      .eq('id', chatId);
+
+    if (chatError) throw chatError;
+
+    res.json({ success: true, message: 'Chat and all associated messages successfully deleted.' });
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

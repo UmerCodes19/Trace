@@ -570,8 +570,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                     unselectedLabelColor: AppColors.textSecondary(context),
                     labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
                     tabs: const [
-                      Tab(text: 'For You'),
                       Tab(text: 'All'),
+                      Tab(text: 'For You'),
                       Tab(text: 'Lost'),
                       Tab(text: 'Found'),
                       Tab(text: 'Resolved'),
@@ -585,8 +585,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           body: TabBarView(
             controller: _tabController,
             children: [
-              const _ForYouFeed(),
               _PostFeed(query: _searchQuery, filter: 'all', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
+              const _ForYouFeed(),
               _PostFeed(query: _searchQuery, filter: 'lost', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
               _PostFeed(query: _searchQuery, filter: 'found', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
               _PostFeed(query: _searchQuery, filter: 'resolved', building: _selectedBuilding, category: _selectedCategory, recency: _selectedRecency),
@@ -1017,12 +1017,15 @@ class _PostFeedState extends ConsumerState<_PostFeed> {
     );
 
     final feedAsync = ref.watch(paginatedFeedProvider(config));
+    final removedIds = ref.watch(removedPostIdsProvider);
 
     return feedAsync.when(
       loading: () => const _LoadingFeed(),
       error: (err, _) => Center(child: Text('Connection failure: $err', style: const TextStyle(color: Colors.grey))),
       data: (state) {
-        if (state.posts.isEmpty) {
+        final visiblePosts = state.posts.where((p) => !removedIds.contains(p.id)).toList();
+
+        if (visiblePosts.isEmpty) {
           return const LottieEmptyStateWidget(
             lottieAsset: 'assets/animations/empty_feed.json',
             fallbackIcon: Icons.travel_explore_rounded,
@@ -1049,13 +1052,13 @@ class _PostFeedState extends ConsumerState<_PostFeed> {
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final post = state.posts[index];
+                      final post = visiblePosts[index];
                       return PostCard(post: post)
                           .animate()
                           .fadeIn(delay: (index % 10 * 40).ms)
                           .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuart);
                     },
-                    childCount: state.posts.length,
+                    childCount: visiblePosts.length,
                   ),
                 ),
               ),

@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:dio/dio.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -89,6 +89,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   final _secretQuestionCtrl = TextEditingController();
   final _manualTagCtrl = TextEditingController();
+
+  String _custodyStatus = 'with_finder'; // 'with_finder', 'reception', 'other'
+  final _customCustodyCtrl = TextEditingController();
 
   int _floor = 1;
 
@@ -183,6 +186,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       _aiTags = List<String>.from(widget.postToEdit!.aiTags);
 
       _existingImageUrls = List<String>.from(widget.postToEdit!.imageUrls);
+
+      if (widget.postToEdit!.custodyLocation != null) {
+        final cust = widget.postToEdit!.custodyLocation!;
+        if (cust == 'With Finder') {
+          _custodyStatus = 'with_finder';
+        } else if (cust == 'At Reception Desk') {
+          _custodyStatus = 'reception';
+        } else {
+          _custodyStatus = 'other';
+          _customCustodyCtrl.text = cust;
+        }
+      }
 
     } else {
 
@@ -624,6 +639,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
     _secretQuestionCtrl.dispose();
     _manualTagCtrl.dispose();
+    _customCustodyCtrl.dispose();
 
     super.dispose();
 
@@ -1333,6 +1349,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         isCMSVerified: currentUser.isCMSVerified,
 
         secretDetailQuestion: _secretQuestionCtrl.text.isEmpty ? null : _secretQuestionCtrl.text.trim(),
+        custodyLocation: _type == 'found' ? (_custodyStatus == 'other' ? _customCustodyCtrl.text.trim() : (_custodyStatus == 'reception' ? 'At Reception Desk' : 'With Finder')) : null,
         videoUrl: uploadedVideoUrl ?? () {
           final text = '${_titleCtrl.text} ${_descCtrl.text}'.toLowerCase();
           if (text.contains('#video4')) {
@@ -1417,20 +1434,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       
 
       // Check if it's a network-related failure to trigger offline queueing
-
       final errStr = e.toString().toLowerCase();
-
-      final isOffline = errStr.contains('socketexception') || 
-
-                        errStr.contains('connectiontimeout') || 
-
-                        errStr.contains('network is unreachable') || 
-
-                        errStr.contains('failed host lookup') ||
-
-                        errStr.contains('dioexception');
-
-                        
+      bool isOffline = errStr.contains('socketexception') || 
+                       errStr.contains('connectiontimeout') || 
+                       errStr.contains('network is unreachable') || 
+                       errStr.contains('failed host lookup');
+                       
+      if (e is DioException) {
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.connectionError ||
+            e.error is SocketException) {
+          isOffline = true;
+        } else {
+          isOffline = false;
+        }
+      }
 
       if (isOffline) {
 
@@ -2066,6 +2086,123 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           ),
         ),
+        if (_type == 'found') ...[
+          const SizedBox(height: 16),
+          _PremiumSectionLabel(label: 'Item Custody & Storage'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _custodyStatus = 'with_finder');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _custodyStatus == 'with_finder'
+                            ? AppColors.jadePrimary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'With Finder',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: _custodyStatus == 'with_finder'
+                              ? Colors.white
+                              : AppColors.textSecondary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _custodyStatus = 'reception');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _custodyStatus == 'reception'
+                            ? AppColors.jadePrimary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Reception Desk',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: _custodyStatus == 'reception'
+                              ? Colors.white
+                              : AppColors.textSecondary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _custodyStatus = 'other');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _custodyStatus == 'other'
+                            ? AppColors.jadePrimary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Other',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: _custodyStatus == 'other'
+                              ? Colors.white
+                              : AppColors.textSecondary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_custodyStatus == 'other') ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _customCustodyCtrl,
+              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Enter custom location (e.g. In Room 405 desk)',
+                filled: true,
+                fillColor: AppColors.surface(context),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+            ),
+          ],
+        ],
         const SizedBox(height: 16),
 
         _PremiumSectionLabel(label: 'Date & Location'),
@@ -2172,11 +2309,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           style: GoogleFonts.inter(fontSize: 15, color: AppColors.textSecondary(context)),
         ),
         const SizedBox(height: 40),
-        _PremiumSectionLabel(label: 'Security Question (Optional)'),
+        _PremiumSectionLabel(label: 'Security Question (Must be answered by claimer)'),
         const SizedBox(height: 12),
         TextFormField(
           controller: _secretQuestionCtrl,
           style: GoogleFonts.plusJakartaSans(fontSize: 15),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Security question is required to prevent fraudulent claims.';
+            }
+            return null;
+          },
           decoration: InputDecoration(
             hintText: 'e.g. What color is the keychain?',
             filled: true,

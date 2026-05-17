@@ -240,9 +240,12 @@ router.get('/:id', cache(60), async (req, res) => {
       .from('posts')
       .select('*')
       .eq('id', req.params.id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });

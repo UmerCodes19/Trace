@@ -413,10 +413,31 @@ class ApiService {
       connectTimeout: const Duration(seconds: 10),
     ));
 
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (obj) => debugPrint(obj.toString()),
+    // Smart Logging Interceptor to filter out noisy background polling logs
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final path = options.path.toLowerCase();
+        final isNoisy = (path.contains('/chats') && !path.contains('/messages')) || path.contains('/unread');
+        if (!isNoisy) {
+          debugPrint('📡 [API Request] ${options.method} -> ${options.uri}');
+          if (options.data != null) debugPrint('   Payload: ${options.data}');
+        }
+        return handler.next(options);
+      },
+      onResponse: (response, handler) {
+        final path = response.requestOptions.path.toLowerCase();
+        final isNoisy = (path.contains('/chats') && !path.contains('/messages')) || path.contains('/unread');
+        if (!isNoisy) {
+          debugPrint('✅ [API Response] ${response.statusCode} <- ${response.requestOptions.uri}');
+        }
+        return handler.next(response);
+      },
+      onError: (err, handler) {
+        debugPrint('❌ [API Error] ${err.requestOptions.method} -> ${err.requestOptions.uri}');
+        debugPrint('   Message: ${err.message}');
+        if (err.response != null) debugPrint('   Response: ${err.response?.data}');
+        return handler.next(err);
+      },
     ));
 
     // Add Auth Interceptor
@@ -692,19 +713,10 @@ class ApiService {
 
   Future<bool> deleteChat(String chatId) async {
     try {
-      // Direct Supabase bypass for immediate real-time destructive sync
-      await _supabaseDio.delete(
-        '/chats',
-        queryParameters: { 'id': 'eq.$chatId' },
-        options: Options(
-          headers: {
-            'Prefer': 'return=minimal'
-          },
-        ),
-      );
-      return true;
+      final response = await _dio.delete('/chats/$chatId');
+      return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
-      debugPrint('Direct chat delete failed: $e');
+      debugPrint('Error deleting chat: $e');
       return false;
     }
   }
@@ -931,6 +943,43 @@ class ApiService {
       } catch (err) {
         debugPrint('Error clearing all notifications: $err');
       }
+    }
+  }
+
+  Future<void> sendNotification({
+    required String userId,
+    required String title,
+    required String body,
+    required String type,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'https://xmtyxfsqhvywvszlinur.supabase.co';
+      final anonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+      final directDio = Dio();
+      await directDio.post(
+        '$supabaseUrl/rest/v1/notifications',
+        data: {
+          'user_id': userId,
+          'title': title,
+          'body': body,
+          'type': type,
+          'is_read': false,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'data': data ?? {},
+        },
+        options: Options(
+          headers: {
+            'apikey': anonKey,
+            'Authorization': 'Bearer $anonKey',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to send notification: $e');
     }
   }
 

@@ -37,7 +37,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     super.initState();
     _loadChats();
     _timer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(seconds: 10),
       (_) => _loadChats(silent: true),
     );
     // Force safety evaluation as soon as messaging view mounts
