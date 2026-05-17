@@ -100,7 +100,9 @@ class _CmsLoginScreenState extends ConsumerState<CmsLoginScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-   @override
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
@@ -292,5 +294,4 @@ class _CmsLoginScreenState extends ConsumerState<CmsLoginScreen> {
       ),
     );
   }
- }
 }
