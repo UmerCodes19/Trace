@@ -9,12 +9,12 @@ class OpenStreetMapWidget extends StatelessWidget {
   final Function(LatLng)? onTap;
 
   const OpenStreetMapWidget({
-    Key? key,
+    super.key,
     this.latitude,
     this.longitude,
     this.markers = const [],
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

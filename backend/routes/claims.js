@@ -51,9 +51,17 @@ router.post('/request', verifyToken, async (req, res) => {
     if (claimError) throw claimError;
 
     // 4. Notify the Finder (Post Owner)
+    const { data: claimer } = await supabase
+      .from('users')
+      .select('name')
+      .eq('uid', userId)
+      .single();
+      
+    const claimerName = claimer ? claimer.name : 'Someone';
+
     await NotificationService.sendToUser(post.userId, {
       title: '🎁 New Claim Request',
-      body: `Someone wants to claim "${post.title}". Review their proof now.`,
+      body: `${claimerName} wants to claim "${post.title}". Review their proof now.`,
       type: 'claim_request',
       data: { claimId: claim.id, postId: postId }
     });

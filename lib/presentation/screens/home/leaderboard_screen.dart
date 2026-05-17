@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/utils/app_utils.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/models/simple_user_model.dart';
 import '../../widgets/common/user_avatar.dart';

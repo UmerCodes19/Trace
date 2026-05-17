@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/services/cms_auth_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
+import '../../widgets/common/mesh_glow_background.dart';
 
 class CmsLoginScreen extends ConsumerStatefulWidget {
   const CmsLoginScreen({super.key});
@@ -99,193 +100,197 @@ class _CmsLoginScreenState extends ConsumerState<CmsLoginScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  @override
+   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.pageBg(context),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'CMS Login',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Icon
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppColors.textPrimary(context),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    color: AppColors.beigeWarm,
-                    size: 40,
-                  ),
+      body: MeshGlowBackground(
+        child: Column(
+          children: [
+            AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                onPressed: () => context.pop(),
+              ),
+              title: Text(
+                'CMS Login',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 24),
-
-                Text(
-                  'CMS Portal Login',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary(context),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Use your Bahria CMS credentials to verify your student status.',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.textSecondary(context),
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Enrollment
-                TextFormField(
-                  controller: _enrollmentCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Enrollment Number',
-                    hintText: 'e.g., 02-131232-108',
-                    prefixIcon: Icon(Icons.badge_outlined),
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Enrollment number required';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Password
-                TextFormField(
-                  controller: _passwordCtrl,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    hintText: 'CMS Portal Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) {
-                      return 'Password required';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Institute
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedInstitute,
-
-                  decoration: const InputDecoration(
-                    labelText: 'Campus / Institute',
-                    prefixIcon: Icon(Icons.location_city),
-                  ),
-                  items: _institutes.entries.map((e) {
-                    return DropdownMenuItem(
-                      value: e.key,
-                      child: Text(e.value),
-                    );
-                  }).toList(),
-                  onChanged: (v) => setState(() => _selectedInstitute = v!),
-                ),
-                const SizedBox(height: 16),
-
-                // Role
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
-                  decoration: const InputDecoration(
-                    labelText: 'Role',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'None', child: Text('Student')),
-                    DropdownMenuItem(value: 'Parents', child: Text('Parent')),
-                  ],
-                  onChanged: (v) => setState(() => _selectedRole = v!),
-                ),
-                const SizedBox(height: 32),
-
-                // Login Button
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Verify & Continue'),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Info note
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.lostAlertBg,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
+              ),
+              backgroundColor: Colors.transparent,
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(Icons.info_outline, color: AppColors.lostAlert),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Your credentials are encrypted and only used to verify student status. We never store your password.',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppColors.lostAlert,
+                      // Icon
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: AppColors.textPrimary(context),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.school_rounded,
+                          color: AppColors.beigeWarm,
+                          size: 40,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      Text(
+                        'CMS Portal Login',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary(context),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Use your Bahria CMS credentials to verify your student status.',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppColors.textSecondary(context),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Enrollment
+                      TextFormField(
+                        controller: _enrollmentCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Enrollment Number',
+                          hintText: 'e.g., 02-131232-108',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Enrollment number required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Password
+                      TextFormField(
+                        controller: _passwordCtrl,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          hintText: 'CMS Portal Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'Password required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Institute
+                      DropdownButtonFormField<String>(
+                        value: _selectedInstitute,
+                        decoration: const InputDecoration(
+                          labelText: 'Campus / Institute',
+                          prefixIcon: Icon(Icons.location_city),
+                        ),
+                        items: _institutes.entries.map((e) {
+                          return DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value),
+                          );
+                        }).toList(),
+                        onChanged: (v) => setState(() => _selectedInstitute = v!),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Role
+                      DropdownButtonFormField<String>(
+                        value: _selectedRole,
+                        decoration: const InputDecoration(
+                          labelText: 'Role',
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'None', child: Text('Student')),
+                          DropdownMenuItem(value: 'Parents', child: Text('Parent')),
+                        ],
+                        onChanged: (v) => setState(() => _selectedRole = v!),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Login Button
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _login,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Verify & Continue'),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Info note
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.lostAlertBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: AppColors.lostAlert),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Your credentials are encrypted and only used to verify student status. We never store your password.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppColors.lostAlert,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+ }
 }

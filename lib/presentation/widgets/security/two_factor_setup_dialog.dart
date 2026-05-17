@@ -116,7 +116,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 12, 24, 24 + bottomInset),
+      padding: EdgeInsets.fromLTRB(24, 12, 24, 24 + bottomInset + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
         color: AppColors.pageBg(context),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),

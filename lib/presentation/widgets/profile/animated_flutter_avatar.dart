@@ -141,8 +141,9 @@ class _AnimatedFlutterAvatarState extends State<AnimatedFlutterAvatar> with Sing
         double floatAmp = 1.5;
         double rawBreath = math.sin(t * math.pi * 2);
 
-        if (vibe == 1) floatAmp = 1.0;
-        else if (vibe == 2) floatAmp = 2.5;
+        if (vibe == 1) {
+          floatAmp = 1.0;
+        } else if (vibe == 2) floatAmp = 2.5;
         else if (vibe == 3) floatAmp = 3.0;
         else if (vibe == 4) floatAmp = 0.8;
 

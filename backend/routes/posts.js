@@ -240,9 +240,12 @@ router.get('/:id', cache(60), async (req, res) => {
       .from('posts')
       .select('*')
       .eq('id', req.params.id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -367,6 +370,17 @@ router.delete('/:id', verifyToken, async (req, res) => {
     if (error) throw error;
     invalidate('/posts');
     res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get personalized AI matches for the user
+router.get('/for-you', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const matches = await MatchmakerService.getMatchesForUser(userId);
+    res.json(matches);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

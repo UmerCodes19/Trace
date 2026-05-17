@@ -60,7 +60,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           color: isDark ? AppColors.surface(context) : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

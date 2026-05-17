@@ -8,6 +8,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../data/services/storage_service.dart';
 
 import 'package:confetti/confetti.dart';
 import 'package:share_plus/share_plus.dart';
@@ -440,6 +443,7 @@ class _PostDetailBody extends ConsumerWidget {
                         } else if (action == 'edit') {
                           context.push('/post/${post.id}/edit', extra: post);
                         } else if (action == 'delete') {
+                          ref.read(removedPostIdsProvider.notifier).update((s) => {...s, post.id});
                           await api.deletePost(post.id);
                           if (context.mounted) context.pop();
                         }
@@ -540,6 +544,15 @@ class _PostDetailBody extends ConsumerWidget {
                       title: 'Reported',
                       content: AppDateUtils.friendlyDate(post.timestamp),
                     ),
+                    if (post.custodyLocation != null && post.custodyLocation!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _InfoCard(
+                        icon: Icons.inventory_2_rounded,
+                        iconColor: Colors.orange.shade700,
+                        title: 'Custody Status',
+                        content: post.custodyLocation!,
+                      ),
+                    ],
                     if (post.aiTags.isNotEmpty) ...[
                       const SizedBox(height: 24),
                       Text(
@@ -697,6 +710,7 @@ class _ClaimBottomSheet extends ConsumerStatefulWidget {
 class _ClaimBottomSheetState extends ConsumerState<_ClaimBottomSheet> {
   final _proofCtrl = TextEditingController();
   bool _isSubmitting = false;
+  File? _proofImage;
 
   @override
   void dispose() {
@@ -713,10 +727,20 @@ class _ClaimBottomSheetState extends ConsumerState<_ClaimBottomSheet> {
     setState(() => _isSubmitting = true);
 
     try {
+      String? proofImageUrl;
+      if (_proofImage != null) {
+        final currentUid = ref.read(authServiceProvider).currentUser?.uid;
+        if (currentUid != null) {
+          final storageSvc = ref.read(storageServiceProvider);
+          proofImageUrl = await storageSvc.uploadPostImage(_proofImage!, currentUid);
+        }
+      }
+
       final api = ref.read(apiServiceProvider);
       await api.requestClaim(
         postId: widget.post.id,
         proofText: _proofCtrl.text.trim(),
+        proofImageUrl: proofImageUrl,
       );
 
       ref.invalidate(myClaimsProvider);
@@ -771,7 +795,7 @@ class _ClaimBottomSheetState extends ConsumerState<_ClaimBottomSheet> {
         left: 24,
         right: 24,
         top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24 + MediaQuery.of(context).padding.bottom,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -840,6 +864,85 @@ class _ClaimBottomSheetState extends ConsumerState<_ClaimBottomSheet> {
                 filled: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'UPLOAD PHOTO PROOF (RECOMMENDED):',
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary(context), letterSpacing: 1),
+              ),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () async {
+                try {
+                  final picker = ImagePicker();
+                  final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+                  if (picked != null) {
+                    setState(() {
+                      _proofImage = File(picked.path);
+                    });
+                  }
+                } catch (e) {
+                  showAppSnack(context, 'Error picking proof image: $e', isError: true);
+                }
+              },
+              child: Container(
+                height: 120,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _proofImage != null ? AppColors.jadePrimary : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: _proofImage != null
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Image.file(_proofImage!, fit: BoxFit.cover),
+                          ),
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _proofImage = null;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo_outlined, color: AppColors.textHint(context), size: 32),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Select image from gallery',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AppColors.textHint(context),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
             ),
             const SizedBox(height: 32),
@@ -1365,6 +1468,27 @@ class _PostMediaCarouselState extends State<_PostMediaCarousel> {
   late final PageController _pageCtrl;
   int _currIdx = 0;
   final List<Map<String, String>> _media = [];
+
+  @override
+  void didUpdateWidget(covariant _PostMediaCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post.id != widget.post.id ||
+        oldWidget.post.imageUrls != widget.post.imageUrls ||
+        oldWidget.post.videoUrl != widget.post.videoUrl) {
+      setState(() {
+        _media.clear();
+        _currIdx = 0;
+        if (widget.post.videoUrl != null && widget.post.videoUrl!.isNotEmpty) {
+          _media.add({'type': 'video', 'url': widget.post.videoUrl!});
+        }
+        for (final url in widget.post.imageUrls) {
+          if (url.trim().isNotEmpty) {
+            _media.add({'type': 'image', 'url': url.trim()});
+          }
+        }
+      });
+    }
+  }
 
   @override
   void initState() {

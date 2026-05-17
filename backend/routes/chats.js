@@ -25,7 +25,7 @@ router.get('/user/:uid', async (req, res) => {
     const { data, error } = await supabase
       .from('chats')
       .select('*')
-      .contains('participants', [req.params.uid])
+      .filter('participants', 'cs', JSON.stringify([req.params.uid]))
       .order('lastMessageTime', { ascending: false });
 
     if (error) throw error;
@@ -152,9 +152,19 @@ router.post('/messages', async (req, res) => {
       if (!chatError && chat) {
         const recipientId = chat.participants.find(p => p !== message.senderId);
         if (recipientId) {
+          // Fetch sender's name for personalized notification
+          const { data: sender } = await supabase
+            .from('users')
+            .select('name')
+            .eq('uid', message.senderId)
+            .single();
+            
+          const senderName = sender ? sender.name : 'Someone';
+          
           await NotificationService.sendToUser(recipientId, {
-            title: 'New Message',
-            body: message.text || message.content || 'You received an image',
+            title: `Message from ${senderName}`,
+            body: message.text || message.content || 'Sent an image',
+            type: 'chat',
             data: { 
               chatId: message.chatId, 
               senderId: message.senderId,
@@ -169,6 +179,34 @@ router.post('/messages', async (req, res) => {
 
     res.status(201).json(msgData[0]);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete chat and all associated messages
+router.delete('/:chatId', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    // 1. Delete all messages associated with the chat room
+    const { error: msgError } = await supabase
+      .from('messages')
+      .delete()
+      .eq('chatId', chatId);
+
+    if (msgError) throw msgError;
+
+    // 2. Delete the chat room itself
+    const { error: chatError } = await supabase
+      .from('chats')
+      .delete()
+      .eq('id', chatId);
+
+    if (chatError) throw chatError;
+
+    res.json({ success: true, message: 'Chat and all associated messages successfully deleted.' });
+  } catch (error) {
+    console.error('Error deleting chat:', error);
     res.status(500).json({ error: error.message });
   }
 });

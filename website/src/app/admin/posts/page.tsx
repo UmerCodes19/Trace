@@ -172,14 +172,14 @@ export default function AdminContentManagement() {
              <div>
                 <div className="text-[10px] font-bold text-jade-primary uppercase tracking-widest mb-1">View Post</div>
                 <h1 className="text-3xl font-black tracking-tight text-[var(--foreground)] mb-4 leading-tight">{selectedPost.title}</h1>
-                <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-sage-secondary">
-                   <span className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg"><UserIcon className="w-3.5 h-3.5" /> UID: {selectedPost.userId.substring(0, 8)}</span>
-                   <span className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg"><Calendar className="w-3.5 h-3.5" /> {new Date(selectedPost.timestamp).toLocaleDateString()}</span>
-                </div>
+                 <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-neutral-500">
+                    <span className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg font-mono text-[11px] select-all"><UserIcon className="w-3.5 h-3.5 text-jade-primary" /> UID: {selectedPost.userId}</span>
+                    <span className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-lg"><Calendar className="w-3.5 h-3.5" /> {new Date(selectedPost.timestamp).toLocaleDateString()}</span>
+                 </div>
              </div>
 
              <div className="p-6 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl">
-                <h4 className="text-xs font-bold text-sage-secondary mb-3 uppercase tracking-wider">Description</h4>
+                <h4 className="text-xs font-bold text-neutral-500 mb-3 uppercase tracking-wider">Description</h4>
                 <p className="text-sm text-[var(--foreground)] leading-relaxed font-medium">
                    {media.cleanDesc || "No details provided."}
                 </p>
@@ -217,12 +217,12 @@ export default function AdminContentManagement() {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-[var(--border-color)] pb-8">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-[var(--foreground)]">Post <span className="text-jade-primary">Manager</span></h1>
-          <p className="text-sm font-medium text-sage-secondary mt-1">Review user reported items</p>
+          <p className="text-sm font-medium text-neutral-500 mt-1">Review user reported items</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative group w-full sm:w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-sage-secondary group-focus-within:text-jade-primary transition-colors" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 group-focus-within:text-jade-primary transition-colors" />
             <input 
               type="text" 
               placeholder="Search title or ID..."
@@ -232,8 +232,8 @@ export default function AdminContentManagement() {
             />
           </div>
           <div className="flex border border-[var(--border-color)] bg-[var(--card-bg)] rounded-xl p-1">
-            <button onClick={() => setFilter("all")} className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${filter === "all" ? "bg-jade-primary text-white shadow-sm" : "text-sage-secondary hover:text-[var(--foreground)]"}`}>All</button>
-            <button onClick={() => setFilter("reported")} className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${filter === "reported" ? "bg-red-500 text-white shadow-sm" : "text-sage-secondary hover:text-red-500"}`}>Reported</button>
+            <button onClick={() => setFilter("all")} className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${filter === "all" ? "bg-jade-primary text-white shadow-sm" : "text-neutral-500 hover:text-[var(--foreground)]"}`}>All</button>
+            <button onClick={() => setFilter("reported")} className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${filter === "reported" ? "bg-red-500 text-white shadow-sm" : "text-neutral-500 hover:text-red-500"}`}>Reported</button>
           </div>
         </div>
       </div>
@@ -241,14 +241,14 @@ export default function AdminContentManagement() {
       {isLoading ? (
          <div className="py-20 flex flex-col items-center gap-3">
             <Loader2 className="w-6 h-6 text-jade-primary animate-spin" />
-            <span className="text-xs text-sage-secondary">Loading posts...</span>
+            <span className="text-xs text-neutral-500">Loading posts...</span>
          </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
           <AnimatePresence mode="popLayout">
             {filteredPosts.length === 0 ? (
                <div className="py-16 text-center border border-[var(--border-color)] bg-[var(--card-bg)] rounded-2xl">
-                  <span className="text-sm font-medium text-sage-secondary">No posts found.</span>
+                  <span className="text-sm font-medium text-neutral-500">No posts found.</span>
                </div>
             ) : (
               filteredPosts.map(post => {
@@ -282,9 +282,9 @@ export default function AdminContentManagement() {
                            <h3 className="text-md font-bold tracking-tight truncate text-[var(--foreground)]">{post.title}</h3>
                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${post.status === 'open' || post.status === 'approved' ? 'text-emerald-600 border-emerald-200 bg-emerald-50' : 'text-amber-600 border-amber-200 bg-amber-50'}`}>{post.status}</span>
                         </div>
-                        <div className="text-xs font-medium text-sage-secondary flex flex-wrap items-center gap-x-5 gap-y-1">
-                           <span className="flex items-center gap-1"><UserIcon className="w-3.5 h-3.5" /> User: {post.userId.substring(0, 6)}</span>
-                           <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {new Date(post.timestamp).toLocaleDateString()}</span>
+                        <div className="text-xs font-medium text-neutral-500 flex flex-wrap items-center gap-x-5 gap-y-1">
+                           <span className="flex items-center gap-1 font-mono text-[11px]"><UserIcon className="w-3.5 h-3.5 text-jade-primary" /> UID: {post.userId.substring(0, 12)}...</span>
+                           <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-jade-primary" /> {new Date(post.timestamp).toLocaleDateString()}</span>
                            {hasVideo && <span className="text-jade-primary flex items-center gap-1"><PlayCircle className="w-3 h-3" /> Has Video</span>}
                         </div>
                       </div>
@@ -299,7 +299,7 @@ export default function AdminContentManagement() {
                        </button>
                        <button 
                         onClick={() => deletePost(post.id)}
-                        className="px-3 py-2 text-sage-secondary hover:text-red-500 transition-all rounded-xl"
+                        className="px-3 py-2 text-neutral-400 hover:text-red-500 transition-all rounded-xl"
                        >
                           <Trash2 className="w-4 h-4" />
                        </button>

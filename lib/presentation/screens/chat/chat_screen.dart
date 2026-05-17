@@ -46,7 +46,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _startRealtimeUpdates() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (mounted) {
         _refreshMessages();
       }

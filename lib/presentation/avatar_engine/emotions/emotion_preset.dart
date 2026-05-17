@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 /// Comprehensive emotional taxonomy powering dynamic blend tree states.
 enum AvatarEmotion {
@@ -37,16 +36,16 @@ class EmotionMetrics {
   });
 
   static EmotionMetrics lerp(EmotionMetrics a, EmotionMetrics b, double t) {
-    double _l(double x, double y) => x + (y - x) * t.clamp(0.0, 1.0);
+    double l(double x, double y) => x + (y - x) * t.clamp(0.0, 1.0);
     return EmotionMetrics(
-      physicsTension: _l(a.physicsTension, b.physicsTension),
-      gazeEntropy: _l(a.gazeEntropy, b.gazeEntropy),
-      blinkFrequencySec: _l(a.blinkFrequencySec, b.blinkFrequencySec),
-      breatheSpeed: _l(a.breatheSpeed, b.breatheSpeed),
-      breatheAmp: _l(a.breatheAmp, b.breatheAmp),
-      baseSwayAmp: _l(a.baseSwayAmp, b.baseSwayAmp),
-      expressionBias: _l(a.expressionBias, b.expressionBias),
-      defaultScale: _l(a.defaultScale, b.defaultScale),
+      physicsTension: l(a.physicsTension, b.physicsTension),
+      gazeEntropy: l(a.gazeEntropy, b.gazeEntropy),
+      blinkFrequencySec: l(a.blinkFrequencySec, b.blinkFrequencySec),
+      breatheSpeed: l(a.breatheSpeed, b.breatheSpeed),
+      breatheAmp: l(a.breatheAmp, b.breatheAmp),
+      baseSwayAmp: l(a.baseSwayAmp, b.baseSwayAmp),
+      expressionBias: l(a.expressionBias, b.expressionBias),
+      defaultScale: l(a.defaultScale, b.defaultScale),
     );
   }
 }

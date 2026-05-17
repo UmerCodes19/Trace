@@ -3,7 +3,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../../../core/utils/app_guide_orchestrator.dart';
 import '../../../core/utils/tutorial_keys.dart';
@@ -16,7 +15,6 @@ import '../../../data/services/api_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/local_settings_service.dart';
 import '../../widgets/common/glass_card.dart';
-import '../../widgets/common/skeleton.dart';
 import '../../widgets/common/user_avatar.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {

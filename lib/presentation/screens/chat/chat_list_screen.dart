@@ -11,9 +11,7 @@ import '../../../core/utils/app_utils.dart';
 import '../../../data/models/simple_chat_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/api_service.dart';
-import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/lottie_empty_state.dart';
-import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/skeleton.dart';
 import '../../widgets/common/user_avatar.dart';
 import '../../../core/utils/tutorial_keys.dart';
@@ -39,7 +37,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     super.initState();
     _loadChats();
     _timer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(seconds: 10),
       (_) => _loadChats(silent: true),
     );
     // Force safety evaluation as soon as messaging view mounts

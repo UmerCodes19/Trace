@@ -143,7 +143,7 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
       highlightLeft = tabPositions[widget.currentIndex];
     }
 
-    void _handleDragUpdate(double localX, double deltaX) {
+    void handleDragUpdate(double localX, double deltaX) {
       setState(() {
         _manualDragX = localX;
         final targetScale = (1.0 + (deltaX.abs() * 0.12)).clamp(1.0, 1.40);
@@ -179,7 +179,7 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
           HapticFeedback.selectionClick();
         },
         onHorizontalDragUpdate: (details) {
-          _handleDragUpdate(details.localPosition.dx, details.primaryDelta ?? 0.0);
+          handleDragUpdate(details.localPosition.dx, details.primaryDelta ?? 0.0);
         },
         onHorizontalDragEnd: (details) {
           setState(() {
@@ -250,6 +250,7 @@ class _MorphingActivePillDockState extends State<_MorphingActivePillDock> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(widget.tabs.length, (index) {
                   final isSelected = widget.currentIndex == index;
                   final tab = widget.tabs[index];

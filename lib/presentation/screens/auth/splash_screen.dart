@@ -1,4 +1,6 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +24,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   String _loadingMessage = 'Initializing Trace';
 
   late AnimationController _pulseController;
+  late AnimationController _logoController;
 
   @override
   void initState() {
@@ -31,40 +34,46 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
       duration: const Duration(seconds: 4),
     )..repeat(reverse: true);
 
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    );
+
     _runStartupFlow();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _logoController.dispose();
     super.dispose();
   }
 
   Future<void> _runStartupFlow() async {
-    // Minimal cinematic beat — auth check runs almost immediately
-    await Future.delayed(const Duration(milliseconds: 300));
+    // 1. Initial Beat
+    await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
-    setState(() => _loadingMessage = 'Syncing secure session');
+    
+    // 2. Start Reveal
+    _logoController.forward();
+    setState(() => _loadingMessage = 'Connecting to campus network');
 
-    // Run auth check concurrently with the brief animation
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) return;
+    
+    final authService = ref.read(authServiceProvider);
+    final userFuture = authService.getCurrentUser();
+    
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
 
-    // Check first time use
+    final user = await userFuture;
     const storage = FlutterSecureStorage();
     final hasSeenOnboarding = await storage.read(key: 'has_seen_onboarding');
-    
-    if (!mounted) return;
 
-    // Check auth
-    final authService = ref.read(authServiceProvider);
-    final user = await authService.getCurrentUser();
-
-    if (!mounted) return;
-
-    // Smooth exit phase: Fade out entire screen
+    // 4. Smooth Exit
     setState(() => _screenOpacity = 0.0);
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
     if (devForceOnboarding || hasSeenOnboarding != 'true') {
@@ -84,152 +93,113 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
       backgroundColor: isDark ? AppColors.darkBg : AppColors.ghost,
       body: AnimatedOpacity(
         opacity: _screenOpacity,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 500),
         child: Stack(
           children: [
-            // Ambient motion background layers (Barely noticeable slow drift)
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Positioned(
-                  top: -60 + (12 * _pulseController.value),
-                  right: -40 + (15 * _pulseController.value),
-                  child: Container(
-                    width: 320,
-                    height: 320,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.jadePrimary.withOpacity(isDark ? 0.06 : 0.035),
+            // ── Enhanced Fluid Background ───────────────────────────
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return CustomPaint(
+                    painter: _FluidBackgroundPainter(
+                      animation: _pulseController.value,
+                      isDark: isDark,
+                      accentColor: AppColors.jadePrimary,
                     ),
-                  ),
-                );
-              },
-            ),
-            AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, child) {
-                return Positioned(
-                  bottom: -80 + (15 * (1 - _pulseController.value)),
-                  left: -60 + (12 * (1 - _pulseController.value)),
-                  child: Container(
-                    width: 280,
-                    height: 280,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.jadePrimary.withOpacity(isDark ? 0.04 : 0.025),
-                    ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
 
-            // Main Centered Content
+            // ── Main Content ────────────────────────────────────────
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo container with micro glow bloom
-                  Container(
-                    width: 82,
-                    height: 82,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.035) : Colors.black.withOpacity(0.015),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.035),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.jadePrimary.withOpacity(isDark ? 0.28 : 0.12),
-                          blurRadius: 36,
-                          spreadRadius: 2,
+                  // Real App Logo Image with Premium Reveal
+                  AnimatedBuilder(
+                    animation: _logoController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: 0.8 + (0.2 * _logoController.value),
+                        child: Container(
+                          width: 180, height: 180,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.jadePrimary.withOpacity(isDark ? 0.2 : 0.1),
+                                blurRadius: 60 * _logoController.value,
+                                spreadRadius: 10 * _logoController.value,
+                              ),
+                            ],
+                          ),
+                          child: Opacity(
+                            opacity: _logoController.value,
+                            child: Image.asset(
+                              'assets/images/app_logo_transparent.png',
+                              fit: BoxFit.contain,
+                              // Apply a slight tint if needed, but keeping it original for "real" look
+                            ).animate(onPlay: (c) => c.repeat()).shimmer(
+                              duration: 2.seconds,
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: TraceLogo(
-                        size: 45,
-                        color: AppColors.jadePrimary,
-                      ),
-                    ),
-                  )
-                      .animate()
-                      .fadeIn(duration: 1000.ms, curve: Curves.easeOutExpo)
-                      .scale(begin: const Offset(0.88, 0.88), duration: 1000.ms, curve: Curves.easeOutExpo),
+                      );
+                    },
+                  ),
 
-                  const SizedBox(height: 26),
+                  const SizedBox(height: 20),
 
-                  // Ultra-premium crisp typography
+                  // TRACE Title
                   Text(
                     'TRACE',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 25,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 5.5,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 10,
                       color: isDark ? Colors.white : AppColors.deepJade,
                     ),
                   )
                       .animate()
-                      .fadeIn(delay: 250.ms, duration: 800.ms, curve: Curves.easeOutCubic)
-                      .slideY(begin: 0.15, delay: 250.ms, duration: 800.ms, curve: Curves.easeOutCubic),
+                      .fadeIn(delay: 600.ms, duration: 800.ms)
+                      .slideY(begin: 0.1, end: 0, delay: 600.ms),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
 
+                  // Simple, Emotional Tagline
                   Text(
-                    'LOST & FOUND COMPANION',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
+                    'Never Really Lost',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 2.8,
-                      color: AppColors.textSecondary(context).withOpacity(0.65),
+                      letterSpacing: 1.2,
+                      color: AppColors.jadePrimary.withOpacity(0.8),
+                      fontStyle: FontStyle.italic,
                     ),
                   )
                       .animate()
-                      .fadeIn(delay: 500.ms, duration: 800.ms, curve: Curves.easeOutCubic),
+                      .fadeIn(delay: 1000.ms, duration: 800.ms),
 
-                  const SizedBox(height: 56),
+                  const SizedBox(height: 80),
 
-                  // Minimal animated message state
+                  // Minimal Status
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                     child: Text(
-                      _loadingMessage,
+                      _loadingMessage.toUpperCase(),
                       key: ValueKey<String>(_loadingMessage),
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textSecondary(context).withOpacity(0.7),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                        color: AppColors.textSecondary(context).withOpacity(0.4),
                       ),
                     ),
-                  )
-                      .animate()
-                      .fadeIn(delay: 750.ms, duration: 500.ms, curve: Curves.easeOutCubic),
-
-                  const SizedBox(height: 14),
-
-                  // Micro dots wave pulse animation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(3, (i) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 3.5),
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: AppColors.jadePrimary.withOpacity(0.8),
-                        shape: BoxShape.circle,
-                      ),
-                    ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
-                      begin: const Offset(1, 1),
-                      end: const Offset(1.4, 1.4),
-                      duration: 600.ms,
-                      delay: (i * 180).ms,
-                      curve: Curves.easeInOutCubic,
-                    ).fadeIn(duration: 250.ms).then().fadeOut(duration: 250.ms)),
-                  )
-                      .animate()
-                      .fadeIn(delay: 850.ms, duration: 500.ms, curve: Curves.easeOutCubic),
+                  ).animate().fadeIn(delay: 500.ms),
                 ],
               ),
             ),
@@ -238,4 +208,49 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
       ),
     );
   }
+}
+
+class _FluidBackgroundPainter extends CustomPainter {
+  final double animation;
+  final bool isDark;
+  final Color accentColor;
+
+  _FluidBackgroundPainter({
+    required this.animation,
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60);
+    
+    final center = Offset(size.width / 2, size.height / 2);
+    
+    // Blob 1
+    paint.color = accentColor.withOpacity(isDark ? 0.08 : 0.05);
+    canvas.drawCircle(
+      Offset(
+        center.dx + sin(animation * pi * 2) * 50,
+        center.dy + cos(animation * pi * 2) * 30,
+      ),
+      size.width * 0.6,
+      paint,
+    );
+
+    // Blob 2
+    paint.color = accentColor.withOpacity(isDark ? 0.06 : 0.03);
+    canvas.drawCircle(
+      Offset(
+        center.dx - cos(animation * pi * 2) * 40,
+        center.dy - sin(animation * pi * 2) * 60,
+      ),
+      size.width * 0.5,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _FluidBackgroundPainter oldDelegate) =>
+      oldDelegate.animation != animation;
 }

@@ -37,7 +37,7 @@ const verifyToken = async (req, res, next) => {
       }
       throw e;
     }
-    
+
     // Fetch user role from database
     const { data: user, error } = await supabase
       .from('users')

@@ -1,6 +1,7 @@
 // lib/presentation/screens/map/map_screen.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:ui';
 import 'dart:ui' as ui show Path;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,12 +13,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_compass/flutter_compass.dart';
+import 'package:camera/camera.dart';
+import 'package:dio/dio.dart';
 
 import '../../../data/models/map/campus_gis_models.dart';
 import '../../../core/utils/tutorial_keys.dart';
-import '../../../core/utils/app_guide_orchestrator.dart';
-import '../../../core/services/tutorial_service.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import '../../../data/services/map/map_engine_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
@@ -42,6 +44,7 @@ class MapScreen extends ConsumerStatefulWidget {
 class _MapScreenState extends ConsumerState<MapScreen> {
   final MapController _mapController = MapController();
   List<SimplePostModel> _posts = [];
+  bool _isMapReady = false;
   bool _isLoading = true;
   String _selectedFilter = 'all'; 
   
@@ -50,15 +53,61 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   int _activeFloor = 1;
   CampusLocation? _userIndoorPos;
   StreamSubscription? _posSubscription;
+  
+  // Real-world location state
+  LatLng? _userLatLng;
+  StreamSubscription<Position>? _geolocatorSubscription;
+  SimplePostModel? _navigatingTo;
+  List<LatLng> _roadPoints = [];
+  DateTime? _lastOsrmRequestTime;
 
   @override
   void initState() {
     super.initState();
     _loadPosts();
     _startPositioning();
+    _initGeolocator();
   }
 
+  Future<void> _initGeolocator() async {
+    bool serviceEnabled;
+    LocationPermission permission;
 
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    
+    if (permission == LocationPermission.deniedForever) return;
+
+    // Start listening to live location
+    _geolocatorSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 2, // Update every 2 meters
+      ),
+    ).listen((Position position) {
+      if (mounted) {
+        setState(() {
+          _userLatLng = LatLng(position.latitude, position.longitude);
+        });
+        
+        // Auto-check geofencing if not in indoor mode
+        if (!_isIndoorMode) {
+          _checkGeofencing(_userLatLng!);
+          
+          // Continuous Path Update: If navigating, refresh the road path
+          if (_navigatingTo != null) {
+            _getRoadPath(_userLatLng!, _getPostLatLng(_navigatingTo!));
+          }
+        }
+      }
+    });
+  }
 
   void _startPositioning() {
     IndoorPositioningService.instance.startPositioning();
@@ -78,6 +127,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void dispose() {
     _mapController.dispose();
     _posSubscription?.cancel();
+    _geolocatorSubscription?.cancel();
     IndoorPositioningService.instance.stopPositioning();
     super.dispose();
   }
@@ -139,6 +189,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return _posts;
   }
 
+  LatLng _getPostLatLng(SimplePostModel p) {
+    if (p.location.latitude != 0.0) return LatLng(p.location.latitude, p.location.longitude);
+    final b = CampusMapService.buildings.firstWhere(
+      (b) => b.name.toLowerCase().contains(p.location.building.toLowerCase()) || p.location.building.toLowerCase().contains(b.name.toLowerCase()),
+      orElse: () => CampusMapService.buildings[0],
+    );
+    final shiftLat = ((p.id.hashCode % 100) - 50) * 0.0000028;
+    final shiftLng = (((p.id.hashCode ~/ 100) % 100) - 50) * 0.0000032;
+    return LatLng(b.lat + shiftLat, b.lng + shiftLng);
+  }
+
   void _showPinBottomSheet(SimplePostModel post) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet(
@@ -147,12 +208,70 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       isScrollControlled: true,
       builder: (_) => _PinPreviewSheet(
         post: post,
+        userLocation: _userLatLng,
         onViewPost: () {
           Navigator.pop(context);
           context.push('/post/${post.id}');
         },
+        onTrack: () {
+          Navigator.pop(context);
+          _startTracking(post);
+        },
       ),
     );
+  }
+
+  void _startTracking(SimplePostModel post) async {
+    setState(() {
+      _navigatingTo = post;
+      _roadPoints = [];
+      _lastOsrmRequestTime = null; // Reset throttle for new target
+    });
+    
+    if (!_isIndoorMode) {
+      _mapController.move(_getPostLatLng(post), 18);
+      if (_userLatLng != null) {
+        await _getRoadPath(_userLatLng!, _getPostLatLng(post));
+      }
+    }
+  }
+
+  Future<void> _getRoadPath(LatLng source, LatLng dest) async {
+    // Throttle requests to once every 3 seconds to avoid OSRM rate limits
+    if (_lastOsrmRequestTime != null && 
+        DateTime.now().difference(_lastOsrmRequestTime!).inSeconds < 3) {
+      return;
+    }
+
+    try {
+      _lastOsrmRequestTime = DateTime.now();
+      final dio = Dio();
+      
+      // router.project-osrm.org uses 'walking', 'driving', 'cycling'
+      String url = 'https://router.project-osrm.org/route/v1/walking/${source.longitude},${source.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson';
+      var response = await dio.get(url);
+      
+      bool foundRoute = false;
+      if (response.statusCode == 200 && response.data['routes'] != null && (response.data['routes'] as List).isNotEmpty) {
+        foundRoute = true;
+      } else {
+        // Fallback to driving if walking fails
+        url = 'https://router.project-osrm.org/route/v1/driving/${source.longitude},${source.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson';
+        response = await dio.get(url);
+        if (response.statusCode == 200 && response.data['routes'] != null && (response.data['routes'] as List).isNotEmpty) {
+          foundRoute = true;
+        }
+      }
+
+      if (foundRoute && mounted) {
+        final List<dynamic> coordinates = response.data['routes'][0]['geometry']['coordinates'];
+        setState(() {
+          _roadPoints = coordinates.map((c) => LatLng(c[1], c[0])).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('OSRM Error: $e');
+    }
   }
 
   Future<void> _enterBuilding(BuildingModel building) async {
@@ -547,10 +666,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   initialCenter: _bahriaCampus,
                   initialZoom: 17,
                   maxZoom: 19,
+                  onMapReady: () => setState(() => _isMapReady = true),
                   onPositionChanged: (pos, hasGesture) {
-                    if (hasGesture && pos.center != null) {
-                      _checkGeofencing(pos.center!);
-                    }
+                    if (hasGesture) _checkGeofencing(pos.center);
                   },
                 ),
                 children: [
@@ -587,20 +705,78 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       );
                     }).toList(),
                   ),
+                  // Navigation Path (Road-based)
+                  if (!_isIndoorMode && _navigatingTo != null && _roadPoints.isNotEmpty)
+                    PolylineLayer(
+                      polylines: <Polyline>[
+                        Polyline(
+                          points: _roadPoints,
+                          strokeWidth: 6,
+                          color: AppColors.jadePrimary.withOpacity(0.8),
+                          strokeCap: StrokeCap.round,
+                        ),
+                      ],
+                    ),
+                  if (!_isIndoorMode && _navigatingTo != null && _roadPoints.isEmpty && _userLatLng != null)
+                    PolylineLayer(
+                      polylines: <Polyline>[
+                        Polyline(
+                          points: [_userLatLng!, _getPostLatLng(_navigatingTo!)],
+                          strokeWidth: 4,
+                          color: AppColors.jadePrimary.withOpacity(0.4),
+                          strokeCap: StrokeCap.round,
+                        ),
+                      ],
+                    ),
+                  // User Location Marker with Heading Arrow
+                  if (!_isIndoorMode && _userLatLng != null)
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _userLatLng!,
+                          width: 80, height: 80,
+                          child: StreamBuilder<CompassEvent>(
+                            stream: FlutterCompass.events,
+                            builder: (context, snapshot) {
+                              double rotation = 0;
+                              if (snapshot.hasData && snapshot.data!.heading != null) {
+                                rotation = snapshot.data!.heading! * (pi / 180);
+                              }
+                              return Transform.rotate(
+                                angle: rotation,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Field of view cone
+                                    Opacity(
+                                      opacity: 0.2,
+                                      child: CustomPaint(
+                                        size: const Size(80, 80),
+                                        painter: _FOVCPainter(),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blueAccent,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 2),
+                                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]
+                                      ),
+                                      child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 16),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   // Item Markers
                   MarkerLayer(
                     markers: _filteredPosts.map((p) {
-                      var point = LatLng(p.location.latitude, p.location.longitude);
-                      if (p.location.latitude == 0.0) {
-                        final b = CampusMapService.buildings.firstWhere(
-                          (b) => b.name.toLowerCase().contains(p.location.building.toLowerCase()) || p.location.building.toLowerCase().contains(b.name.toLowerCase()),
-                          orElse: () => CampusMapService.buildings[0],
-                        );
-                        // Deterministic scattering in building radius (approx. 10m-20m)
-                        final shiftLat = ((p.id.hashCode % 100) - 50) * 0.0000028;
-                        final shiftLng = (((p.id.hashCode ~/ 100) % 100) - 50) * 0.0000032;
-                        point = LatLng(b.lat + shiftLat, b.lng + shiftLng);
-                      }
+                      var point = _getPostLatLng(p);
                       return Marker(
                         point: point,
                         width: 40, height: 40,
@@ -702,6 +878,43 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
           ],
+
+          // ── Navigation Overlay (Floating) ───────────────────────
+          if (_navigatingTo != null && _userLatLng != null)
+            _NavigationOverlay(
+              post: _navigatingTo!,
+              userLocation: _userLatLng!,
+              onStop: () => setState(() => _navigatingTo = null),
+            ),
+
+          // ── Action Buttons ────────────────────────────────────────
+          Positioned(
+            right: 20,
+            bottom: _navigatingTo != null ? 310 : 130,
+            child: Column(
+              children: [
+                _GlassButton(
+                  onPressed: () {
+                    if (!_isMapReady) return;
+                    if (_userLatLng != null) {
+                      _mapController.move(_userLatLng!, 17.5);
+                    } else {
+                      showAppSnack(context, 'Waiting for GPS signal...');
+                    }
+                  },
+                  child: Icon(Icons.my_location_rounded, color: AppColors.jadePrimary),
+                ),
+                const SizedBox(height: 12),
+                _GlassButton(
+                  onPressed: () {
+                    if (!_isMapReady) return;
+                    _mapController.rotate(0);
+                  },
+                  child: Icon(Icons.explore_outlined, color: AppColors.jadePrimary),
+                ),
+              ],
+            ),
+          ),
 
           // ── Loading Overlay ──────────────────────────────────────
           if (_isLoading)
@@ -956,15 +1169,37 @@ class _PulseMarker extends StatelessWidget {
 }
 
 class _PinPreviewSheet extends StatelessWidget {
-  const _PinPreviewSheet({required this.post, required this.onViewPost});
+  const _PinPreviewSheet({
+    required this.post, 
+    required this.onViewPost, 
+    this.userLocation,
+    required this.onTrack,
+  });
   final SimplePostModel post;
   final VoidCallback onViewPost;
+  final LatLng? userLocation;
+  final VoidCallback onTrack;
 
   @override
   Widget build(BuildContext context) {
+    String distanceText = 'Distance unknown';
+    if (userLocation != null) {
+      final double dist = const Distance().as(
+        LengthUnit.Meter, 
+        userLocation!, 
+        LatLng(post.location.latitude, post.location.longitude)
+      );
+      if (dist < 1000) {
+        distanceText = '${dist.toInt()}m away';
+      } else {
+        distanceText = '${(dist / 1000).toStringAsFixed(1)}km away';
+      }
+    }
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
       child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         decoration: BoxDecoration(
           color: AppColors.pageBg(context),
@@ -1000,13 +1235,28 @@ class _PinPreviewSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: (post.isLost ? AppColors.lost : AppColors.found).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                      child: Text(post.isLost ? 'LOST' : 'FOUND', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: post.isLost ? AppColors.lost : AppColors.found)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: (post.isLost ? AppColors.lost : AppColors.found).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                          child: Text(post.isLost ? 'LOST' : 'FOUND', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: post.isLost ? AppColors.lost : AppColors.found)),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(distanceText, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.jadePrimary)),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    Text(post.title, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary(context))),
+                    Text(
+                      post.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.w800, 
+                        color: AppColors.textPrimary(context)
+                      )
+                    ),
                     Text('${post.location.building} • ${AppDateUtils.timeAgo(post.timestamp)}', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary(context))),
                   ],
                 ),
@@ -1014,10 +1264,30 @@ class _PinPreviewSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(onPressed: onViewPost, child: const Text('View Full Details')),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 54,
+                  child: OutlinedButton(
+                    onPressed: onViewPost, 
+                    child: const Text('Details'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 54,
+                  child: ElevatedButton.icon(
+                    onPressed: onTrack, 
+                    icon: const Icon(Icons.navigation_rounded, size: 18),
+                    label: const Text('Track Item'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1154,4 +1424,349 @@ class _RoomBlueprintPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RoomBlueprintPainter oldDelegate) => true;
+}
+
+class _NavigationOverlay extends StatelessWidget {
+  const _NavigationOverlay({
+    required this.post,
+    required this.userLocation,
+    required this.onStop,
+  });
+  final SimplePostModel post;
+  final LatLng userLocation;
+  final VoidCallback onStop;
+
+  String _formatDistance(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(1)}km';
+    }
+    return '${meters.toInt()}m';
+  }
+
+  String _formatDuration(double meters) {
+    final minutes = (meters / (1.4 * 60)).ceil();
+    if (minutes >= 60) {
+      final hours = minutes ~/ 60;
+      final remainingMins = minutes % 60;
+      return '${hours}h ${remainingMins}m';
+    }
+    return '$minutes min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final targetLatLng = LatLng(post.location.latitude, post.location.longitude);
+    final distance = const Distance().as(LengthUnit.Meter, userLocation, targetLatLng);
+    final bearing = const Distance().bearing(userLocation, targetLatLng);
+    final itemColor = post.isLost ? AppColors.lost : AppColors.found;
+
+    return Positioned(
+      bottom: 160,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.all(1.5),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [itemColor.withOpacity(0.4), Colors.transparent, itemColor.withOpacity(0.2)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.pageBg(context).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Row(
+                children: [
+                  // Direction Arrow
+                  StreamBuilder<CompassEvent>(
+                    stream: FlutterCompass.events,
+                    builder: (context, snapshot) {
+                      double rotation = 0;
+                      if (snapshot.hasData && snapshot.data!.heading != null) {
+                        rotation = (bearing - snapshot.data!.heading!) * (pi / 180);
+                      }
+                      return Container(
+                        width: 52, height: 52,
+                        decoration: BoxDecoration(
+                          color: itemColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Transform.rotate(
+                          angle: rotation,
+                          child: Icon(Icons.navigation_rounded, size: 30, color: itemColor),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  // Info Column
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          post.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            children: [
+                              Text(
+                                _formatDistance(distance.toDouble()),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: itemColor,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '•  ~${_formatDuration(distance.toDouble())} walk',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary(context),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Actions
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: onStop,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 18),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (_) => ARNavigationScreen(post: post, userLoc: userLocation),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: itemColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.camera_rounded, color: itemColor, size: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).animate().slideY(begin: 0.3, end: 0, curve: Curves.easeOutCubic);
+  }
+}
+
+
+class ARNavigationScreen extends StatefulWidget {
+  final SimplePostModel post;
+  final LatLng userLoc;
+
+  const ARNavigationScreen({super.key, required this.post, required this.userLoc});
+
+  @override
+  State<ARNavigationScreen> createState() => _ARNavigationScreenState();
+}
+
+class _ARNavigationScreenState extends State<ARNavigationScreen> {
+  CameraController? _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) return;
+    
+    _controller = CameraController(cameras[0], ResolutionPreset.medium);
+    await _controller!.initialize();
+    if (mounted) {
+      setState(() => _isInitialized = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized || _controller == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final targetLatLng = LatLng(widget.post.location.latitude, widget.post.location.longitude);
+    final bearing = const Distance().bearing(widget.userLoc, targetLatLng);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(child: CameraPreview(_controller!)),
+          
+          // Overlay UI
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.5),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.5),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          Positioned(
+            top: 60,
+            left: 20,
+            child: IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            ),
+          ),
+          
+          Center(
+            child: StreamBuilder<CompassEvent>(
+              stream: FlutterCompass.events,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                
+                double? direction = snapshot.data!.heading;
+                if (direction == null) return const SizedBox.shrink();
+                
+                double arrowRotation = (bearing - direction) * (pi / 180);
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.rotate(
+                      angle: arrowRotation,
+                      child: Icon(
+                        Icons.keyboard_double_arrow_up_rounded,
+                        size: 150,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Text(
+                        'FOLLOW THE ARROW',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          
+          Positioned(
+            bottom: 40,
+            left: 20,
+            right: 20,
+            child: GlassCard(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: Colors.blueAccent),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This AR guide uses your phone\'s compass. Hold your phone upright for better accuracy.',
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FOVCPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.blueAccent
+      ..style = PaintingStyle.fill;
+
+    final path = ui.Path();
+    path.moveTo(size.width / 2, size.height / 2);
+    // Draw a cone starting from center pointing up
+    path.lineTo(size.width / 2 - 40, -60);
+    path.lineTo(size.width / 2 + 40, -60);
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

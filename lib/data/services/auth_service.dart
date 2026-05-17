@@ -329,6 +329,9 @@ class AuthService extends ChangeNotifier {
       await _firebaseAuth.signOut();
       await _googleSignIn.signOut();
       await CookieManager.instance().deleteAllCookies();
+      if (_currentUser != null) {
+        await NotificationService().unregisterDevice(_currentUser!.uid);
+      }
       _signedOutExplicitly = true;
       _currentUser = null;
       await clearSession();

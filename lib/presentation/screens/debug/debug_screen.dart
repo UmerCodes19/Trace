@@ -47,7 +47,7 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Posts in Database'),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
           height: 400,
           child: posts.isEmpty

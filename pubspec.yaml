@@ -1,5 +1,5 @@
-name: lostfound_android
-description: "A new Flutter project."
+name: trace
+description: "Trace - A Modern Lost & Found Ecosystem"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -77,6 +77,7 @@ dependencies:
   audio_session: ^0.1.21
   file_picker: ^11.0.2
   just_waveform: ^0.0.7
+  flutter_compass: ^0.8.1
 
 
 dev_dependencies:

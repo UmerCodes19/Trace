@@ -105,4 +105,38 @@ router.post('/:uid/stats', async (req, res) => {
   }
 });
 
+// Sync FCM Token with device stealing prevention
+router.post('/sync-token', async (req, res) => {
+  try {
+    const { userId, token, name, email } = req.body;
+    if (!userId || !token) return res.status(400).json({ error: 'userId and token are required' });
+    
+    // 1. Clear this token from any other user (Device sharing prevention)
+    // This ensures that if User A logs out and User B logs in on the same phone,
+    // User A will no longer receive notifications via this token.
+    await supabase
+      .from('users')
+      .update({ fcm_token: null })
+      .eq('fcm_token', token)
+      .neq('uid', userId);
+      
+    // 2. Assign token to THIS user
+    const { data, error } = await supabase
+      .from('users')
+      .update({ 
+        fcm_token: token,
+        ...(name && { name }),
+        ...(email && { email }),
+        lastActive: Date.now()
+      })
+      .eq('uid', userId)
+      .select();
+      
+    if (error) throw error;
+    res.json({ message: 'Token successfully assigned to user', user: data ? data[0] : null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

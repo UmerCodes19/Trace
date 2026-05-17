@@ -19,6 +19,7 @@ class SimplePostModel {
   final bool isCMSVerified;
   final String? secretDetailQuestion;
   final String? videoUrl;
+  final String? custodyLocation;
 
   SimplePostModel({
     required this.id,
@@ -39,18 +40,25 @@ class SimplePostModel {
     this.isCMSVerified = false,
     this.secretDetailQuestion,
     this.videoUrl,
+    this.custodyLocation,
   });
 
   factory SimplePostModel.fromMap(Map<String, dynamic> map) {
-    List<String> _parseList(dynamic data) {
+    List<String> parseList(dynamic data) {
       if (data == null) return [];
-      if (data is List) return data.cast<String>();
+      if (data is List) {
+        return data.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      }
       if (data is String) {
+        final trimmed = data.trim();
+        if (trimmed.isEmpty) return [];
         try {
-          final decoded = jsonDecode(data);
-          if (decoded is List) return decoded.cast<String>();
+          final decoded = jsonDecode(trimmed);
+          if (decoded is List) {
+            return decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+          }
         } catch (_) {}
-        return [data];
+        return [trimmed];
       }
       return [];
     }
@@ -58,26 +66,50 @@ class SimplePostModel {
     final rawDesc = map['description'] as String? ?? '';
     String cleanDesc = rawDesc;
     String? extractedVideoUrl;
-    
-    if (rawDesc.contains('[video:')) {
-      final startIndex = rawDesc.indexOf('[video:');
-      final endIndex = rawDesc.indexOf(']', startIndex);
+    String? extractedCustody;
+
+    // Parse [video:...]
+    if (cleanDesc.contains('[video:')) {
+      final startIndex = cleanDesc.indexOf('[video:');
+      final endIndex = cleanDesc.indexOf(']', startIndex);
       if (endIndex != -1) {
-        extractedVideoUrl = rawDesc.substring(startIndex + 7, endIndex).trim();
-        cleanDesc = rawDesc.substring(0, startIndex).trim();
+        extractedVideoUrl = cleanDesc.substring(startIndex + 7, endIndex).trim();
+        cleanDesc = (cleanDesc.substring(0, startIndex) + cleanDesc.substring(endIndex + 1)).trim();
       }
     }
 
-    final mainImageUrl = map['imageUrl']?.toString() ?? '';
+    // Parse [Custody:...]
+    if (cleanDesc.contains('[Custody:')) {
+      final startIndex = cleanDesc.indexOf('[Custody:');
+      final endIndex = cleanDesc.indexOf(']', startIndex);
+      if (endIndex != -1) {
+        extractedCustody = cleanDesc.substring(startIndex + 9, endIndex).trim();
+        cleanDesc = (cleanDesc.substring(0, startIndex) + cleanDesc.substring(endIndex + 1)).trim();
+      }
+    }
+
+    String? extractedSecretQuestion;
+    // Parse [SecretQuestion:...]
+    if (cleanDesc.contains('[SecretQuestion:')) {
+      final startIndex = cleanDesc.indexOf('[SecretQuestion:');
+      final endIndex = cleanDesc.indexOf(']', startIndex);
+      if (endIndex != -1) {
+        extractedSecretQuestion = cleanDesc.substring(startIndex + 16, endIndex).trim();
+        cleanDesc = (cleanDesc.substring(0, startIndex) + cleanDesc.substring(endIndex + 1)).trim();
+      }
+    }
+
+    final imageUrlVal = map['imageUrl'] ?? map['image_url'];
+    final mainImageUrl = imageUrlVal?.toString() ?? '';
     final isVideoUrl = mainImageUrl.endsWith('.mp4') || mainImageUrl.contains('.mp4?');
 
     return SimplePostModel(
       id: map['id'] as String,
-      userId: map['userId'] as String? ?? '',
+      userId: (map['userId'] ?? map['user_id']) as String? ?? '',
       type: map['type'] as String? ?? 'lost',
       title: map['title'] as String? ?? '',
       description: cleanDesc,
-      imageUrls: _parseList(map['imageUrl']), // Supabase column is imageUrl
+      imageUrls: parseList(imageUrlVal),
       location: SimplePostLocation(
         name: map['location_name'] as String? ?? '',
         building: map['location_building'] as String? ?? map['buildingName'] as String? ?? '',
@@ -94,14 +126,14 @@ class SimplePostModel {
               : DateTime.parse(map['timestamp'].toString()))
           : DateTime.now(),
       status: map['status'] as String? ?? 'open',
-      aiTags: _parseList(map['aiTags']),
-      reportCount: map['reportCount'] as int? ?? 0,
-      viewCount: map['viewCount'] as int? ?? 0,
-      likesCount: map['likesCount'] as int? ?? map['likeCount'] as int? ?? 0,
-      posterName: map['posterName'] as String? ?? '',
-      posterAvatarUrl: map['posterAvatarUrl'] as String? ?? '',
-      isCMSVerified: map['isCMSVerified'] as bool? ?? false,
-      secretDetailQuestion: map['secretQuestion'] as String? ?? map['secret_detail_question'] as String?,
+      aiTags: parseList(map['aiTags'] ?? map['ai_tags']),
+      reportCount: (map['reportCount'] ?? map['report_count']) as int? ?? 0,
+      viewCount: (map['viewCount'] ?? map['view_id'] ?? map['view_count']) as int? ?? 0,
+      likesCount: (map['likesCount'] ?? map['likeCount'] ?? map['like_count']) as int? ?? 0,
+      posterName: (map['posterName'] ?? map['poster_name']) as String? ?? '',
+      posterAvatarUrl: (map['posterAvatarUrl'] ?? map['poster_avatar_url']) as String? ?? '',
+      secretDetailQuestion: extractedSecretQuestion ?? (map['secretQuestion'] as String? ?? map['secret_detail_question'] as String? ?? map['secretQuestionText'] as String?),
+      custodyLocation: extractedCustody,
       videoUrl: () {
         final rawUrl = extractedVideoUrl ?? (isVideoUrl ? mainImageUrl : (map['videoUrl'] as String? ?? map['video_url'] as String?));
         if (rawUrl == null) return null;
@@ -132,6 +164,7 @@ class SimplePostModel {
     String? posterAvatarUrl,
     bool? isCMSVerified,
     String? videoUrl,
+    String? custodyLocation,
   }) {
     return SimplePostModel(
       id: id ?? this.id,
@@ -151,18 +184,28 @@ class SimplePostModel {
       posterAvatarUrl: posterAvatarUrl ?? this.posterAvatarUrl,
       isCMSVerified: isCMSVerified ?? this.isCMSVerified,
       videoUrl: videoUrl ?? this.videoUrl,
+      custodyLocation: custodyLocation ?? this.custodyLocation,
     );
   }
 
   Map<String, dynamic> toMap() {
-    final String finalDesc = videoUrl != null ? '$description\n[video:$videoUrl]' : description;
+    var finalDesc = description;
+    if (custodyLocation != null && custodyLocation!.isNotEmpty) {
+      finalDesc = '$finalDesc\n[Custody:$custodyLocation]';
+    }
+    if (videoUrl != null && videoUrl!.isNotEmpty) {
+      finalDesc = '$finalDesc\n[video:$videoUrl]';
+    }
+    if (secretDetailQuestion != null && secretDetailQuestion!.isNotEmpty) {
+      finalDesc = '$finalDesc\n[SecretQuestion:$secretDetailQuestion]';
+    }
     return {
       'id': id,
       'userId': userId,
       'type': type,
       'title': title,
-      'description': finalDesc, // Store video URL inside description safely!
-      'imageUrl': imageUrls.isNotEmpty ? imageUrls[0] : null, // ALWAYS keep the actual uploaded photo!
+      'description': finalDesc,
+      'imageUrl': imageUrls.isNotEmpty ? imageUrls[0] : null,
       'location_name': location.name,
       'buildingName': location.building,
       'floor': location.floor,
@@ -171,7 +214,7 @@ class SimplePostModel {
       'location_lng': location.longitude,
       'timestamp': timestamp.toIso8601String(),
       'status': status,
-      'aiTags': aiTags, // Supabase handles list/array directly
+      'aiTags': aiTags,
       'reportCount': reportCount,
       'viewCount': viewCount,
       'likeCount': likesCount,
