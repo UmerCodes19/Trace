@@ -113,38 +113,45 @@ export default function PersonnelManagement() {
           <span>Back to Directory</span>
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-           <div className="lg:col-span-1 space-y-8">
-              <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[40px] p-12 text-center relative overflow-hidden shadow-2xl shadow-black/5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+           <div className="lg:col-span-1 space-y-6">
+              <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-6 md:p-8 text-center relative overflow-hidden shadow-2xl shadow-black/5">
                  <div className="absolute top-0 left-0 w-full h-1.5 bg-jade-primary/20"></div>
-                 <div className="w-28 h-28 rounded-[32px] bg-jade-primary/10 border border-jade-primary/20 flex items-center justify-center mx-auto mb-8 text-4xl font-black text-jade-primary shadow-inner">
+                 <div className="w-24 h-24 rounded-[28px] bg-jade-primary/10 border border-jade-primary/20 flex items-center justify-center mx-auto mb-6 text-3xl font-black text-jade-primary shadow-inner">
                     {selectedUser.name.charAt(0)}
                  </div>
-                 <h2 className="text-3xl font-black tracking-tighter text-[var(--foreground)] mb-2 uppercase">{selectedUser.name}</h2>
-                 <p className="text-[10px] font-bold text-sage-secondary uppercase tracking-[0.2em] mb-10">{selectedUser.email}</p>
+                 <h2 className="text-2xl font-black tracking-tight text-[var(--foreground)] mb-1 uppercase break-words">{selectedUser.name}</h2>
+                 <p className="text-[11px] font-medium text-neutral-500 break-all mb-6">{selectedUser.email}</p>
                  
-                 <div className="flex justify-center gap-4">
-                    <div className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${selectedUser.role === 'admin' ? 'bg-jade-primary text-white border-jade-primary' : 'bg-jade-primary/5 border-jade-primary/10 text-jade-primary'}`}>
+                 <div className="flex justify-center gap-3 mb-6">
+                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${selectedUser.role === 'admin' ? 'bg-jade-primary text-white border-jade-primary' : 'bg-jade-primary/5 border-jade-primary/10 text-jade-primary'}`}>
                        {selectedUser.role}
                     </div>
                     {selectedUser.isBanned && (
-                      <div className="px-5 py-2.5 rounded-2xl bg-red-500 text-white shadow-lg shadow-red-500/20 text-[10px] font-black uppercase tracking-widest">
+                      <div className="px-4 py-2 rounded-xl bg-red-500 text-white shadow-lg shadow-red-500/20 text-[10px] font-black uppercase tracking-widest">
                          Banned
                       </div>
                     )}
                  </div>
+
+                 <div className="text-left border-t border-[var(--border-color)] pt-4">
+                    <span className="block text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-1">User Reference ID (UID)</span>
+                    <code className="text-xs font-mono text-jade-primary bg-[var(--background)] px-3 py-2 rounded-xl border border-[var(--border-color)] select-all block break-all text-center">
+                       {selectedUser.uid}
+                    </code>
+                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-8 rounded-[32px] text-center shadow-xl shadow-black/5">
-                    <Award className="w-6 h-6 text-jade-primary mx-auto mb-4" />
-                    <div className="text-2xl font-black text-[var(--foreground)]">{selectedUser.itemsReturned || 0}</div>
-                    <div className="text-[9px] font-bold text-sage-secondary uppercase tracking-widest mt-2">Items Returned</div>
+                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-2xl text-center shadow-xl shadow-black/5">
+                    <Award className="w-6 h-6 text-jade-primary mx-auto mb-3" />
+                    <div className="text-xl font-black text-[var(--foreground)]">{selectedUser.itemsReturned || 0}</div>
+                    <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mt-1">Items Returned</div>
                  </div>
-                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-8 rounded-[32px] text-center shadow-xl shadow-black/5">
-                    <FileText className="w-6 h-6 text-sage-secondary mx-auto mb-4" />
-                    <div className="text-2xl font-black text-[var(--foreground)]">{selectedUser.postCount || 0}</div>
-                    <div className="text-[9px] font-bold text-sage-secondary uppercase tracking-widest mt-2">Active Posts</div>
+                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-2xl text-center shadow-xl shadow-black/5">
+                    <FileText className="w-6 h-6 text-neutral-400 mx-auto mb-3" />
+                    <div className="text-xl font-black text-[var(--foreground)]">{selectedUser.postCount || 0}</div>
+                    <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mt-1">Active Posts</div>
                  </div>
               </div>
            </div>
@@ -157,27 +164,27 @@ export default function PersonnelManagement() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between p-8 bg-jade-primary/5 border border-jade-primary/10 rounded-[32px] group hover:border-jade-primary/30 transition-all gap-6">
                        <div>
                           <div className="text-xs font-black uppercase tracking-widest text-[var(--foreground)] mb-2">Security Clearance</div>
-                          <div className="text-[10px] font-bold text-sage-secondary uppercase tracking-widest">Modify administrative privileges</div>
+                          <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Modify administrative privileges</div>
                        </div>
                        <div className="flex flex-wrap gap-3">
                           <button 
                             disabled={processingId === selectedUser.uid}
                             onClick={() => updateUserRole(selectedUser.uid, 'user')}
-                            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedUser.role === 'user' ? 'bg-jade-primary text-white shadow-lg' : 'bg-[var(--background)] text-jade-primary/40 hover:text-jade-primary hover:bg-jade-primary/5'}`}
+                            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedUser.role === 'user' ? 'bg-jade-primary text-white shadow-lg' : 'bg-[var(--background)] text-jade-primary/60 hover:text-jade-primary hover:bg-jade-primary/5 border border-[var(--border-color)]'}`}
                           >
                             User
                           </button>
                           <button 
                             disabled={processingId === selectedUser.uid}
                             onClick={() => updateUserRole(selectedUser.uid, 'staff')}
-                            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedUser.role === 'staff' ? 'bg-jade-primary text-white shadow-lg' : 'bg-[var(--background)] text-jade-primary/40 hover:text-jade-primary hover:bg-jade-primary/5'}`}
+                            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedUser.role === 'staff' ? 'bg-jade-primary text-white shadow-lg' : 'bg-[var(--background)] text-jade-primary/60 hover:text-jade-primary hover:bg-jade-primary/5 border border-[var(--border-color)]'}`}
                           >
                             Staff
                           </button>
                           <button 
                             disabled={processingId === selectedUser.uid}
                             onClick={() => updateUserRole(selectedUser.uid, 'admin')}
-                            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedUser.role === 'admin' ? 'bg-jade-primary text-white shadow-xl shadow-jade-primary/40' : 'bg-[var(--background)] text-jade-primary/40 hover:text-jade-primary hover:bg-jade-primary/5'}`}
+                            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedUser.role === 'admin' ? 'bg-jade-primary text-white shadow-xl shadow-jade-primary/40' : 'bg-[var(--background)] text-jade-primary/60 hover:text-jade-primary hover:bg-jade-primary/5 border border-[var(--border-color)]'}`}
                           >
                             Admin
                           </button>
@@ -187,7 +194,7 @@ export default function PersonnelManagement() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between p-8 bg-red-500/5 border border-red-500/10 rounded-[32px] group hover:border-red-500/30 transition-all gap-6">
                        <div>
                           <div className="text-xs font-black uppercase tracking-widest text-[var(--foreground)] mb-2">Access Control</div>
-                          <div className="text-[10px] font-bold text-sage-secondary uppercase tracking-widest">Suspend or reactivate user access</div>
+                          <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Suspend or reactivate user access</div>
                        </div>
                        <button 
                         disabled={processingId === selectedUser.uid}
@@ -205,7 +212,7 @@ export default function PersonnelManagement() {
                     <Shield className="w-6 h-6 text-jade-primary shrink-0 mt-1" />
                     <div>
                        <h4 className="text-xs font-black uppercase tracking-widest text-jade-primary mb-2">Administrative Note</h4>
-                       <p className="text-[10px] font-bold text-sage-secondary uppercase leading-relaxed tracking-wider">
+                       <p className="text-[10px] font-bold text-neutral-500 uppercase leading-relaxed tracking-wider">
                           Role modifications are processed immediately across the Trace ecosystem. System logs will be updated to reflect any changes in security clearance.
                        </p>
                     </div>
@@ -222,7 +229,7 @@ export default function PersonnelManagement() {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-[var(--border-color)] pb-10">
         <div>
           <h1 className="text-4xl font-black tracking-tighter uppercase text-[var(--foreground)]">User <span className="text-jade-primary">Directory</span></h1>
-          <p className="text-sm text-jade-primary/60 font-bold uppercase tracking-widest mt-2">Personnel & Access Management</p>
+          <p className="text-sm text-neutral-500 font-bold uppercase tracking-widest mt-2">Personnel & Access Management</p>
         </div>
         
         <div className="relative group w-full lg:w-[400px]">
@@ -243,11 +250,11 @@ export default function PersonnelManagement() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-jade-primary/5 border-b border-[var(--border-color)]">
-                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest">User Details</th>
-                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest">Role</th>
-                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest">App Connection</th>
-                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest">Account Status</th>
-                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest text-right">Actions</th>
+                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest whitespace-nowrap">User Details</th>
+                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest whitespace-nowrap">Role</th>
+                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest whitespace-nowrap">App Connection</th>
+                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest whitespace-nowrap">Account Status</th>
+                <th className="px-10 py-8 text-[10px] font-black text-jade-primary/40 uppercase tracking-widest text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-color)]">
@@ -259,24 +266,24 @@ export default function PersonnelManagement() {
                 ))
               ) : filteredUsers.map((user) => (
                 <tr key={user.uid} className="hover:bg-jade-primary/5 transition-all group">
-                  <td className="px-10 py-10">
+                  <td className="px-10 py-10 whitespace-nowrap">
                     <div className="flex items-center gap-5">
                       <div className="w-12 h-12 rounded-2xl bg-jade-primary/10 border border-jade-primary/10 flex items-center justify-center font-black text-sm text-jade-primary group-hover:scale-110 transition-transform shadow-inner">
                         {user.name.charAt(0)}
                       </div>
                       <div>
                         <div className="text-sm font-black uppercase tracking-tight text-[var(--foreground)] group-hover:text-jade-primary transition-colors">{user.name}</div>
-                        <div className="text-[10px] font-bold text-sage-secondary mt-1 uppercase tracking-widest">{user.email}</div>
+                        <div className="text-[10px] font-bold text-neutral-500 mt-1 uppercase tracking-widest">{user.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-10 py-10">
-                     <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-jade-primary/5 border border-jade-primary/10 text-[10px] font-black uppercase tracking-widest ${user.role === 'admin' ? 'text-jade-primary border-jade-primary' : 'text-jade-primary/40'}`}>
+                  <td className="px-10 py-10 whitespace-nowrap">
+                     <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-jade-primary/5 border border-jade-primary/10 text-[10px] font-black uppercase tracking-widest ${user.role === 'admin' ? 'text-jade-primary border-jade-primary' : 'text-jade-primary/60'}`}>
                         <Shield className="w-4 h-4" />
                         {user.role}
                      </div>
                   </td>
-                  <td className="px-10 py-10">
+                  <td className="px-10 py-10 whitespace-nowrap">
                      <div className="flex items-center gap-3">
                         {user.fcm_token ? (
                           <div className="flex items-center gap-2 text-jade-primary bg-jade-primary/10 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border border-jade-primary/10">
@@ -291,7 +298,7 @@ export default function PersonnelManagement() {
                         )}
                      </div>
                   </td>
-                  <td className="px-10 py-10">
+                  <td className="px-10 py-10 whitespace-nowrap">
                      {user.isBanned ? (
                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-2.5">
                           <Ban className="w-4 h-4" />
@@ -304,7 +311,7 @@ export default function PersonnelManagement() {
                        </span>
                      )}
                   </td>
-                  <td className="px-10 py-10 text-right">
+                  <td className="px-10 py-10 text-right whitespace-nowrap">
                      <button 
                       onClick={() => setSelectedUser(user)}
                       className="p-4 bg-jade-primary/5 text-jade-primary/40 rounded-2xl hover:text-jade-primary hover:bg-jade-primary/10 transition-all shadow-sm"
@@ -339,7 +346,7 @@ export default function PersonnelManagement() {
                   </div>
                   <div>
                     <div className="text-base font-black uppercase tracking-tight text-[var(--foreground)]">{user.name}</div>
-                    <div className="text-[10px] font-bold text-sage-secondary mt-1 uppercase truncate max-w-[180px] tracking-widest">{user.email}</div>
+                    <div className="text-[10px] font-bold text-neutral-500 mt-1 uppercase truncate max-w-[180px] tracking-widest">{user.email}</div>
                   </div>
                 </div>
                 <button 

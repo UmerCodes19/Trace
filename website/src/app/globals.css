@@ -167,3 +167,29 @@ body {
 ::view-transition-new(root) {
   z-index: 999999;
 }
+
+/* Premium Sleek Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 99px;
+  border: 2px solid var(--background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-jade-primary);
+}
+
+/* Mozilla scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) var(--background);
+}
